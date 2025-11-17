@@ -13,5 +13,8 @@ public static void main(String[] args) {
     } else if(hora>=13 && hora<=20){
         System.out.println("BUENAS TARDES");
     } else if ( hora >=21 && hora <= 5)
+
+    bfc
+    ffcfc
 }
 }
