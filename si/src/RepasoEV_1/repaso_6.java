@@ -14,7 +14,6 @@ public static void main(String[] args) {
         System.out.println("BUENAS TARDES");
     } else if ( hora >=21 && hora <= 5)
 
-    bfc
-    ffcfc
+   
 }
 }
