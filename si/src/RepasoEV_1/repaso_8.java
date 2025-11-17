@@ -1,6 +1,6 @@
 package RepasoEV_1;
 
-import static java.lang.Math.sqrt;
+
 import java.util.Scanner;
 
 public class repaso_8 {
@@ -13,8 +13,8 @@ public class repaso_8 {
         System.out.println("CALCULO DE TIEMPO EN CAER ");
         System.out.println("INTRODUCE LA ALTURA");
         h = teclado.nextDouble();
-        t = sqrt(2 * h / g);
-        System.out.printf("%.2f  ", t ,"  segundos");
+        t = Math.sqrt(2 * h / g);
+        System.out.printf("%.2f segundos ", t );
         
     }
 }
