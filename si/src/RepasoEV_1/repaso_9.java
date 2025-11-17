@@ -9,27 +9,24 @@ public class repaso_9 {
         int mes;
         int dia;
         String signo = "";
-        boolean esValido = true;
 
         System.out.println("TU SIGNO DEL HOROSCOPO ");
 
         System.out.println("INTRODUCE EL MES DE NACIMIENTO (1-12): ");
         mes = teclado.nextInt();
         
-        System.out.println("INTRODUCE EL DIA DE NACIMIENTO (1-31): "); 
+        
+        // Validar rango de mes y día
+       if (mes > 12) {
+             System.out.println("Mes invalido"); 
+        } else
+            System.out.println("INTRODUCE EL DIA DE NACIMIENTO (1-31): "); 
         dia = teclado.nextInt();
 
-        // Validar rango de mes y día
-        if (mes < 1 || mes > 12) {
-            esValido = false;
-        }
-        
-        if (dia < 1 || dia > 31) {
-            esValido = false;
-        }
-
-        // Si es válido, determinar el signo
-        if (esValido) {
+             if (dia > 31) {
+             System.out.println("Dia invalido"); 
+            
+        } else {
             if ((mes == 3 && dia >= 21) || (mes == 4 && dia <= 19)) {
                 signo = "Aries";
             } else if ((mes == 4 && dia >= 20) || (mes == 5 && dia <= 20)) {
@@ -61,10 +58,7 @@ public class repaso_9 {
             System.out.println("\n====== RESULTADO ======");
             System.out.println("Fecha: " + dia + "/" + mes);
             System.out.println("Signo zodiacal: " + signo);
-        } else {
-            System.out.println("\n❌ ERROR: Mes debe estar entre 1-12 y Día entre 1-31");
-        }
         
-        teclado.close();
-    }
+        }
+    }      
 }
