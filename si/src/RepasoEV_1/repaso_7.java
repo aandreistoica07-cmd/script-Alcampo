@@ -25,7 +25,6 @@ public class repaso_7 {
             System.out.println("-EL SALARIO CON HORAS EXTRA ES : " + salario_semanal);
         }
         System.out.println("-EL SALARIO  ES : " + salario_semanal);
+        teclado.close();
     }
-
-    teclado.close ();
 }
