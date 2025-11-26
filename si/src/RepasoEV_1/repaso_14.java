@@ -71,17 +71,26 @@ public class repaso_14 {
             }
         } else if (direccion == 4) {
             for (int filas = 0; filas < altura; filas++) {
-                for (int espacios = 0; espacios < altura - filas  - 1; espacios++) {
+                for (int espacios = 0; espacios < altura - filas - 1; espacios++) {
                     System.out.print(" ");
                 }
                 for (int simbolos = 0; simbolos < filas + 1; simbolos++) {
-                    System.out.println(simbolo);
+                    System.out.print(simbolo);
                 }
                 System.out.println();
             }
-
-        } else {
-            System.out.println("opcion invalida 1,2,3 o 4");
+            //2 parte triangulo que decrece //
+            for (int i = altura - 1; i > 0; i--) {
+        // Espacios (aumentan: 1, 2, 3...)
+        for (int espacios = 0; espacios < altura - i; espacios++) {
+            System.out.print(" ");
         }
+        // Símbolos (disminuyen: 3, 2, 1...)
+        for (int simbolos = 0; simbolos < i; simbolos++) {
+            System.out.print(simbolo);
+        }
+        System.out.println();
+    }
+}
     }
 }
