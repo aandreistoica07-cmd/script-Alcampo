@@ -8,7 +8,8 @@ public static void main(String[] args) {
      int contadorcampana = 0;
      int contadorlimon = 0;
     int moneda = 1;
-for (int i =0; i<6;i++){
+    int mayor =0;
+for (int i =0; i<3;i++){
     int simbolosRandom =(int) (Math.random() * (5 ) ) + 1 ;
     switch(simbolosRandom){
         case 1 : figura = "corazon"; contadorcorazon++ ; break;
@@ -19,16 +20,36 @@ for (int i =0; i<6;i++){
     
        
     }
-    moneda--;
-    System.out.println("has gastado una moneda");
+    
     System.out.print(figura + " ");
+
+}
+moneda--;
+    System.out.println("has gastado una moneda");
+if (contadorcorazon>mayor){
+    mayor = contadorcorazon;
+} if (contadordiamante>mayor){
+    mayor = contadordiamante;
+}if (contadorcampana>mayor){
+    mayor = contadorcampana;
+}if (contadorherradura>mayor){
+    mayor = contadorherradura;
+}if (contadorlimon> mayor){
+    mayor = contadorlimon;
+}
+if (mayor > 2) {
+    System.out.println("felicidades has ganado 10 monedas");
+    moneda += 10;
+    System.out.println("Monedas actuales: " + moneda);
+} else if (mayor == 2) {
+    System.out.println("felicidades recuperaste tu moneda");
+    moneda += 1;
+    System.out.println("Monedas actuales: " + moneda);
+} else {
+    System.out.println("lo siento has perdido");
+    System.out.println("Monedas actuales: " + moneda);
 }
 
-if (contadorcampana>3 || contadordiamante> 3 || contadorcorazon> 3 || contadorherradura > 3 || contadorlimon> 3 ){
-    System.out.println("felicidades has ganado toma de vuelta tu moneda");
-    moneda++;
-    System.out.println(moneda);
-}
 
 }
 }
