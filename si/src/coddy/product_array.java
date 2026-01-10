@@ -9,7 +9,7 @@ public class product_array {
            
         }
         return prod_array;
-        zdbdzbz
+        
     }
 
 
