@@ -1,5 +1,4 @@
-pandas
 selenium
+pandas
+pyTelegramBotAPI
 webdriver-manager
-requests
-openpyxl

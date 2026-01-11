@@ -1,0 +1,40 @@
+name: Alcampo Scraper Diario
+
+on:
+  schedule:
+    # Se ejecuta todos los días a las 09:00 UTC
+    - cron: '0 9 * * *'
+  # Permite ejecutarlo manualmente desde la pestaña "Actions" en GitHub
+  workflow_dispatch:
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v3
+
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Instalar Chrome y Chromedriver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+          # Chromedriver se instala automáticamente con selenium 4+ manager,
+          # pero aseguramos dependencias del sistema si fueran necesarias.
+
+      - name: Instalar dependencias Python
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Ejecutar Scraper
+        env:
+          # Estas variables (SECRETOS) las tendrás que configurar en GitHub: Settings -> Secrets
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          MY_USER_ID: ${{ secrets.MY_USER_ID }}
+        run: python scraper.py
