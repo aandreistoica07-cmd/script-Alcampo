@@ -20,21 +20,18 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Instalar Chrome y Chromedriver
+      - name: Instalar Chrome
         run: |
           sudo apt-get update
           sudo apt-get install -y google-chrome-stable
-          # Chromedriver se instala automáticamente con selenium 4+ manager,
-          # pero aseguramos dependencias del sistema si fueran necesarias.
 
-      - name: Instalar dependencias Python
+      - name: Instalar dependencias
+        # Se asume que requirements.txt está en la misma carpeta que el script
+        # Ajusta la ruta si es necesario
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r "antigravity_projects/script_alcampo_activacion telegram/requirements.txt"
 
       - name: Ejecutar Scraper
-        env:
-          # Estas variables (SECRETOS) las tendrás que configurar en GitHub: Settings -> Secrets
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          MY_USER_ID: ${{ secrets.MY_USER_ID }}
-        run: python scraper.py
+        # Ejecutamos el script apuntando a la ruta correcta desde la raíz del repositorio
+        run: python "antigravity_projects/script_alcampo_activacion telegram/script.py"
