@@ -2,8 +2,8 @@ name: Alcampo Script Automation
 
 on:
   schedule:
-    # 10:00 AM Spain time (CET) is 09:00 UTC.
-    - cron: '0 9 * * *'
+    # 10:30 AM Spain time (CET) is 09:30 UTC.
+    - cron: '30 9 * * *'
   workflow_dispatch:
 
 jobs:
