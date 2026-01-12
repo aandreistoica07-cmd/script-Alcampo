@@ -162,14 +162,24 @@ def enviar_telegram_texto(mensaje):
     """Envía texto por Telegram."""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     data = {"chat_id": CHAT_ID, "text": mensaje}
-    requests.post(url, data=data)
+    try:
+        response = requests.post(url, data=data)
+        print(f"📡 Enviando a Telegram: {response.status_code} - {response.text}")
+        response.raise_for_status()
+    except Exception as e:
+        print(f"❌ Error CRÍTICO enviando a Telegram: {e}")
 
 def enviar_telegram_documento(path, caption=""):
     """Envía un archivo por Telegram."""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
-    with open(path, "rb") as file:
-        data = {"chat_id": CHAT_ID, "caption": caption}
-        requests.post(url, data=data, files={"document": file})
+    try:
+        with open(path, "rb") as file:
+            data = {"chat_id": CHAT_ID, "caption": caption}
+            response = requests.post(url, data=data, files={"document": file})
+            print(f"📁 Enviando documento a Telegram: {response.status_code} - {response.text}")
+            response.raise_for_status()
+    except Exception as e:
+        print(f"❌ Error CRÍTICO enviando documento a Telegram: {e}")
 
 # =======================
 # FUNCION PARA PROCESAR CUENTA
