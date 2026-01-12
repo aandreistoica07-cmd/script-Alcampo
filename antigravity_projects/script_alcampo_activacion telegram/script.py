@@ -174,6 +174,12 @@ def enviar_telegram_documento(path, caption=""):
 # =======================
 # FUNCION PARA PROCESAR CUENTA
 # =======================
+# Notificar inicio de ejecuciÃ³n
+try:
+    enviar_telegram_texto("ðŸš€ Iniciando script de Alcampo...")
+except Exception as e:
+    print(f"Error enviando mensaje de inicio: {e}")
+
 def procesar_cuenta(email, password):
     print(f"\n→→ Procesando cuenta: {email}")
     
