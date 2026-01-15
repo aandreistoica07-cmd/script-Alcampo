@@ -150,6 +150,7 @@ ACCOUNTS = [
     {"email": "litelopez@gmail.com", "password": "Vivatunita1"},
     {"email": "elmisteriso55@yahoo.es", "password": "Powerrangers12"},
     {"email": "emanuelrazvan16@gmail.com", "password": "Rokanrol123"},
+    
 ]
 
 # =======================
