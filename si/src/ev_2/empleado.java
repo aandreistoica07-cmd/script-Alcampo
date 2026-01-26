@@ -1,3 +1,4 @@
+
 import java.util.Scanner;
 
 public class empleado {
@@ -28,7 +29,8 @@ public class empleado {
 
         System.out.println("introduce el numero del empleado");
         this.numeroEmpleado = teclado.nextInt();
-    }
+        
+   }
 
     public void verDatos() {
 
@@ -46,9 +48,9 @@ public class empleado {
         empleado emp = new empleado(0, null);
         emp.leerDatos();
         emp.verDatos();
-hola
+
         emp.getnombre();
     }
 
+
 }
-avadvdavdavdv
