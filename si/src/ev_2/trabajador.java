@@ -118,10 +118,9 @@ public class trabajador {
 
     public static void main(String[] args) {
         trabajador juan = new trabajador(44, "juan", "C", "D", 4, 10);
-        juan.verDatos();
-        juan.verificarDatos();
-        
-       juan.calcularNomina();
+       
+       trabajador maria = new trabajador(99, "maria", "S", "D", 2, 3);
+       maria.calcularNomina();
         
     }
 
