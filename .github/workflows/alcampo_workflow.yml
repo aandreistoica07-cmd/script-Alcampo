@@ -4,6 +4,7 @@ on:
   schedule:
     # 11:10 AM Spain time (CET) is 10:10 UTC.
     - cron: '30 6 * * *'
+    - cron: '0 12 * * *'
   workflow_dispatch:
 
 jobs:
