@@ -1,3 +1,4 @@
+package tema_5;
 
 public class trabajador {
     private int numeroIdentificativo;

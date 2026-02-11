@@ -1,3 +1,4 @@
+package tema_5;
 
 import java.util.Scanner;
 
