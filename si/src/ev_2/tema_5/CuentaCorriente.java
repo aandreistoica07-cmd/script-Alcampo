@@ -1,4 +1,4 @@
-package tema_5;
+package tema_5_POO;
 import java.util.Scanner;
 
 public class CuentaCorriente {
@@ -81,6 +81,17 @@ public class CuentaCorriente {
             }
 
         } while (operacion != 1 && operacion != 2);
+    }
+
+    public float getSaldo(){
+        return this.saldo;
+    }
+
+    public String getTitular(){
+        return this.titular;
+    }
+    public String getCodigo(){
+        return this.codigo;
     }
 
     public static void main(String[] args) {
