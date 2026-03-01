@@ -1,10 +1,9 @@
-
+package tema_6;
 public class vectores_1 {
 
     public static void main(String[] args) {
         int[] numeroAleatorio = new int[20];
         int suma = 0;
-        int contadorMayoresMedia = 0;
         for (int i = 0; i < numeroAleatorio.length; i++) {
 
             numeroAleatorio[i] = (int) (Math.random() * 100);

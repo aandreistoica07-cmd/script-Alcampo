@@ -1,3 +1,4 @@
+package tema_6;
 public class conjunto {
     private int[] conjunto = new int[100];
     private int contador = 0;

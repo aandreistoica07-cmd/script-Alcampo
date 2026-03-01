@@ -1,3 +1,4 @@
+package tema_6;
 public class Matriz {
     int filas;
     int columnas;

@@ -1,3 +1,4 @@
+package tema_6;
 public class comedor {
 
     private final static int MAX_MENUS = 100; // máximo de menús por día

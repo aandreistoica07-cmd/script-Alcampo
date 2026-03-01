@@ -1,3 +1,4 @@
+package tema_6;
 import tema_5.empleado;
 public class vectores_6 {
 public static void main(String[] args) {

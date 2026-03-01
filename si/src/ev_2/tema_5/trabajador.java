@@ -1,4 +1,4 @@
-package tema_5_POO;
+package tema_5;
 
 public class trabajador {
     private int numeroIdentificativo;

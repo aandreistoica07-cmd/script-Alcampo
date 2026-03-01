@@ -1,3 +1,4 @@
+package tema_6;
 public class vectores_2 {
 
     public static void main(String[] args) {

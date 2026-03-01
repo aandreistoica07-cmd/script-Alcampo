@@ -1,3 +1,4 @@
+package tema_6;
 import tema_5.CuentaCorriente;
 
 public class Cuentas {

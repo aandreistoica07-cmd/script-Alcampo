@@ -1,4 +1,4 @@
-package tema_5_POO;
+package tema_5;
 import java.util.Scanner;
 
 public class CuentaCorriente {

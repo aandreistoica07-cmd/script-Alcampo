@@ -1,3 +1,4 @@
+package tema_6;
 import java.util.Scanner;
 
 public class tresEnRaya {

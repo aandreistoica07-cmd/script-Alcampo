@@ -1,4 +1,4 @@
-
+package tema_6;
 public class vectores_4 {
     public static void main(String[] args) {
         int[] vectorA = new int[10];
