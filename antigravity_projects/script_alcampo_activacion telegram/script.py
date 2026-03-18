@@ -335,7 +335,10 @@ ACCOUNTS = [
   {"email":"judithgc78@hotmail.es","password":"Alex2009"},
   {"email":"loscuervastreet@yahoo.es","password":"Lv271011"},
   {"email":"m.marquezruiz@hotmail.es","password":"Lourdes22"},
-  {"email":"lolabazarra@yahoo.es","password":"Lola2402"}    
+  {"email":"lolabazarra@yahoo.es","password":"Lola2402"} ,
+  {"email":"rosacj76@gmail.com","password":"110992Rcj"} ,
+  {"email":"carmeta662010@hotmail.com","password":"Carmeta.66"},
+  {"email":"letimsagasta@yahoo.es","password":"Gonzalo1Maria2"}
 ]
 
 # =======================
