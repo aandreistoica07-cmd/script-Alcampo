@@ -19,41 +19,7 @@ public class empleados_main {
 
         if (numEmps >= 0 && numJefes >= 0) {
             
-            // --- BUCLE PARA EMPLEADOS ---
-            for (int i = 0; i < numEmps; i++) {
-                System.out.println("\n--- Datos del Empleado " + (i + 1) + " ---");
-                System.out.print("Nombre completo: ");
-                String nombreE = teclado.nextLine();
-                
-                System.out.print("Sueldo: ");
-                double sueldoE = teclado.nextDouble();
-                teclado.nextLine(); // Limpiamos buffer tras el double
-                
-                emps[i] = new empleados(nombreE, sueldoE);
-            }
-
-            // --- BUCLE PARA JEFES ---
-            for (int i = 0; i < numJefes; i++) {
-                System.out.println("\n--- Datos del Jefe " + (i + 1) + " ---");
-                System.out.print("Nombre completo: ");
-                String nombreJ = teclado.nextLine();
-    
-                System.out.print("Sueldo: ");
-                double sueldoJ = teclado.nextDouble();
-                teclado.nextLine(); // Limpiamos buffer tras el double
-             
-                System.out.print("Título (ej. Director): ");
-                String tituloJ = teclado.nextLine();
-                
-                System.out.print("Departamento: ");
-                String deptJ = teclado.nextLine();
-
-                jefes[i] = new jefe(nombreJ, sueldoJ, tituloJ, deptJ);
-            }
-
-        } else {
-            System.out.println("Error: No puedes introducir números negativos.");
-        }
+           
 
         // --- VISUALIZACIÓN DE RESULTADOS ---
         System.out.println("\n===============================");
@@ -74,5 +40,6 @@ public class empleados_main {
         }
         
         teclado.close();
+    }
     }
 }
