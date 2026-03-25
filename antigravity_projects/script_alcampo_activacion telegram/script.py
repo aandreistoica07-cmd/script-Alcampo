@@ -82,7 +82,6 @@ ACCOUNTS = [
     {"email": "josemaborrero@hotmail.com", "password": "Granita7"},
     {"email": "juliarodriguezmerino@hotmail.com", "password": "Lun@221071"},
     {"email": "kibele_bcn@hotmail.com", "password": "639081773Ww"},
-    {"email": "kikorc@gmail.com", "password": "X3008n1012!"},
     {"email": "KURKOZ@GMAIL.COM", "password": "Aa@11071976"},
     {"email": "LLORAT666@GMAIL.COM", "password": "Alma180305"},
     {"email": "llorat666@gmail.com", "password": "Alma180305"},
@@ -335,7 +334,19 @@ ACCOUNTS = [
   {"email":"judithgc78@hotmail.es","password":"Alex2009"},
   {"email":"loscuervastreet@yahoo.es","password":"Lv271011"},
   {"email":"m.marquezruiz@hotmail.es","password":"Lourdes22"},
-  {"email":"lolabazarra@yahoo.es","password":"Lola2402"}    
+  {"email":"lolabazarra@yahoo.es","password":"Lola2402"} ,
+  {"email":"rosacj76@gmail.com","password":"110992Rcj"} ,
+  {"email":"carmeta662010@hotmail.com","password":"Carmeta.66"},
+  {"email":"letimsagasta@yahoo.es","password":"Gonzalo1Maria2"},
+    {"email":"ormgc@yahoo.es","password":"Pancracio1"},
+    {"email":"felicidadsalvador@yahoo.com","password":"MA7813gz"},
+    {"email":"jesusdenia15@gmail.com","password":"Jesus1707"},
+    {"email":"jolumayo@hotmail.com","password":"Touran2007"},
+    {"email":"juanjo.caravaca@gmail.com","password":"358FbA68"},
+    {"email":"jlp56@telefonica.net","password":"Yara0114"},
+    {"email":"illel9298@hotmail.com","password":"Nela2011"},
+    {"email":"1244440@gmail.com","password":"Re1244440"},
+    {"email":"kikorc@gmail.com","password":"X3008n1012!"}
 ]
 
 # =======================
