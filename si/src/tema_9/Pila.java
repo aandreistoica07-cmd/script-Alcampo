@@ -1,6 +1,6 @@
 package tema_9;
 
-public class Pila { // <T> genericos de java//
+public class Pila<T>{ // <T> genericos de java//
 
     private class Nodo{
         Elemento dato; //sustituir Elemento por T//
@@ -11,7 +11,7 @@ public class Pila { // <T> genericos de java//
 
    public void apilar (Elemento e){ //T//
         Nodo aux = new Nodo;
-        aux - dato = e;
+        aux.dato = e;
         aux.enlace = pila;
         pila = aux;
     }
