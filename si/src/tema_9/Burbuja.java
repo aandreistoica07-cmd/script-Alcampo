@@ -1,22 +1,20 @@
 package tema_9;
 
-public class Burbuja {
-    static int[] v = { 25,9,3,6,2,15,4,27,42};
+public class Burbuja extends Ordenar {
 
-    public static void main(String[] args) {
-        for (int i = 0; i< v.length-1;i++){
-            for (int j = 0; j< v.length-1-i;j++){
-                if (v[j]> v[j+1]){
-                    int aux = v[j];
-                    v[j] = v[j+1];
-                    v[j+1] = aux;
+    public void ordenar(int[] vector){
+        int aux = 0;
+        
+        for (int i = 0; i < vector.length -1;i++){
+                for (int j = 0; j < vector.length -1 - i; j++){
+                    if (vector[j]> vector[j+1]){
+                        aux = vector[j];
+                        vector[j]= vector[j+1];
+                        vector[j+1]= aux;
+
+                    }
                 }
-            for (int k = 0; k <v.length;k++){
-                System.out.print(v[k]+ " ");
-                
-            }
-            System.out.println();
-            }
         }
     }
+
 }
