@@ -144,11 +144,11 @@ def main():
     df.to_excel(EXCEL_FILE, index=False)
     print(f"\n💾 Datos guardados en: {EXCEL_FILE}")
     failed = [r for r in resultados if isinstance(r.get("saldo"), str) and r["saldo"].startswith("Error")]
+    save_failed_accounts(failed, FAIL_FILE)
     if failed:
-        save_failed_accounts(failed, FAIL_FILE)
         print(f"⚠️ Guardadas {len(failed)} cuentas fallidas en: {FAIL_FILE}")
     else:
-        print("✅ No hay cuentas fallidas para guardar.")
+        print(f"✅ No hay cuentas fallidas para guardar. Se ha creado un JSON vacío en: {FAIL_FILE}")
     saldo_total = 0.0
     cuentas_con_saldo = 0
     cuentas_saldo_cero = 0
