@@ -547,8 +547,7 @@ ACCOUNTS = [
   {"email": "jlp56@telefonica.net", "password": "Yara0114"},
   {"email": "illel9298@hotmail.com", "password": "Nela2011"},
   {"email": "kikorc@gmail.com", "password": "X3008n1012!"},
-  {"email": "j100873@hotmail.com", "password": "jerHINgar13"},
-  {"email": "lopez.laplana@gmail.com", "password": "81EVDNHy"}
+  {"email": "j100873@hotmail.com", "password": "jerHINgar13"}
 ]
 
 # =======================
