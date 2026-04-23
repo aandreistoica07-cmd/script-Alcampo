@@ -71,9 +71,18 @@ public class Escanios {
         }
     }
 
-    public void ordenarLista(ArrayList<Resultado> listaCocientes) {
-        listaCocientes.sort(Comparator.comparingInt(Resultado::getCociente).reversed());
+    public void sacarEscanios(ArrayList<Resultado> listaCocientes,int numEscaños) {
+      listaCocientes.sort(Comparator.comparingInt(Resultado::getCociente).reversed());
+      
+        System.out.println("--- REPARTO FINAL DE ESCAÑOS ---");
 
+    // 2. Bucle para imprimir los ganadores
+    for (int i = 0; i < numEscaños && i < listaCocientes.size(); i++) {
+        // Cogemos el resultado que toca en esta vuelta
+        Resultado ganador = listaCocientes.get(i); 
+        
+        System.out.println("Escaño " + (i + 1) + ": " + ganador.getNombre() + " (Cociente: " + ganador.getCociente() + ")");
     }
     
+}
 }

@@ -1,51 +1,21 @@
 package tema_9;
 
-public class Pila<T>{ // <T> genericos de java//
+public class Pila {
+    private int elemento[];
+    private int cima;
 
-    private class Nodo{
-        Elemento dato; //sustituir Elemento por T//
-        Nodo enlace;
-
-    }
-    Nodo pila >= null;
-
-   public void apilar (Elemento e){ //T//
-        Nodo aux = new Nodo;
-        aux.dato = e;
-        aux.enlace = pila;
-        pila = aux;
-    }
-
-    public Elemento desapilar(){ //T//
-        if (pila == null){
-            throw new 
+    public Pila (int capacidad){
+        if (capacidad <=0){
+            throw new IllegalArgumentException();
         }
-        Nodo aux = pila;
-        pila = aux.enlace;
-        return aux.dato;
+        Elemento v = new Elemento(capacidad);
+        cima = 0;
+       
+        
     }
 
-    /*
-    Pila (tipo x){
-        Nodo{
-            x dato
-            ....
-        }        
-    Pila (Integer) pi = new Pila();
-    Pila (Elemento) pe = new Pila();
+    public void apilar(int numero){
+        Elemento nuevoDato = new Elemento(numero);
+        nuevoDato.setSiguiente(numero)
     }
-    */
-
-    /*
-    Pila <Elemento> pe = new Pila <Elemento>();
-    Pila <Integer> pi = new Pila <Integer>();
-
-    en vez de Clase variable = new clase(); --> Clase = Pila < Elemento>
-    Pila <Electrodomestico> pl = new Pila <Electrodomestico>();
-
-    <t>
-    <t,s,a>
-    <t extends Clase && Intefaz 1 && Interfaz 2....>
-    
-    */
 }
