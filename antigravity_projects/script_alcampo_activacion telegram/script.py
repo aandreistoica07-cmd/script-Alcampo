@@ -7,6 +7,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 import time
+import re
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
@@ -675,25 +676,46 @@ print("\n💾 Datos guardados en:", excel_path)
 # CALCULAR RESUMEN Y ENVIAR
 # =======================
 def limpiar_saldo(saldo_str):
-    """Convierte texto tipo '5,30 €' a float 5.30"""
+    """Convierte texto con número de saldo a float, o devuelve None si no hay saldo válido."""
+    if saldo_str is None:
+        return None
+
+    texto = str(saldo_str).strip()
+    if not texto:
+        return None
+
+    if "Error" in texto or "No encontrado" in texto:
+        return None
+
+    # Buscar el primer número válido en el texto, con coma o punto decimal
+    match = re.search(r"([0-9]+[.,][0-9]{2}|[0-9]+)", texto)
+    if not match:
+        return None
+
+    limpio = match.group(0).replace(',', '.')
     try:
-        if "Error" in saldo_str or "No encontrado" in saldo_str:
-            return 0.0
-        # Eliminar símbolo euro, espacios y cambiar coma por punto
-        limpio = saldo_str.replace('€', '').replace(' ', '').replace(',', '.').strip()
         return float(limpio)
-    except:
-        return 0.0
+    except ValueError:
+        return None
 
 saldo_total = 0.0
 cuenta_top = {"email": "N/A", "saldo_val": 0.0}
 cuentas_con_saldo = 0
+cuentas_saldo_cero = 0
+cuentas_error = 0
 
 for r in resultados:
     valor = limpiar_saldo(r["saldo"])
+    if valor is None:
+        cuentas_error += 1
+        continue
+
     saldo_total += valor
     if valor > 0:
         cuentas_con_saldo += 1
+    elif valor == 0:
+        cuentas_saldo_cero += 1
+
     if valor > cuenta_top["saldo_val"]:
         cuenta_top = {"email": r["email"], "saldo_val": valor}
 
@@ -702,6 +724,8 @@ mensaje_resumen = (
     f"✅ Cuentas procesadas: {len(resultados)}\n"
     f"💰 **Saldo Total:** {saldo_total:.2f} €\n"
     f"💎 Cuentas con dinero: {cuentas_con_saldo}\n"
+    f"💤 Cuentas con saldo 0: {cuentas_saldo_cero}\n"
+    f"⚠️ Cuentas sin saldo válido: {cuentas_error}\n"
     f"🏆 **Top Cuenta:** {cuenta_top['email']} ({cuenta_top['saldo_val']:.2f} €)"
 )
 
