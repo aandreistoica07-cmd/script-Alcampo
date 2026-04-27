@@ -26,6 +26,6 @@ public class main_escanios {
         votacion.calcularCocientes(votacion.partidos, nEscanios);
         
         // Al final, usamos la lista de cocientes que se ha ido llenando
-        votacion.sacarEscanios(votacion.cocientes, nEscanios);
+        votacion.sacarEscaños(votacion.cocientes, nEscanios);
     }
 }
