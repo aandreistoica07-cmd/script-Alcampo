@@ -1,7 +1,6 @@
 package tema9_10;
 import java.util.ArrayList;
 import java.util.Comparator;
-import javax.print.attribute.standard.Compression;
 
 public class alumnos {
 private int id;
