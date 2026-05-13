@@ -1,4 +1,4 @@
-package ejerciciosRepaso;
+package Repaso;
 import java.util.Scanner;
 /**
  * <p>clase que solicita al usuario que introduzca numeros positivos por consola
