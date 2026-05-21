@@ -65,9 +65,8 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           
-          # Add Excel sheet and history JSON
+          # Add history JSON only (Excel is sent via Telegram, not stored in repo)
           git add docs/history.json
-          git add "script_alcampo_activacion telegram/saldos_alcampo.xlsx"
           
           # Check if there are changes before committing
           if git diff --staged --quiet; then

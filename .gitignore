@@ -1,0 +1,14 @@
+# Ignorar archivos de resultados del scraper
+script_alcampo_activacion telegram/saldos_alcampo.xlsx
+script_alcampo_activacion telegram/consola.log
+script_alcampo_activacion telegram/progreso.json
+script_alcampo_activacion telegram/__pycache__/
+script_alcampo_activacion telegram/.~lock.*
+
+# IDE
+.idea/
+*.iml
+
+# OS
+Thumbs.db
+.DS_Store

