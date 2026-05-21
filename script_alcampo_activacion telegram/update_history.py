@@ -137,7 +137,7 @@ def main():
 
     new_entry = {
         "id": next_id,
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "date": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "version": version_label,
         "duration": round(duration, 2),
         "checked": total_accounts,

@@ -489,6 +489,17 @@
             document.getElementById('latest-script-version').innerText = 'Script Optimizado v2.0';
         }
 
+        // Helper to format UTC date string to local timezone
+        function formatLocalDate(dateStr) {
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return dateStr; // fallback if unparseable
+            return d.toLocaleString('es-ES', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit',
+                hour12: false
+            });
+        }
+
         // Helper to format duration seconds to human-friendly format
         function formatDuration(seconds) {
             if (seconds === null || seconds === undefined || isNaN(seconds)) return '--';
@@ -502,7 +513,11 @@
         function renderCharts() {
             if (historyData.length === 0) return;
 
-            const dates = historyData.map(run => run.date.split(' ')[0]); // Get date without time
+            // Convert UTC dates to local timezone for display
+            const dates = historyData.map(run => {
+                const d = new Date(run.date);
+                return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            });
             const balances = historyData.map(run => run.total_balance);
             const durations = historyData.map(run => run.duration);
             const versions = historyData.map(run => run.version);
@@ -734,7 +749,7 @@
                 const badgeClass = isOptimized ? 'version-optimized' : 'version-old';
                 
                 tr.innerHTML = `
-                    <td style="font-weight: 500;">${run.date}</td>
+                    <td style="font-weight: 500;">${formatLocalDate(run.date)}</td>
                     <td><span class="version-badge ${badgeClass}">${run.version}</span></td>
                     <td style="font-family: 'JetBrains Mono', monospace;">${formatDuration(run.duration)}</td>
                     <td>${run.checked} cuentas</td>

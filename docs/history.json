@@ -1,7 +1,7 @@
 [
     {
         "id": 1,
-        "date": "2026-05-15 09:45:12",
+        "date": "2026-05-15T09:45:12Z",
         "version": "Optimized Script",
         "duration": 52,
         "checked": 10,
@@ -13,7 +13,7 @@
     },
     {
         "id": 2,
-        "date": "2026-05-16 18:22:31",
+        "date": "2026-05-16T18:22:31Z",
         "version": "Optimized Script",
         "duration": 49,
         "checked": 10,
@@ -25,7 +25,7 @@
     },
     {
         "id": 3,
-        "date": "2026-05-18 12:05:00",
+        "date": "2026-05-18T12:05:00Z",
         "version": "Optimized Script",
         "duration": 55,
         "checked": 12,
@@ -37,7 +37,7 @@
     },
     {
         "id": 4,
-        "date": "2026-05-20 16:30:15",
+        "date": "2026-05-20T16:30:15Z",
         "version": "Optimized Script",
         "duration": 51,
         "checked": 12,
@@ -49,7 +49,7 @@
     },
     {
         "id": 5,
-        "date": "2026-05-21 19:04:14",
+        "date": "2026-05-21T19:04:14Z",
         "version": "Optimized Script",
         "duration": 2772.69,
         "checked": 730,
