@@ -109,9 +109,11 @@ def init_progress(total_accounts):
                 def reset_firebase():
                     try:
                         url = firebase_url.strip()
-                        if not url.endswith(".json"):
-                            url = url.rstrip('/') + "/progress.json"
-                        requests.put(url, json=progress_state, timeout=5)
+                        prog_url = url.rstrip('/') + "/progress.json"
+                        requests.put(prog_url, json=progress_state, timeout=5)
+                        
+                        logs_url = url.rstrip('/') + "/logs.json"
+                        requests.put(logs_url, json="🚀 [SISTEMA] Iniciando Alcampo Scraper v2.0 (Optimizado)...\n", timeout=5)
                     except Exception:
                         pass
                 threading.Thread(target=reset_firebase, daemon=True).start()
@@ -172,9 +174,21 @@ def update_progress(thread_idx, email, status, saldo_str):
                 def push_to_firebase(state_snap):
                     try:
                         url = firebase_url.strip()
-                        if not url.endswith(".json"):
-                            url = url.rstrip('/') + "/progress.json"
-                        requests.put(url, json=state_snap, timeout=5)
+                        # Push progress
+                        prog_url = url.rstrip('/') + "/progress.json"
+                        requests.put(prog_url, json=state_snap, timeout=5)
+                        
+                        # Push latest logs (last 100 lines)
+                        try:
+                            log_path = ROOT / "consola.log"
+                            if log_path.exists():
+                                with open(log_path, "r", encoding="utf-8") as f:
+                                    lines = f.readlines()
+                                latest_logs = "".join(lines[-100:])
+                                logs_url = url.rstrip('/') + "/logs.json"
+                                requests.put(logs_url, json=latest_logs, timeout=5)
+                        except Exception:
+                            pass
                     except Exception:
                         pass
                 # Shallow copy the state to avoid thread race conditions
