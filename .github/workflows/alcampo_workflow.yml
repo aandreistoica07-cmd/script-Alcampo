@@ -1,0 +1,32 @@
+name: Alcampo Script Automation
+
+on:
+  schedule:
+    # 9:00 AM Spain time (CET) is 8:00 UTC. 2:00 PM Spain time (CET) is 13:00 UTC.
+    - cron: '36 4 * * *'
+    
+  workflow_dispatch:
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+   
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        working-directory: './antigravity_projects/script_alcampo_activacion telegram'
+        run: |
+          pip install -r requirements.txt
+          pip install selenium webdriver-manager requests pandas openpyxl
+
+      - name: Run Script
+        working-directory: './antigravity_projects/script_alcampo_activacion telegram'
+        run: python script.py
