@@ -1,0 +1,78 @@
+name: Alcampo Script Automation Optimized
+
+on:
+  schedule:
+    # Runs everyday at 04:36 UTC (same as alcampo_workflow.yml)
+    - cron: '36 4 * * *'
+  workflow_dispatch:
+    # Allow manual runs from Actions tab
+    inputs:
+      threads:
+        description: 'Número de hilos concurrentes'
+        required: true
+        default: '4'
+        type: string
+
+jobs:
+  run-optimized-scraper:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write  # Crucial to allow committing results back to repo
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history so git diff and push work correctly
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        working-directory: './script_alcampo_activacion telegram'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install selenium webdriver-manager requests pandas openpyxl
+
+      - name: Install Google Chrome (Headless)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+
+      - name: Run Optimized Scraper
+        working-directory: './script_alcampo_activacion telegram'
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+        run: |
+          THREADS="${{ github.event.inputs.threads || '4' }}"
+          echo "Ejecutando con $THREADS hilos..."
+          python script_optimizado.py --threads $THREADS --send-telegram
+
+      - name: Update Global History Database
+        working-directory: './script_alcampo_activacion telegram'
+        run: |
+          python update_history.py --version optimizada
+
+      - name: Commit and Push results
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # Add Excel sheet and history JSON
+          git add docs/history.json
+          git add "script_alcampo_activacion telegram/saldos_alcampo.xlsx"
+          
+          # Check if there are changes before committing
+          if git diff --staged --quiet; then
+            echo "No hay cambios en los resultados para subir."
+          else
+            git commit -m "📊 Auto-update Alcampo scraper results and history [skip ci]"
+            git push origin main
+          fi

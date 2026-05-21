@@ -1,0 +1,35 @@
+🚀 Iniciando verificación de 10 cuentas repartidas en 3 hilos (reutilizando navegadores)...
+[Hilo 1] → Procesando (1/4): nflmadrid2004@yahoo.es
+[Hilo 2] → Procesando (1/3): mcristina.cabrera@hotmail.com
+[Hilo 3] → Procesando (1/3): perdiguero54@yahoo.es
+[Hilo 1] ✔ nflmadrid2004@yahoo.es → SALDO: Tu Saldo es 0,00 €
+[Hilo 1] → Procesando (2/4): lumaroma33@hotmail.com
+[Hilo 3] ✔ perdiguero54@yahoo.es → SALDO: Tu Saldo es 0,20 €
+[Hilo 3] → Procesando (2/3): juanalopez90@yahoo.es
+[Hilo 2] ✔ mcristina.cabrera@hotmail.com → SALDO: Tu Saldo es 0,00 €
+[Hilo 2] → Procesando (2/3): salasvmc@hotmail.es
+[Hilo 1] ✔ lumaroma33@hotmail.com → SALDO: Tu Saldo es 0,21 €
+[Hilo 1] → Procesando (3/4): lorenaruizguisadoetsy@hotmail.es
+[Hilo 3] ✔ juanalopez90@yahoo.es → SALDO: Tu Saldo es 0,00 €
+[Hilo 3] → Procesando (3/3): frabina@hotmail.es
+[Hilo 2] ⚠️ Credenciales incorrectas o bloqueo para: salasvmc@hotmail.es
+[Hilo 2] → Procesando (3/3): fede.78@hotmail.es
+[Hilo 1] ✔ lorenaruizguisadoetsy@hotmail.es → SALDO: Tu Saldo es 0,18 €
+[Hilo 1] → Procesando (4/4): rubita06@hotmail.es
+[Hilo 3] ✔ frabina@hotmail.es → SALDO: Tu Saldo es 0,42 €
+[Hilo 2] ✔ fede.78@hotmail.es → SALDO: Tu Saldo es 0,00 €
+[Hilo 1] ✔ rubita06@hotmail.es → SALDO: Tu Saldo es 0,00 €
+
+💾 Resultados guardados en: C:\Users\Estudiante\Downloads\optimizacion-Script-Alcampo\script_alcampo_activacion telegram\saldos_alcampo.xlsx
+⏱️ Tiempo total de ejecución: 51.56 segundos (0.86 minutos)
+
+📊 **RESUMEN ALCAMPO OPTIMIZADO**
+
+✅ Cuentas procesadas: 10
+⏱️ Tiempo empleado: 0.86 min
+💰 **Saldo Total:** 1.01 €
+💎 Cuentas con dinero: 4
+💤 Cuentas con saldo 0: 5
+⚠️ Cuentas con error/sin saldo: 1
+🏆 **Top Cuenta:** frabina@hotmail.es (0.42 €)
+ℹ️ Envío a Telegram desactivado. Usa --send-telegram para activarlo.

