@@ -1,9 +1,9 @@
 name: Alcampo Balance Checker
 
 on:
-  schedule:
-    # Ejecutar todos los días a las 07:00 AM UTC (09:00 AM hora española de verano)
-    - cron: '0 7 * * *'
+  # schedule:
+  #   # Ejecutar todos los días a las 07:00 AM UTC (09:00 AM hora española de verano)
+  #   - cron: '0 7 * * *'
   workflow_dispatch:
     # Permitir ejecución manual desde la pestaña Actions de GitHub
     inputs:
