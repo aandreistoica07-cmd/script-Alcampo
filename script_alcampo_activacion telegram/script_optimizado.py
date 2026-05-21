@@ -468,7 +468,13 @@ def main():
     
     if args.send_telegram:
         try:
-            enviar_telegram_texto(telegram_token, chat_id, f"🚀 Iniciando script de Alcampo optimizado en la nube ({len(accounts)} cuentas con {num_threads} hilos)...")
+            enviar_telegram_texto(telegram_token, chat_id,
+                f"🚀 *Iniciando ejecución Alcampo*\n\n"
+                f"📋 Cuentas a procesar: {len(accounts)}\n"
+                f"⚙️ Hilos: {num_threads}\n\n"
+                f"👀 *Ver en tiempo real:*\n"
+                f"https://programacion1-sigma.vercel.app"
+            )
         except Exception as e:
             print(f"Error enviando mensaje inicial a Telegram: {e}")
             
