@@ -430,9 +430,9 @@ def limpiar_saldo(saldo_str):
 def main():
     args = parse_args()
     
-    # Telegram config (from environment variables only)
-    telegram_token = os.environ.get("TELEGRAM_TOKEN", "")
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
+    # Telegram config (env var takes priority, falls back to hardcoded defaults)
+    telegram_token = os.environ.get("TELEGRAM_TOKEN", "8041531688:AAHif8qa9wMZ1EAxU3MrftR-tCrEkQ2dfPU")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "-5049278431")
     
     # Convert chat_id to int if it's a string representation of an int
     try:
