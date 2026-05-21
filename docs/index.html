@@ -152,7 +152,7 @@
 
                     <!-- Chart 2: Execution time comparison -->
                     <div class="glass-panel chart-card chart-fullwidth">
-                        <h3>Comparación de Tiempos de Ejecución: Script Original vs Optimizado</h3>
+                        <h3>Historial de Tiempos de Ejecución</h3>
                         <div class="chart-container">
                             <canvas id="durationChart"></canvas>
                         </div>
@@ -486,7 +486,7 @@
             document.getElementById('latest-error-acc').innerText = latestRun.error;
             document.getElementById('latest-success-rate').innerText = `${latestRun.success_rate.toFixed(1)}%`;
             document.getElementById('latest-duration').innerText = formatDuration(latestRun.duration);
-            document.getElementById('latest-script-version').innerText = `Versión: ${latestRun.version}`;
+            document.getElementById('latest-script-version').innerText = 'Script Optimizado v2.0';
         }
 
         // Helper to format duration seconds to human-friendly format
@@ -582,15 +582,15 @@
             // Chart 2: Execution Time Comparison (Bar Chart)
             const ctx2 = document.getElementById('durationChart').getContext('2d');
             
-            // Color code bars based on script version
-            const barColors = versions.map(v => v.toLowerCase().includes('optimized') ? '#00d2ff' : '#8395a7');
-            const barBorderColors = versions.map(v => v.toLowerCase().includes('optimized') ? 'rgba(0, 210, 255, 0.8)' : 'rgba(131, 149, 167, 0.8)');
+            // All bars use the same accent color (only Optimized Script runs remain)
+            const barColors = durations.map(() => '#00d2ff');
+            const barBorderColors = durations.map(() => 'rgba(0, 210, 255, 0.8)');
 
             if (durationChart) durationChart.destroy();
             durationChart = new Chart(ctx2, {
                 type: 'bar',
                 data: {
-                    labels: dates.map((d, i) => `${d} (${versions[i]})`),
+                    labels: dates,
                     datasets: [{
                         label: 'Duración (segundos)',
                         data: durations,
