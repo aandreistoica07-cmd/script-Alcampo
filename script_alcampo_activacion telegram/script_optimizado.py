@@ -10,7 +10,7 @@ import builtins
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
-import pandas as pd
+
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -764,6 +764,7 @@ def main():
     duration = end_time - start_time
     
     # Guardar Excel
+    import pandas as pd
     df = pd.DataFrame(resultados)
     df.to_excel(EXCEL_FILE, index=False)
     print(f"\n💾 Resultados guardados en: {EXCEL_FILE}")
