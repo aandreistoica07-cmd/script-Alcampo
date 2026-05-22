@@ -1198,8 +1198,11 @@
             
             checkingStates[email] = true;
             btn.disabled = true;
-            btn.innerHTML = '⏳ Probando...';
-            btn.style.background = 'rgba(255, 159, 67, 0.2)';
+            btn.style.opacity = '1'; // Ensure the progress bar is vibrant and visible even while disabled
+            
+            // Initial state (En cola)
+            btn.innerHTML = '⏳ 5% En cola...';
+            btn.style.background = 'linear-gradient(to right, rgba(255, 159, 67, 0.25) 5%, rgba(255, 159, 67, 0.05) 5%)';
             btn.style.color = 'var(--accent-orange)';
             btn.style.borderColor = 'var(--accent-orange)';
 
@@ -1207,6 +1210,12 @@
                 console.log(`[Comprobar] Iniciando comprobación local para ${email}`);
 
                 try {
+                    // Update to local execution state (intermediate visual progress)
+                    btn.innerHTML = '⏳ 40% Cargando...';
+                    btn.style.background = 'linear-gradient(to right, rgba(0, 210, 255, 0.25) 40%, rgba(0, 210, 255, 0.05) 40%)';
+                    btn.style.color = 'var(--accent-blue)';
+                    btn.style.borderColor = 'var(--accent-blue)';
+                    
                     const res = await fetch(`/api/check_account?email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`);
                     if (!res.ok) {
                         throw new Error(`Error HTTP ${res.status}`);
@@ -1258,12 +1267,30 @@
 
                 try {
                     const startTime = Date.now() / 1000;
-                    await triggerGitHubWorkflow(email, password, pat, githubRepo);
-                    console.log("[Comprobar] Workflow de GitHub iniciado. Esperando resultado en Firebase...");
-                    
                     const emailSanitized = email.replace(/\./g, '_').replace(/@/g, '_').replace(/\$/g, '_').replace(/#/g, '_').replace(/\[/g, '_').replace(/\]/g, '_');
                     let cleanedFirebase = firebaseURL.endsWith('/') ? firebaseURL.slice(0, -1) : firebaseURL;
                     const pollUrl = `${cleanedFirebase}/single_check_result/${emailSanitized}.json`;
+
+                    // Write initial queued state to Firebase directly
+                    try {
+                        await fetch(pollUrl, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                email: email,
+                                status: 'queued',
+                                progress_message: 'En cola...',
+                                progress_percent: 5,
+                                timestamp: startTime
+                            })
+                        });
+                    } catch (fbErr) {
+                        console.warn("Error escribiendo estado inicial en Firebase:", fbErr);
+                    }
+
+                    // Trigger GitHub Actions workflow
+                    await triggerGitHubWorkflow(email, password, pat, githubRepo);
+                    console.log("[Comprobar] Workflow de GitHub iniciado. Esperando resultado en Firebase...");
                     
                     let attempts = 0;
                     const maxAttempts = 60; 
@@ -1287,22 +1314,34 @@
                             if (response.ok) {
                                 const data = await response.json();
                                 if (data && data.timestamp && data.timestamp >= startTime) {
-                                    clearInterval(pollTimer);
                                     if (data.status === 'success') {
+                                        clearInterval(pollTimer);
                                         updateLocalAccountData(email, data.balance, data.card_number);
                                         
                                         btn.innerHTML = '✅ Éxito';
                                         btn.style.background = 'rgba(0, 255, 135, 0.2)';
                                         btn.style.color = 'var(--accent-green)';
                                         btn.style.borderColor = 'var(--accent-green)';
-                                    } else {
+                                        resetCheckButton(btn, email);
+                                    } else if (data.status === 'error') {
+                                        clearInterval(pollTimer);
                                         btn.innerHTML = '❌ Fallo';
                                         btn.style.background = 'rgba(255, 75, 75, 0.2)';
                                         btn.style.color = 'var(--accent-red)';
                                         btn.style.borderColor = 'var(--accent-red)';
                                         alert(`La comprobación falló:\n${data.error || 'Error desconocido'}`);
+                                        resetCheckButton(btn, email);
+                                    } else {
+                                        // Still in progress (queued or running)
+                                        const pct = data.progress_percent || 5;
+                                        const msg = data.progress_message || 'En cola...';
+                                        btn.innerHTML = `⏳ ${pct}% ${msg}`;
+                                        
+                                        // Aesthetic linear gradient progress bar on the button itself
+                                        btn.style.background = `linear-gradient(to right, rgba(0, 210, 255, 0.25) ${pct}%, rgba(0, 210, 255, 0.05) ${pct}%)`;
+                                        btn.style.color = 'var(--accent-blue)';
+                                        btn.style.borderColor = 'var(--accent-blue)';
                                     }
-                                    resetCheckButton(btn, email);
                                 }
                             }
                         } catch (pollErr) {
@@ -1317,7 +1356,6 @@
                     btn.style.color = 'var(--accent-red)';
                     btn.style.borderColor = 'var(--accent-red)';
                     
-                    // Si el token es inválido o no tiene permisos, borrarlo para forzar que pregunte de nuevo
                     if (err.message.includes("401") || err.message.includes("403") || err.message.includes("credentials") || err.message.includes("token")) {
                         localStorage.removeItem('githubPAT');
                         alert(`Error al iniciar workflow en GitHub (Token inválido o expirado):\n${err.message}`);
@@ -1333,6 +1371,7 @@
             checkingStates[email] = false;
             setTimeout(() => {
                 btn.disabled = false;
+                btn.style.opacity = '';
                 btn.innerHTML = '🔄 Comprobar';
                 btn.style.background = 'rgba(0, 210, 255, 0.1)';
                 btn.style.color = 'var(--accent-blue)';

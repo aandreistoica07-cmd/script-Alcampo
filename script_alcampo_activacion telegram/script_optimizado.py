@@ -246,12 +246,35 @@ except Exception as e:
     print(f"Falling back to system ChromeDriver at: {CHROME_DRIVER_PATH}")
 
 
+def update_single_check_progress(email, status, message, percent, balance=None, card_number=None, error=None):
+    firebase_url = get_firebase_url()
+    if not firebase_url:
+        return
+    try:
+        email_sanitized = email.replace('.', '_').replace('@', '_').replace('$', '_').replace('#', '_').replace('[', '_').replace(']', '_')
+        payload = {
+            "email": email,
+            "status": status,
+            "progress_message": message,
+            "progress_percent": percent,
+            "balance": balance,
+            "card_number": card_number,
+            "error": error,
+            "timestamp": time.time()
+        }
+        url = firebase_url.strip().rstrip('/') + f"/single_check_result/{email_sanitized}.json"
+        requests.put(url, json=payload, timeout=5)
+    except Exception as e:
+        print(f"Error actualizando progreso en Firebase: {e}")
+
+
 def check_single_account(email, password, scrape_card=True):
     """Logs in and checks the balance (and optionally card number) of a single account.
     Returns: {"status": "success"/"error", "balance": float/None, "card_number": str/None, "error": str/None}
     """
     driver = None
     try:
+        update_single_check_progress(email, "running", "Iniciando...", 20)
         chrome_options = Options()
         chrome_options.add_argument("--headless=new")
         chrome_options.add_argument("--disable-gpu")
@@ -269,6 +292,7 @@ def check_single_account(email, password, scrape_card=True):
         driver.implicitly_wait(1)
         
         # 1. Login
+        update_single_check_progress(email, "running", "Cargando...", 35)
         driver.get("https://www.compraonline.alcampo.es/login?destination=%2F")
         wait = WebDriverWait(driver, 15)
         
@@ -283,6 +307,8 @@ def check_single_account(email, password, scrape_card=True):
         password_field = driver.find_element(By.ID, "pwd1")
         email_field.send_keys(email)
         password_field.send_keys(password)
+        
+        update_single_check_progress(email, "running", "Logueando...", 50)
         password_field.send_keys(Keys.ENTER)
         
         WebDriverWait(driver, 20).until(
@@ -313,6 +339,7 @@ def check_single_account(email, password, scrape_card=True):
             "Accept-Language": "es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3"
         }
         
+        update_single_check_progress(email, "running", "Saldo...", 70)
         res = session.get("https://www.compraonline.alcampo.es/settings/loyalty", headers=headers, timeout=12)
         if res.status_code != 200:
             raise Exception(f"HTTP Error {res.status_code} fetching loyalty settings")
@@ -340,7 +367,20 @@ def check_single_account(email, password, scrape_card=True):
         # 4. Optional: scrape card number
         card_number = None
         if scrape_card:
+            update_single_check_progress(email, "running", "Tarjeta...", 85)
             try:
+                # MUST navigate driver to settings/loyalty page first!
+                driver.get("https://www.compraonline.alcampo.es/settings/loyalty")
+                time.sleep(3)
+                
+                # Accept cookies again if needed
+                try:
+                    accept_btn = driver.find_element(By.XPATH, "//button[contains(text(), 'Aceptar cookies') or contains(text(), 'Aceptar')]")
+                    accept_btn.click()
+                    time.sleep(1)
+                except Exception:
+                    pass
+                
                 # Find and click "Mi cuenta Club Alcampo"
                 btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Mi cuenta Club Alcampo')]/.. | //a[contains(text(), 'Mi cuenta Club Alcampo')]")))
                 main_handle = driver.current_window_handle
@@ -356,6 +396,7 @@ def check_single_account(email, password, scrape_card=True):
                         
                 if portal_handle:
                     driver.switch_to.window(portal_handle)
+                    update_single_check_progress(email, "running", "Finalizando...", 95)
                     time.sleep(6)
                     portal_html = driver.page_source
                     
