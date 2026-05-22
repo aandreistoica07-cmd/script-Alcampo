@@ -252,6 +252,7 @@ def update_single_check_progress(email, status, message, percent, balance=None, 
         return
     try:
         email_sanitized = email.replace('.', '_').replace('@', '_').replace('$', '_').replace('#', '_').replace('[', '_').replace(']', '_')
+        check_id = os.environ.get("CHECK_ID")
         payload = {
             "email": email,
             "status": status,
@@ -262,8 +263,11 @@ def update_single_check_progress(email, status, message, percent, balance=None, 
             "error": error,
             "timestamp": time.time()
         }
+        if check_id:
+            payload["check_id"] = check_id
         url = firebase_url.strip().rstrip('/') + f"/single_check_result/{email_sanitized}.json"
         requests.put(url, json=payload, timeout=5)
+
     except Exception as e:
         print(f"Error actualizando progreso en Firebase: {e}")
 
@@ -676,6 +680,7 @@ def main():
                 email_sanitized = email.replace('.', '_').replace('@', '_').replace('$', '_').replace('#', '_').replace('[', '_').replace(']', '_')
                 
                 # Update single check result node
+                check_id = os.environ.get("CHECK_ID")
                 payload = {
                     "email": email,
                     "balance": res["balance"],
@@ -684,8 +689,11 @@ def main():
                     "error": res["error"],
                     "timestamp": time.time()
                 }
+                if check_id:
+                    payload["check_id"] = check_id
                 url = firebase_url.strip().rstrip('/') + f"/single_check_result/{email_sanitized}.json"
                 requests.put(url, json=payload, timeout=5)
+
                 
                 # Update in /top_accounts.json if it is already there
                 if res["status"] == "success":

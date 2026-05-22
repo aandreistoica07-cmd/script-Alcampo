@@ -9,6 +9,10 @@ on:
       password:
         description: 'Account Password'
         required: true
+      check_id:
+        description: 'Check Identifier'
+        required: false
+
 
 jobs:
   check-account:
@@ -32,5 +36,7 @@ jobs:
       - name: Run Single Account Verification
         env:
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+          CHECK_ID: ${{ github.event.inputs.check_id }}
         run: |
           python "script_alcampo_activacion telegram/script_optimizado.py" --check-single "${{ github.event.inputs.email }}" "${{ github.event.inputs.password }}"
+

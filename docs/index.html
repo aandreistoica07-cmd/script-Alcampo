@@ -1205,7 +1205,7 @@
             });
         }
 
-        async function triggerGitHubWorkflow(email, password, pat, repo) {
+        async function triggerGitHubWorkflow(email, password, pat, repo, checkId) {
             const url = `https://api.github.com/repos/${repo}/actions/workflows/check_account.yml/dispatches`;
             const res = await fetch(url, {
                 method: 'POST',
@@ -1218,7 +1218,8 @@
                     ref: 'main',
                     inputs: {
                         email: email,
-                        password: password
+                        password: password,
+                        check_id: checkId
                     }
                 })
             });
@@ -1227,6 +1228,7 @@
                 throw new Error(`Error API GitHub: ${res.status} - ${errText}`);
             }
         }
+
 
         async function checkAccount(btn) {
             const email = btn.getAttribute('data-email');
@@ -1238,13 +1240,18 @@
             
             checkingStates[email] = true;
             
+            // Unique check session identifier to prevent collision, clock skew and caching issues
+            const checkId = `check_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            
             // Initial state (En cola)
             activeCheckingProgress[email] = {
                 status: 'queued',
                 percent: 5,
-                message: 'En cola...'
+                message: 'En cola...',
+                checkId: checkId
             };
             renderTop10();
+
 
             if (isLocal) {
                 console.log(`[Comprobar] Iniciando comprobación local para ${email}`);
@@ -1315,21 +1322,7 @@
                     let cleanedFirebase = firebaseURL.endsWith('/') ? firebaseURL.slice(0, -1) : firebaseURL;
                     const pollUrl = `${cleanedFirebase}/single_check_result/${emailSanitized}.json`;
 
-                    // Fetch current node to get last run's timestamp (to ignore old success/error states)
-                    let lastTimestamp = 0;
-                    try {
-                        const preRes = await fetch(pollUrl);
-                        if (preRes.ok) {
-                            const preData = await preRes.json();
-                            if (preData && preData.timestamp) {
-                                lastTimestamp = preData.timestamp;
-                            }
-                        }
-                    } catch (err) {
-                        console.warn("Error fetching previous state:", err);
-                    }
-
-                    // Write initial queued state to Firebase directly
+                    // Write initial queued state to Firebase directly, including session checkId
                     try {
                         await fetch(pollUrl, {
                             method: 'PUT',
@@ -1339,15 +1332,16 @@
                                 status: 'queued',
                                 progress_message: 'En cola...',
                                 progress_percent: 5,
-                                timestamp: startTime
+                                timestamp: startTime,
+                                check_id: checkId
                             })
                         });
                     } catch (fbErr) {
                         console.warn("Error escribiendo estado inicial en Firebase:", fbErr);
                     }
 
-                    // Trigger GitHub Actions workflow
-                    await triggerGitHubWorkflow(email, password, pat, githubRepo);
+                    // Trigger GitHub Actions workflow with checkId input
+                    await triggerGitHubWorkflow(email, password, pat, githubRepo, checkId);
                     console.log("[Comprobar] Workflow de GitHub iniciado. Esperando resultado en Firebase...");
                     
                     let attempts = 0;
@@ -1369,11 +1363,11 @@
                         }
                         
                         try {
-                            const response = await fetch(pollUrl);
+                            const response = await fetch(pollUrl + '?nocache=' + Date.now());
                             if (response.ok) {
                                 const data = await response.json();
-                                // Clock skew tolerance: allow database timestamp to be different from last run's timestamp
-                                const isFresh = data && data.timestamp && data.timestamp !== lastTimestamp;
+                                // Validate session check_id to avoid clock skew, old data or caching issues
+                                const isFresh = data && data.check_id === checkId;
                                 
                                 if (isFresh) {
                                     if (data.status === 'queued' || data.status === 'running') {
@@ -1389,6 +1383,7 @@
                                             status: 'success'
                                         };
                                         updateLocalAccountData(email, data.balance, data.card_number);
+                                        renderTop10();
                                         resetCheckButton(btn, email);
                                     } else if (data.status === 'error') {
                                         clearInterval(pollTimer);
