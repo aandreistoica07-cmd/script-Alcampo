@@ -1,0 +1,41 @@
+name: Check Single Account Balance
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: 'Account Email'
+        required: true
+      password:
+        description: 'Account Password'
+        required: true
+
+jobs:
+  check-account:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r "script_alcampo_activacion telegram/requirements.txt"
+
+      - name: Install Google Chrome
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+
+      - name: Run Single Account Verification
+        env:
+          FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+        run: |
+          python "script_alcampo_activacion telegram/script_optimizado.py" --check-single "${{ github.event.inputs.email }}" "${{ github.event.inputs.password }}"

@@ -10,6 +10,9 @@
     
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- QRCode.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
     <!-- Background Ambient Globs -->
@@ -228,7 +231,32 @@
                         <button id="save-firebase-btn" class="pagination-btn" onclick="updateFirebaseConfig()" style="white-space: nowrap; background: rgba(255, 159, 67, 0.1); border-color: rgba(255, 159, 67, 0.2); color: var(--accent-orange);">Conectar</button>
                     </div>
                 </div>
+            <!-- Section: GitHub Actions Config Panel -->
+            <section>
+                <div class="glass-panel" style="display: flex; flex-direction: column; gap: 1rem; border-left: 3px solid var(--accent-blue); padding: 1.25rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span style="font-size: 1.5rem; text-shadow: 0 0 10px rgba(0, 210, 255, 0.4);">⚙️</span>
+                        <div>
+                            <h3 style="margin: 0; font-size: 1rem; font-weight: 700; color: var(--text-primary);">Configuración GitHub Actions (Comprobaciones en la Nube)</h3>
+                            <p style="margin: 0; font-size: 0.75rem; color: var(--text-secondary);">Requerido para la comprobación individual remota. Los datos se guardan sólo localmente en tu navegador.</p>
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; width: 100%;">
+                        <div style="display: flex; flex-direction: column; gap: 0.25rem; flex: 1; min-width: 200px;">
+                            <label style="font-size: 0.7rem; color: var(--text-secondary); font-weight: 600;">GITHUB PERSONAL ACCESS TOKEN (PAT)</label>
+                            <input type="password" id="github-pat-input" class="search-input" style="padding-left: 0.75rem; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;" placeholder="ghp_...">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 0.25rem; flex: 1; min-width: 200px;">
+                            <label style="font-size: 0.7rem; color: var(--text-secondary); font-weight: 600;">REPOSITORIO GITHUB (propietario/repo)</label>
+                            <input type="text" id="github-repo-input" class="search-input" style="padding-left: 0.75rem; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;" placeholder="ej: mi-usuario/optimizacion-Script-Alcampo">
+                        </div>
+                        <div style="display: flex; align-items: flex-end; padding-bottom: 2px;">
+                            <button id="save-github-btn" class="pagination-btn" onclick="updateGitHubConfig()" style="white-space: nowrap; background: rgba(0, 210, 255, 0.1); border-color: rgba(0, 210, 255, 0.2); color: var(--accent-blue); height: 38px;">Guardar Config</button>
+                        </div>
+                    </div>
+                </div>
             </section>
+
 
             <!-- Section: Progreso en Vivo -->
             <section>
@@ -284,22 +312,22 @@
                 </div>
             </section>
 
-            <!-- Section: Top 3 Cuentas con Mayor Saldo -->
+            <!-- Section: Top 10 Cuentas con Mayor Saldo -->
             <section>
                 <div class="glass-panel" style="border-left: 3px solid var(--accent-green); padding: 1.25rem;">
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
                         <div style="display: flex; align-items: center; gap: 0.75rem;">
                             <span style="font-size: 1.5rem;">🏆</span>
                             <div>
-                                <h3 style="margin: 0; font-size: 1rem; font-weight: 700; color: var(--text-primary);">Top 3 Cuentas con Mayor Saldo</h3>
-                                <p style="margin: 0; font-size: 0.75rem; color: var(--text-secondary);">Formato email:contraseña listo para copiar</p>
+                                <h3 style="margin: 0; font-size: 1rem; font-weight: 700; color: var(--text-primary);">Top 10 Cuentas con Mayor Saldo</h3>
+                                <p style="margin: 0; font-size: 0.75rem; color: var(--text-secondary);">Copia credenciales, comprueba saldos individuales en tiempo real o genera códigos QR.</p>
                             </div>
                         </div>
-                        <button id="copy-top3-btn" class="pagination-btn" onclick="copyTop3()" style="white-space: nowrap; background: rgba(0, 255, 135, 0.1); border-color: rgba(0, 255, 135, 0.2); color: var(--accent-green); font-size: 0.8rem;">
-                            📋 Copiar
+                        <button id="copy-top10-btn" class="pagination-btn" onclick="copyTop10()" style="white-space: nowrap; background: rgba(0, 255, 135, 0.1); border-color: rgba(0, 255, 135, 0.2); color: var(--accent-green); font-size: 0.8rem;">
+                            📋 Copiar Todas
                         </button>
                     </div>
-                    <div id="top3-accounts-container" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">
+                    <div id="top10-accounts-container" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">
                         <div style="color: var(--text-muted); text-align: center; padding: 1rem 0;">Esperando datos de ejecución...</div>
                     </div>
                 </div>
@@ -356,6 +384,20 @@
         <p>© 2026 Alcampo Scraper Analytics | Desarrollado con Glassmorphism UI Responsiva</p>
     </footer>
 
+    <!-- Elegant Glassmorphic Modal for QR Code -->
+    <div id="qr-modal" class="modal-overlay" onclick="handleOverlayClick(event)">
+        <div class="glass-panel modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>Código QR Club Alcampo</h3>
+                <button class="close-btn" onclick="closeQrModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="qrcode-container"></div>
+                <div id="qr-card-info" class="qr-card-info">Sin Tarjeta</div>
+            </div>
+        </div>
+    </div>
+
     <!-- ==================== JAVASCRIPT LOGIC ==================== -->
     <script>
         // --- Navigation Logic ---
@@ -394,11 +436,22 @@
         let livePollInterval = null;
         let consoleContentLength = 0;
 
+        // GitHub Actions configuration for single account checking
+        let githubPAT = localStorage.getItem('githubPAT') || '';
+        let githubRepo = localStorage.getItem('githubRepo') || '';
+        let checkingStates = {}; // Map of email -> true/false checking state
+
         // Initialize Page
         window.addEventListener('DOMContentLoaded', async () => {
             // Set input value
             const fbInput = document.getElementById('firebase-url-input');
             if (fbInput) fbInput.value = firebaseURL;
+
+            // Set GitHub inputs
+            const githubPatInput = document.getElementById('github-pat-input');
+            const githubRepoInput = document.getElementById('github-repo-input');
+            if (githubPatInput) githubPatInput.value = githubPAT;
+            if (githubRepoInput) githubRepoInput.value = githubRepo;
 
             // Load Historical Data
             await loadHistory();
@@ -808,6 +861,33 @@
             // Re-trigger live fetch
             fetchLiveProgress();
             fetchLiveLogs();
+            fetchTop10Accounts();
+        }
+
+        // --- GitHub Actions Config Logic ---
+        function updateGitHubConfig() {
+            const pat = document.getElementById('github-pat-input').value.trim();
+            const repo = document.getElementById('github-repo-input').value.trim();
+            
+            githubPAT = pat;
+            githubRepo = repo;
+            
+            localStorage.setItem('githubPAT', githubPAT);
+            localStorage.setItem('githubRepo', githubRepo);
+            
+            // Flash colorize to show save
+            const btn = document.getElementById('save-github-btn');
+            btn.innerText = "¡Guardado!";
+            btn.style.background = "rgba(0, 210, 255, 0.15)";
+            btn.style.color = "var(--accent-blue)";
+            btn.style.borderColor = "var(--accent-blue)";
+            
+            setTimeout(() => {
+                btn.innerText = "Guardar Config";
+                btn.style.background = "rgba(0, 210, 255, 0.1)";
+                btn.style.color = "var(--accent-blue)";
+                btn.style.borderColor = "rgba(0, 210, 255, 0.2)";
+            }, 2000);
         }
 
         function startLiveMonitor() {
@@ -817,13 +897,13 @@
             livePollInterval = setInterval(() => {
                 fetchLiveProgress();
                 fetchLiveLogs();
-                fetchTop3Accounts();
+                fetchTop10Accounts();
             }, 2000);
 
             // Initial fetch
             fetchLiveProgress();
             fetchLiveLogs();
-            fetchTop3Accounts();
+            fetchTop10Accounts();
         }
 
         async function fetchLiveProgress() {
@@ -1040,62 +1120,313 @@
             consoleBody.scrollTop = consoleBody.scrollHeight;
         }
 
-        // --- Top 3 Accounts Logic ---
-        let top3Data = [];
+        // --- Top 10 Accounts Logic ---
+        let top10Data = [];
 
-        async function fetchTop3Accounts() {
-            if (!firebaseURL) return;
-            try {
-                let cleanedUrl = firebaseURL.endsWith('/') ? firebaseURL.slice(0, -1) : firebaseURL;
-                const res = await fetch(`${cleanedUrl}/top_accounts.json`);
-                if (res.ok) {
-                    const data = await res.json();
-                    if (Array.isArray(data) && data.length > 0) {
-                        top3Data = data;
-                        renderTop3();
+        async function fetchTop10Accounts() {
+            let data = null;
+            if (firebaseURL) {
+                try {
+                    let cleanedUrl = firebaseURL.endsWith('/') ? firebaseURL.slice(0, -1) : firebaseURL;
+                    const res = await fetch(`${cleanedUrl}/top_accounts.json`);
+                    if (res.ok) {
+                        data = await res.json();
                     }
+                } catch (err) {
+                    console.warn("Error leyendo top_accounts de Firebase, usando fallback local...", err);
                 }
-            } catch (err) {
-                console.warn("Error leyendo top_accounts de Firebase", err);
+            }
+
+            // Fallback to local top_accounts.json
+            if (!data) {
+                try {
+                    const res = await fetch('top_accounts.json', { cache: 'no-store' });
+                    if (res.ok) {
+                        data = await res.json();
+                    }
+                } catch (err) {
+                    // Fail silently
+                }
+            }
+
+            if (data && Array.isArray(data)) {
+                top10Data = data;
+                renderTop10();
             }
         }
 
-        function renderTop3() {
-            const container = document.getElementById('top3-accounts-container');
-            if (!top3Data || top3Data.length === 0) {
+        function renderTop10() {
+            const container = document.getElementById('top10-accounts-container');
+            if (!top10Data || top10Data.length === 0) {
                 container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 1rem 0;">No hay datos disponibles todavía.</div>';
                 return;
             }
+            
             let html = '';
-            top3Data.forEach((acc, i) => {
-                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
+            top10Data.forEach((acc, i) => {
+                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`;
                 html += `
-                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.75rem; margin-bottom: 0.35rem; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                            <span style="font-size: 1.1rem;">${medal}</span>
-                            <code style="color: var(--text-primary); word-break: break-all;">${escapeHtml(acc.email)}:${escapeHtml(acc.password)}</code>
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.75rem; margin-bottom: 0.35rem; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06); flex-wrap: wrap; gap: 0.5rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; min-width: 250px; flex: 1;">
+                            <span style="font-size: 1.1rem; min-width: 24px; text-align: center;">${medal}</span>
+                            <code class="selectable-text" style="color: var(--text-primary); word-break: break-all; cursor: text; user-select: text !important;">${escapeHtml(acc.email)}:${escapeHtml(acc.password)}</code>
                         </div>
-                        <span style="color: var(--accent-green); font-weight: 700; white-space: nowrap; margin-left: 0.75rem;">${acc.balance.toFixed(2)} €</span>
+                        <div style="display: flex; align-items: center; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap;">
+                            <button class="pagination-btn" data-email="${escapeHtml(acc.email)}" data-password="${escapeHtml(acc.password)}" onclick="copySingleAccount(this)" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: var(--text-primary);" title="Copiar cuenta">
+                                📋
+                            </button>
+                            <button class="pagination-btn" id="check-btn-${acc.email.replace(/[^a-zA-Z0-9]/g, '_')}" data-email="${escapeHtml(acc.email)}" data-password="${escapeHtml(acc.password)}" onclick="checkAccount(this)" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; background: rgba(0, 210, 255, 0.1); border-color: rgba(0, 210, 255, 0.2); color: var(--accent-blue);" title="Comprobar saldo en tiempo real">
+                                🔄 Comprobar
+                            </button>
+                            <button class="pagination-btn" data-card="${escapeHtml(acc.card_number || '')}" data-email="${escapeHtml(acc.email)}" onclick="showQrModal(this)" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; background: rgba(255, 159, 67, 0.1); border-color: rgba(255, 159, 67, 0.2); color: var(--accent-orange);" ${acc.card_number ? '' : 'disabled'} title="${acc.card_number ? 'Ver QR Club Alcampo' : 'Sin número de tarjeta'}">
+                                📱 QR
+                            </button>
+                            <span style="color: var(--accent-green); font-weight: 700; white-space: nowrap; margin-left: 0.5rem; min-width: 70px; text-align: right;">
+                                ${acc.balance.toFixed(2)} €
+                            </span>
+                        </div>
                     </div>
                 `;
             });
             container.innerHTML = html;
         }
 
-        function copyTop3() {
-            if (!top3Data || top3Data.length === 0) return;
-            const text = top3Data.map(acc => `${acc.email}:${acc.password}`).join('\n');
+        function copySingleAccount(btn) {
+            const email = btn.getAttribute('data-email');
+            const password = btn.getAttribute('data-password');
+            const text = `${email}:${password}`;
             navigator.clipboard.writeText(text).then(() => {
-                const btn = document.getElementById('copy-top3-btn');
+                const oldText = btn.innerText;
+                btn.innerText = '✅';
+                setTimeout(() => {
+                    btn.innerText = oldText;
+                }, 2000);
+            }).catch(err => {
+                console.error('Error al copiar:', err);
+            });
+        }
+
+        function copyTop10() {
+            if (!top10Data || top10Data.length === 0) return;
+            const text = top10Data.map(acc => `${acc.email}:${acc.password}`).join('\n');
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.getElementById('copy-top10-btn');
                 btn.innerText = '✅ Copiado!';
                 btn.style.background = 'rgba(0, 255, 135, 0.2)';
                 setTimeout(() => {
-                    btn.innerText = '📋 Copiar';
+                    btn.innerText = '📋 Copiar Todas';
                     btn.style.background = 'rgba(0, 255, 135, 0.1)';
                 }, 2000);
             }).catch(err => {
                 console.error('Error al copiar:', err);
             });
+        }
+
+        function getCheckMode() {
+            if (githubPAT && githubRepo) {
+                return 'remote';
+            }
+            return 'local';
+        }
+
+        async function triggerGitHubWorkflow(email, password) {
+            const url = `https://api.github.com/repos/${githubRepo}/actions/workflows/check_account.yml/dispatches`;
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${githubPAT}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    ref: 'main',
+                    inputs: {
+                        email: email,
+                        password: password
+                    }
+                })
+            });
+            if (!res.ok) {
+                const errText = await res.text();
+                throw new Error(`Error API GitHub: ${res.status} - ${errText}`);
+            }
+        }
+
+        async function checkAccount(btn) {
+            const email = btn.getAttribute('data-email');
+            const password = btn.getAttribute('data-password');
+            if (checkingStates[email]) return; 
+            
+            checkingStates[email] = true;
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Probando...';
+            btn.style.background = 'rgba(255, 159, 67, 0.2)';
+            btn.style.color = 'var(--accent-orange)';
+            btn.style.borderColor = 'var(--accent-orange)';
+            
+            const mode = getCheckMode();
+            console.log(`[Comprobar] Iniciando comprobación en modo: ${mode} para ${email}`);
+
+            if (mode === 'local') {
+                try {
+                    const res = await fetch(`/api/check_account?email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`);
+                    if (!res.ok) {
+                        throw new Error(`Error HTTP ${res.status}`);
+                    }
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        updateLocalAccountData(email, data.balance, data.card_number);
+                        
+                        btn.innerHTML = '✅ Éxito';
+                        btn.style.background = 'rgba(0, 255, 135, 0.2)';
+                        btn.style.color = 'var(--accent-green)';
+                        btn.style.borderColor = 'var(--accent-green)';
+                    } else {
+                        throw new Error(data.error || 'Error desconocido');
+                    }
+                } catch (err) {
+                    console.error("Error en comprobación local", err);
+                    btn.innerHTML = '❌ Error';
+                    btn.style.background = 'rgba(255, 75, 75, 0.2)';
+                    btn.style.color = 'var(--accent-red)';
+                    btn.style.borderColor = 'var(--accent-red)';
+                    alert(`Error al comprobar cuenta:\n${err.message}`);
+                } finally {
+                    resetCheckButton(btn, email);
+                }
+            } else {
+                if (!firebaseURL) {
+                    alert("Para usar el modo remoto, configura primero la URL de Firebase en la pestaña en vivo.");
+                    resetCheckButton(btn, email);
+                    return;
+                }
+                
+                try {
+                    const startTime = Date.now() / 1000;
+                    await triggerGitHubWorkflow(email, password);
+                    console.log("[Comprobar] Workflow de GitHub iniciado. Esperando resultado en Firebase...");
+                    
+                    const emailSanitized = email.replace(/\./g, '_').replace(/@/g, '_').replace(/\$/g, '_').replace(/#/g, '_').replace(/\[/g, '_').replace(/\]/g, '_');
+                    let cleanedFirebase = firebaseURL.endsWith('/') ? firebaseURL.slice(0, -1) : firebaseURL;
+                    const pollUrl = `${cleanedFirebase}/single_check_result/${emailSanitized}.json`;
+                    
+                    let attempts = 0;
+                    const maxAttempts = 60; 
+                    const interval = 3000; 
+                    
+                    const pollTimer = setInterval(async () => {
+                        attempts++;
+                        if (attempts > maxAttempts) {
+                            clearInterval(pollTimer);
+                            btn.innerHTML = '⏱ Timeout';
+                            btn.style.background = 'rgba(255, 75, 75, 0.2)';
+                            btn.style.color = 'var(--accent-red)';
+                            btn.style.borderColor = 'var(--accent-red)';
+                            alert("La comprobación tardó demasiado. Revisa el estado del workflow en GitHub.");
+                            resetCheckButton(btn, email);
+                            return;
+                        }
+                        
+                        try {
+                            const response = await fetch(pollUrl);
+                            if (response.ok) {
+                                const data = await response.json();
+                                if (data && data.timestamp && data.timestamp >= startTime) {
+                                    clearInterval(pollTimer);
+                                    if (data.status === 'success') {
+                                        updateLocalAccountData(email, data.balance, data.card_number);
+                                        
+                                        btn.innerHTML = '✅ Éxito';
+                                        btn.style.background = 'rgba(0, 255, 135, 0.2)';
+                                        btn.style.color = 'var(--accent-green)';
+                                        btn.style.borderColor = 'var(--accent-green)';
+                                    } else {
+                                        btn.innerHTML = '❌ Fallo';
+                                        btn.style.background = 'rgba(255, 75, 75, 0.2)';
+                                        btn.style.color = 'var(--accent-red)';
+                                        btn.style.borderColor = 'var(--accent-red)';
+                                        alert(`La comprobación falló:\n${data.error || 'Error desconocido'}`);
+                                    }
+                                    resetCheckButton(btn, email);
+                                }
+                            }
+                        } catch (pollErr) {
+                            console.warn("Error consultando Firebase:", pollErr);
+                        }
+                    }, interval);
+                    
+                } catch (err) {
+                    console.error("Error al despachar workflow de GitHub:", err);
+                    btn.innerHTML = '❌ Error GH';
+                    btn.style.background = 'rgba(255, 75, 75, 0.2)';
+                    btn.style.color = 'var(--accent-red)';
+                    btn.style.borderColor = 'var(--accent-red)';
+                    alert(`Error al iniciar workflow en GitHub:\n${err.message}`);
+                    resetCheckButton(btn, email);
+                }
+            }
+        }
+
+        function resetCheckButton(btn, email) {
+            checkingStates[email] = false;
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.innerHTML = '🔄 Comprobar';
+                btn.style.background = 'rgba(0, 210, 255, 0.1)';
+                btn.style.color = 'var(--accent-blue)';
+                btn.style.borderColor = 'rgba(0, 210, 255, 0.2)';
+            }, 3000);
+        }
+
+        function updateLocalAccountData(email, balance, cardNumber) {
+            let updated = false;
+            top10Data.forEach(acc => {
+                if (acc.email === email) {
+                    acc.balance = balance;
+                    if (cardNumber) acc.card_number = cardNumber;
+                    updated = true;
+                }
+            });
+            if (updated) {
+                top10Data.sort((a, b) => b.balance - a.balance);
+                renderTop10();
+            }
+        }
+
+        function showQrModal(btn) {
+            const cardNumber = btn.getAttribute('data-card');
+            const email = btn.getAttribute('data-email');
+            const container = document.getElementById('qrcode-container');
+            container.innerHTML = '';
+            const info = document.getElementById('qr-card-info');
+            
+            if (!cardNumber) {
+                info.innerText = `Sin tarjeta asociada a ${email}`;
+                return;
+            }
+            
+            info.innerHTML = `<span style="color: var(--accent-orange); font-weight: 700;">${cardNumber}</span><br><span style="font-size: 0.75rem; color: var(--text-muted);">${email}</span>`;
+            
+            new QRCode(container, {
+                text: cardNumber,
+                width: 180,
+                height: 180,
+                colorDark: "#111111",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.M
+            });
+            
+            document.getElementById('qr-modal').classList.add('active');
+        }
+
+        function closeQrModal() {
+            document.getElementById('qr-modal').classList.remove('active');
+        }
+
+        function handleOverlayClick(event) {
+            if (event.target.id === 'qr-modal') {
+                closeQrModal();
+            }
         }
 
         function clearLiveLogs() {

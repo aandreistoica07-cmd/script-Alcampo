@@ -4,6 +4,7 @@ import sys
 import json
 import argparse
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 import pandas as pd
 
@@ -137,7 +138,7 @@ def main():
 
     new_entry = {
         "id": next_id,
-        "date": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "date": datetime.now(ZoneInfo("Europe/Madrid")).replace(microsecond=0).isoformat(),
         "version": version_label,
         "duration": round(duration, 2),
         "checked": total_accounts,

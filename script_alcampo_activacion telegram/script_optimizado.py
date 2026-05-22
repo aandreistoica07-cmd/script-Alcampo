@@ -72,6 +72,37 @@ def print_and_log(*args, **kwargs):
 builtins.print = print_and_log
 
 
+def get_firebase_url():
+    url = (os.environ.get("FIREBASE_DB_URL") or "").strip()
+    if not url or url.lower() in ("none", "null", "***", "undefined"):
+        return None
+    if not url.startswith("http"):
+        return None
+    return url
+
+
+def get_telegram_config():
+    token = (os.environ.get("TELEGRAM_TOKEN") or "").strip()
+    chat_id = (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
+    
+    # Check if they are valid
+    is_valid_token = bool(re.match(r"^\d+:[A-Za-z0-9_-]+$", token))
+    
+    is_valid_chat = False
+    if chat_id:
+        try:
+            int(chat_id)
+            is_valid_chat = True
+        except ValueError:
+            pass
+            
+    if not is_valid_token or not is_valid_chat:
+        return "8041531688:AAHif8qa9wMZ1EAxU3MrftR-tCrEkQ2dfPU", -5049278431
+        
+    return token, int(chat_id)
+
+
+
 # --- PROGRESS TRACKING FUNCTIONS ---
 def init_progress(total_accounts):
     """Initializes the progress files before scraping starts."""
@@ -103,7 +134,7 @@ def init_progress(total_accounts):
             pass
 
         # Asynchronously reset Firebase Realtime DB if URL is configured
-        firebase_url = os.environ.get("FIREBASE_DB_URL")
+        firebase_url = get_firebase_url()
         if firebase_url:
             try:
                 def reset_firebase():
@@ -169,7 +200,7 @@ def update_progress(thread_idx, email, status, saldo_str):
 
         # Asynchronously push to Firebase Realtime DB if URL is configured
         # Push only every 3 accounts to avoid overloading the network/Firebase limits, or at the end
-        firebase_url = os.environ.get("FIREBASE_DB_URL")
+        firebase_url = get_firebase_url()
         if firebase_url and (progress_state["processed"] % 3 == 0 or progress_state["processed"] == progress_state["total"]):
             try:
                 def push_to_firebase(state_snap):
@@ -214,6 +245,151 @@ except Exception as e:
     print(f"Falling back to system ChromeDriver at: {CHROME_DRIVER_PATH}")
 
 
+def check_single_account(email, password, scrape_card=True):
+    """Logs in and checks the balance (and optionally card number) of a single account.
+    Returns: {"status": "success"/"error", "balance": float/None, "card_number": str/None, "error": str/None}
+    """
+    driver = None
+    try:
+        chrome_options = Options()
+        chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--window-size=1280,1024")
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.page_load_strategy = "eager"
+        
+        driver = webdriver.Chrome(
+            service=Service(CHROME_DRIVER_PATH),
+            options=chrome_options
+        )
+        driver.set_page_load_timeout(25)
+        driver.implicitly_wait(1)
+        
+        # 1. Login
+        driver.get("https://www.compraonline.alcampo.es/login?destination=%2F")
+        wait = WebDriverWait(driver, 15)
+        
+        try:
+            accept_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Aceptar cookies') or contains(text(), 'Aceptar')]")))
+            accept_btn.click()
+            time.sleep(1)
+        except Exception:
+            pass
+            
+        email_field = wait.until(EC.presence_of_element_located((By.ID, "uname1")))
+        password_field = driver.find_element(By.ID, "pwd1")
+        email_field.send_keys(email)
+        password_field.send_keys(password)
+        password_field.send_keys(Keys.ENTER)
+        
+        WebDriverWait(driver, 20).until(
+            lambda d: "compraonline.alcampo.es" in d.current_url and "login" not in d.current_url
+        )
+        
+        # 2. Get cookies & request settings/loyalty
+        cookies = driver.get_cookies()
+        user_agent = driver.execute_script("return navigator.userAgent;")
+        
+        session = requests.Session()
+        for cookie in cookies:
+            name = cookie['name']
+            val = cookie['value']
+            try:
+                name.encode('latin-1')
+            except UnicodeEncodeError:
+                name = name.encode('utf-8').decode('latin-1')
+            try:
+                val.encode('latin-1')
+            except UnicodeEncodeError:
+                val = val.encode('utf-8').decode('latin-1')
+            session.cookies.set(name, val)
+            
+        headers = {
+            "User-Agent": user_agent,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3"
+        }
+        
+        res = session.get("https://www.compraonline.alcampo.es/settings/loyalty", headers=headers, timeout=12)
+        if res.status_code != 200:
+            raise Exception(f"HTTP Error {res.status_code} fetching loyalty settings")
+            
+        # 3. Parse balance
+        saldo_str = "No encontrado"
+        match = re.search(r"Tu Saldo es\s*([\d,.]+)\s*€", res.text)
+        if match:
+            saldo_str = f"Tu Saldo es {match.group(1)} €"
+        else:
+            cleaned_text = re.sub(r'<[^>]+>', ' ', res.text)
+            cleaned_text = ' '.join(cleaned_text.split())
+            match_text = re.search(r"Tu Saldo es\s*([\d,.]+)\s*€", cleaned_text)
+            if match_text:
+                saldo_str = f"Tu Saldo es {match_text.group(1)} €"
+            else:
+                match_alt = re.search(r"Saldo\s*:\s*([\d,.]+)", cleaned_text, re.IGNORECASE)
+                if match_alt:
+                    saldo_str = f"Tu Saldo es {match_alt.group(1)} €"
+                    
+        balance = limpiar_saldo(saldo_str)
+        if balance is None:
+            raise Exception(f"No se pudo determinar el saldo. HTML: {saldo_str}")
+            
+        # 4. Optional: scrape card number
+        card_number = None
+        if scrape_card:
+            try:
+                # Find and click "Mi cuenta Club Alcampo"
+                btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Mi cuenta Club Alcampo')]/.. | //a[contains(text(), 'Mi cuenta Club Alcampo')]")))
+                main_handle = driver.current_window_handle
+                btn.click()
+                time.sleep(4)
+                
+                all_handles = driver.window_handles
+                portal_handle = None
+                for handle in all_handles:
+                    if handle != main_handle:
+                        portal_handle = handle
+                        break
+                        
+                if portal_handle:
+                    driver.switch_to.window(portal_handle)
+                    time.sleep(6)
+                    portal_html = driver.page_source
+                    
+                    match_clif = re.search(r'value="\?clif=(\d+)"', portal_html)
+                    if match_clif:
+                        card_number = match_clif.group(1)
+                    else:
+                        match_13 = re.search(r'\b\d{13}\b', portal_html)
+                        if match_13:
+                            card_number = match_13.group(0)
+            except Exception as e:
+                # Log card scraping error but don't fail balance check
+                print(f"Advertencia: No se pudo extraer número de tarjeta: {e}")
+                
+        return {
+            "status": "success",
+            "balance": balance,
+            "card_number": card_number,
+            "error": None
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "balance": None,
+            "card_number": None,
+            "error": str(e)
+        }
+    finally:
+        if driver:
+            try:
+                driver.quit()
+            except:
+                pass
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Alcampo Account Balance Scraper (Optimized)")
     parser.add_argument(
@@ -232,6 +408,12 @@ def parse_args():
         type=int, 
         default=None, 
         help="Limit execution to first N accounts (for testing)"
+    )
+    parser.add_argument(
+        "--check-single",
+        nargs=2,
+        metavar=("EMAIL", "PASSWORD"),
+        help="Check balance and card number of a single account and exit"
     )
     return parser.parse_args()
 
@@ -430,15 +612,96 @@ def limpiar_saldo(saldo_str):
 def main():
     args = parse_args()
     
-    # Telegram config (env var takes priority, falls back to hardcoded defaults)
-    telegram_token = os.environ.get("TELEGRAM_TOKEN", "8041531688:AAHif8qa9wMZ1EAxU3MrftR-tCrEkQ2dfPU")
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "-5049278431")
+    if args.check_single:
+        email, password = args.check_single
+        print(f"🔎 Iniciando comprobación de saldo individual para: {email}")
+        res = check_single_account(email, password, scrape_card=True)
+        print(f"Resultado: {res}")
+        
+        # Safe update to Firebase RTDB and local top_accounts.json
+        firebase_url = get_firebase_url()
+        
+        # 1. Update in Firebase if URL is set
+        if firebase_url:
+            try:
+                # Sanitize email for Firebase keys
+                email_sanitized = email.replace('.', '_').replace('@', '_').replace('$', '_').replace('#', '_').replace('[', '_').replace(']', '_')
+                
+                # Update single check result node
+                payload = {
+                    "email": email,
+                    "balance": res["balance"],
+                    "card_number": res["card_number"],
+                    "status": res["status"],
+                    "error": res["error"],
+                    "timestamp": time.time()
+                }
+                url = firebase_url.strip().rstrip('/') + f"/single_check_result/{email_sanitized}.json"
+                requests.put(url, json=payload, timeout=5)
+                
+                # Update in /top_accounts.json if it is already there
+                if res["status"] == "success":
+                    top_url = firebase_url.strip().rstrip('/') + "/top_accounts.json"
+                    top_res = requests.get(top_url, timeout=5)
+                    if top_res.ok:
+                        top_accounts = top_res.json()
+                        if isinstance(top_accounts, list):
+                            updated = False
+                            for acc in top_accounts:
+                                if acc.get("email") == email:
+                                    acc["balance"] = res["balance"]
+                                    if res["card_number"]:
+                                        acc["card_number"] = res["card_number"]
+                                    updated = True
+                            if updated:
+                                requests.put(top_url, json=top_accounts, timeout=5)
+            except Exception as e:
+                print(f"Error actualizando Firebase: {e}")
+        
+        # 2. Update local top_accounts.json if the account is in it
+        if res["status"] == "success":
+            try:
+                top_local_path = ROOT.parent / "docs" / "top_accounts.json"
+                if top_local_path.exists():
+                    with open(top_local_path, "r", encoding="utf-8") as f:
+                        top_accounts = json.load(f)
+                    if isinstance(top_accounts, list):
+                        updated = False
+                        for acc in top_accounts:
+                            if acc.get("email") == email:
+                                acc["balance"] = res["balance"]
+                                if res["card_number"]:
+                                    acc["card_number"] = res["card_number"]
+                                updated = True
+                        if updated:
+                            with open(top_local_path, "w", encoding="utf-8") as f:
+                                json.dump(top_accounts, f, indent=4)
+                            print(f"✔ top_accounts.json local actualizado.")
+            except Exception as e:
+                print(f"Error actualizando top_accounts.json local: {e}")
+                
+        # Also update accounts.json if a card number was successfully found/updated!
+        if res["status"] == "success" and res["card_number"]:
+            try:
+                with open(ACCOUNTS_FILE, "r", encoding="utf-8") as f:
+                    accounts = json.load(f)
+                updated = False
+                for acc in accounts:
+                    if acc.get("email") == email:
+                        acc["card_number"] = res["card_number"]
+                        updated = True
+                        break
+                if updated:
+                    with open(ACCOUNTS_FILE, "w", encoding="utf-8") as f:
+                        json.dump(accounts, f, indent=2)
+                    print(f"✔ accounts.json actualizado con número de tarjeta.")
+            except Exception as e:
+                print(f"Error actualizando accounts.json: {e}")
+                
+        sys.exit(0 if res["status"] == "success" else 1)
     
-    # Convert chat_id to int if it's a string representation of an int
-    try:
-        chat_id = int(chat_id)
-    except ValueError:
-        pass
+    # Telegram config (robust parsing with fallbacks)
+    telegram_token, chat_id = get_telegram_config()
 
     # Cargar cuentas
     if not ACCOUNTS_FILE.exists():
@@ -517,14 +780,14 @@ def main():
         elif valor == 0:
             cuentas_saldo_cero += 1
 
-    # Sort by balance descending and take top 3
+    # Sort by balance descending and take top 10
     cuentas_ranked.sort(key=lambda x: x[0], reverse=True)
-    top_3 = cuentas_ranked[:3]
+    top_10 = cuentas_ranked[:10]
     
-    top_3_text = "\n".join(
+    top_10_text = "\n".join(
         f"   {i+1}. {email} ({val:.2f} €)"
-        for i, (val, email, _) in enumerate(top_3)
-    ) if top_3 else "   N/A"
+        for i, (val, email, _) in enumerate(top_10)
+    ) if top_10 else "   N/A"
             
     mensaje_resumen = (
         f"📊 **RESUMEN ALCAMPO OPTIMIZADO**\n\n"
@@ -534,23 +797,38 @@ def main():
         f"💎 Cuentas con dinero: {cuentas_con_saldo}\n"
         f"💤 Cuentas con saldo 0: {cuentas_saldo_cero}\n"
         f"⚠️ Cuentas con error/sin saldo: {cuentas_error}\n"
-        f"🏆 **Top 3 Cuentas:**\n{top_3_text}"
+        f"🏆 **Top 10 Cuentas:**\n{top_10_text}"
     )
     
     print("\n" + mensaje_resumen)
     
-    # Push top 3 accounts to Firebase for real-time dashboard display
-    firebase_url = os.environ.get("FIREBASE_DB_URL")
-    if firebase_url and top_3:
+    # Push top 10 accounts locally and to Firebase for real-time dashboard display
+    if top_10:
         try:
+            card_map = {acc["email"]: acc.get("card_number") for acc in accounts if "email" in acc}
             top_accounts_data = [
-                {"email": email, "password": pwd, "balance": val}
-                for val, email, pwd in top_3
+                {"email": email, "password": pwd, "balance": val, "card_number": card_map.get(email)}
+                for val, email, pwd in top_10
             ]
-            url = firebase_url.strip().rstrip('/') + "/top_accounts.json"
-            requests.put(url, json=top_accounts_data, timeout=5)
-        except Exception:
-            pass
+            # Always save locally
+            try:
+                top_local_path = ROOT.parent / "docs" / "top_accounts.json"
+                # Ensure docs folder exists
+                top_local_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(top_local_path, "w", encoding="utf-8") as f:
+                    json.dump(top_accounts_data, f, indent=4)
+                print(f"✔ top_accounts.json local guardado en {top_local_path}")
+            except Exception as e:
+                print(f"Error escribiendo top_accounts.json local: {e}")
+
+            # Save to Firebase if configured
+            firebase_url = get_firebase_url()
+            if firebase_url:
+                url = firebase_url.strip().rstrip('/') + "/top_accounts.json"
+                requests.put(url, json=top_accounts_data, timeout=5)
+                print(f"✔ top_accounts.json enviado a Firebase.")
+        except Exception as e:
+            print(f"Error al exportar Top 10 cuentas: {e}")
     
     if args.send_telegram:
         enviar_telegram_texto(telegram_token, chat_id, mensaje_resumen)
