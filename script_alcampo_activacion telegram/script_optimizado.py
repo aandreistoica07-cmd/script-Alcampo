@@ -4,6 +4,7 @@ import re
 import json
 import argparse
 import os
+import html
 import threading
 import builtins
 from pathlib import Path
@@ -85,11 +86,11 @@ def get_telegram_config():
     token = (os.environ.get("TELEGRAM_TOKEN") or "").strip()
     chat_id = (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
     
-    # Check if they are valid
-    is_valid_token = bool(re.match(r"^\d+:[A-Za-z0-9_-]+$", token))
+    # Check if they are valid, handling mask/null indicators from CI
+    is_valid_token = bool(re.match(r"^\d+:[A-Za-z0-9_-]+$", token)) and token.lower() not in ("none", "null", "***", "undefined")
     
     is_valid_chat = False
-    if chat_id:
+    if chat_id and chat_id.lower() not in ("none", "null", "***", "undefined"):
         try:
             int(chat_id)
             is_valid_chat = True
@@ -395,7 +396,13 @@ def parse_args():
     parser.add_argument(
         "--send-telegram", 
         action="store_true", 
-        help="Enables sending summary and excel file to Telegram"
+        default=True,
+        help="Enables sending summary and excel file to Telegram (default: True)"
+    )
+    parser.add_argument(
+        "--no-telegram",
+        action="store_true",
+        help="Disables sending summary and excel file to Telegram"
     )
     parser.add_argument(
         "--threads", 
@@ -420,13 +427,13 @@ def parse_args():
 
 def enviar_telegram_texto(token, chat_id, mensaje):
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    data = {"chat_id": chat_id, "text": mensaje}
+    data = {"chat_id": chat_id, "text": mensaje, "parse_mode": "HTML"}
     try:
         response = requests.post(url, data=data)
         print(f"📡 Enviando a Telegram: {response.status_code} - {response.text}")
         response.raise_for_status()
     except Exception as e:
-        print(f"❌ Error enviando a Telegram: {e}")
+        print(f"❌ Error sending to Telegram: {e}")
 
 
 def enviar_telegram_documento(token, chat_id, path, caption=""):
@@ -702,6 +709,7 @@ def main():
     
     # Telegram config (robust parsing with fallbacks)
     telegram_token, chat_id = get_telegram_config()
+    send_telegram = args.send_telegram and not args.no_telegram
 
     # Cargar cuentas
     if not ACCOUNTS_FILE.exists():
@@ -729,13 +737,13 @@ def main():
 
     print(f"🚀 Iniciando verificación de {len(accounts)} cuentas repartidas en {num_threads} hilos (reutilizando navegadores)...")
     
-    if args.send_telegram:
+    if send_telegram:
         try:
             enviar_telegram_texto(telegram_token, chat_id,
-                f"🚀 *Iniciando ejecución Alcampo*\n\n"
+                f"🚀 <b>Iniciando ejecución Alcampo</b>\n\n"
                 f"📋 Cuentas a procesar: {len(accounts)}\n"
                 f"⚙️ Hilos: {num_threads}\n\n"
-                f"👀 *Ver en tiempo real:*\n"
+                f"👀 <b>Ver en tiempo real:</b>\n"
                 f"https://programacion1-sigma.vercel.app"
             )
         except Exception as e:
@@ -785,19 +793,19 @@ def main():
     top_10 = cuentas_ranked[:10]
     
     top_10_text = "\n".join(
-        f"   {i+1}. {email} ({val:.2f} €)"
+        f"   {i+1}. {html.escape(email)} ({val:.2f} €)"
         for i, (val, email, _) in enumerate(top_10)
     ) if top_10 else "   N/A"
             
     mensaje_resumen = (
-        f"📊 **RESUMEN ALCAMPO OPTIMIZADO**\n\n"
+        f"📊 <b>RESUMEN ALCAMPO OPTIMIZADO</b>\n\n"
         f"✅ Cuentas procesadas: {len(resultados)}\n"
         f"⏱️ Tiempo empleado: {duration/60:.2f} min\n"
-        f"💰 **Saldo Total:** {saldo_total:.2f} €\n"
+        f"💰 <b>Saldo Total:</b> {saldo_total:.2f} €\n"
         f"💎 Cuentas con dinero: {cuentas_con_saldo}\n"
         f"💤 Cuentas con saldo 0: {cuentas_saldo_cero}\n"
-        f"⚠️ Cuentas con error/sin saldo: {cuentas_error}\n"
-        f"🏆 **Top 10 Cuentas:**\n{top_10_text}"
+        f"⚠️ Cuentas con error/sin saldo: {cuentas_error}\n\n"
+        f"🏆 <b>Top 10 Cuentas:</b>\n{top_10_text}"
     )
     
     print("\n" + mensaje_resumen)
@@ -830,7 +838,7 @@ def main():
         except Exception as e:
             print(f"Error al exportar Top 10 cuentas: {e}")
     
-    if args.send_telegram:
+    if send_telegram:
         enviar_telegram_texto(telegram_token, chat_id, mensaje_resumen)
         enviar_telegram_documento(
             telegram_token, 
@@ -840,7 +848,7 @@ def main():
         )
         print("🎉 Proceso completo y enviado a Telegram.")
     else:
-        print("ℹ️ Envío a Telegram desactivado. Usa --send-telegram para activarlo.")
+        print("ℹ️ Envío a Telegram desactivado. Usa el script sin --no-telegram para activarlo.")
 
 
 if __name__ == "__main__":
