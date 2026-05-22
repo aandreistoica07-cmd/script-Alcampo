@@ -1165,6 +1165,29 @@
             });
         }
 
+        async function triggerGitHubWorkflow(email, password, pat, repo) {
+            const url = `https://api.github.com/repos/${repo}/actions/workflows/check_account.yml/dispatches`;
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${pat}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    ref: 'main',
+                    inputs: {
+                        email: email,
+                        password: password
+                    }
+                })
+            });
+            if (!res.ok) {
+                const errText = await res.text();
+                throw new Error(`Error API GitHub: ${res.status} - ${errText}`);
+            }
+        }
+
         async function checkAccount(btn) {
             const email = btn.getAttribute('data-email');
             const password = btn.getAttribute('data-password');
@@ -1172,10 +1195,6 @@
             
             // Comprobar si estamos ejecutando localmente
             const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === '';
-            if (!isLocal) {
-                alert("⚠️ Estás visualizando la web desde un servidor remoto (Vercel). La comprobación individual instantánea ('Comprobar') solo está disponible ejecutando la aplicación de forma local.");
-                return;
-            }
             
             checkingStates[email] = true;
             btn.disabled = true;
@@ -1183,34 +1202,130 @@
             btn.style.background = 'rgba(255, 159, 67, 0.2)';
             btn.style.color = 'var(--accent-orange)';
             btn.style.borderColor = 'var(--accent-orange)';
-            
-            console.log(`[Comprobar] Iniciando comprobación local para ${email}`);
 
-            try {
-                const res = await fetch(`/api/check_account?email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`);
-                if (!res.ok) {
-                    throw new Error(`Error HTTP ${res.status}`);
+            if (isLocal) {
+                console.log(`[Comprobar] Iniciando comprobación local para ${email}`);
+
+                try {
+                    const res = await fetch(`/api/check_account?email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`);
+                    if (!res.ok) {
+                        throw new Error(`Error HTTP ${res.status}`);
+                    }
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        updateLocalAccountData(email, data.balance, data.card_number);
+                        
+                        btn.innerHTML = '✅ Éxito';
+                        btn.style.background = 'rgba(0, 255, 135, 0.2)';
+                        btn.style.color = 'var(--accent-green)';
+                        btn.style.borderColor = 'var(--accent-green)';
+                    } else {
+                        throw new Error(data.error || 'Error desconocido');
+                    }
+                } catch (err) {
+                    console.error("Error en comprobación local", err);
+                    btn.innerHTML = '❌ Error';
+                    btn.style.background = 'rgba(255, 75, 75, 0.2)';
+                    btn.style.color = 'var(--accent-red)';
+                    btn.style.borderColor = 'var(--accent-red)';
+                    alert(`Error al comprobar cuenta:\n${err.message}`);
+                } finally {
+                    resetCheckButton(btn, email);
                 }
-                const data = await res.json();
-                if (data.status === 'success') {
-                    updateLocalAccountData(email, data.balance, data.card_number);
+            } else {
+                // Modo remoto (Vercel) usando GitHub Actions
+                console.log(`[Comprobar] Iniciando comprobación remota para ${email}`);
+
+                let pat = localStorage.getItem('githubPAT') || '';
+                if (!pat) {
+                    pat = prompt("🔑 Para iniciar la comprobación remota (Vercel), ingresa tu GitHub Personal Access Token (PAT).\nEste token solo se guardará localmente en tu navegador y no se compartirá con ningún servidor externo:");
+                    if (!pat || !pat.trim()) {
+                        alert("⚠️ Token no ingresado. Comprobación abortada.");
+                        resetCheckButton(btn, email);
+                        return;
+                    }
+                    pat = pat.trim();
+                    localStorage.setItem('githubPAT', pat);
+                }
+
+                if (!firebaseURL) {
+                    alert("⚠️ Configura primero la URL de Firebase en la pestaña de Monitor en Vivo.");
+                    resetCheckButton(btn, email);
+                    return;
+                }
+
+                const githubRepo = 'stoica25-byte/Programacion1';
+
+                try {
+                    const startTime = Date.now() / 1000;
+                    await triggerGitHubWorkflow(email, password, pat, githubRepo);
+                    console.log("[Comprobar] Workflow de GitHub iniciado. Esperando resultado en Firebase...");
                     
-                    btn.innerHTML = '✅ Éxito';
-                    btn.style.background = 'rgba(0, 255, 135, 0.2)';
-                    btn.style.color = 'var(--accent-green)';
-                    btn.style.borderColor = 'var(--accent-green)';
-                } else {
-                    throw new Error(data.error || 'Error desconocido');
+                    const emailSanitized = email.replace(/\./g, '_').replace(/@/g, '_').replace(/\$/g, '_').replace(/#/g, '_').replace(/\[/g, '_').replace(/\]/g, '_');
+                    let cleanedFirebase = firebaseURL.endsWith('/') ? firebaseURL.slice(0, -1) : firebaseURL;
+                    const pollUrl = `${cleanedFirebase}/single_check_result/${emailSanitized}.json`;
+                    
+                    let attempts = 0;
+                    const maxAttempts = 60; 
+                    const interval = 3000; 
+                    
+                    const pollTimer = setInterval(async () => {
+                        attempts++;
+                        if (attempts > maxAttempts) {
+                            clearInterval(pollTimer);
+                            btn.innerHTML = '⏱ Timeout';
+                            btn.style.background = 'rgba(255, 75, 75, 0.2)';
+                            btn.style.color = 'var(--accent-red)';
+                            btn.style.borderColor = 'var(--accent-red)';
+                            alert("La comprobación tardó demasiado. Revisa el estado del workflow en GitHub.");
+                            resetCheckButton(btn, email);
+                            return;
+                        }
+                        
+                        try {
+                            const response = await fetch(pollUrl);
+                            if (response.ok) {
+                                const data = await response.json();
+                                if (data && data.timestamp && data.timestamp >= startTime) {
+                                    clearInterval(pollTimer);
+                                    if (data.status === 'success') {
+                                        updateLocalAccountData(email, data.balance, data.card_number);
+                                        
+                                        btn.innerHTML = '✅ Éxito';
+                                        btn.style.background = 'rgba(0, 255, 135, 0.2)';
+                                        btn.style.color = 'var(--accent-green)';
+                                        btn.style.borderColor = 'var(--accent-green)';
+                                    } else {
+                                        btn.innerHTML = '❌ Fallo';
+                                        btn.style.background = 'rgba(255, 75, 75, 0.2)';
+                                        btn.style.color = 'var(--accent-red)';
+                                        btn.style.borderColor = 'var(--accent-red)';
+                                        alert(`La comprobación falló:\n${data.error || 'Error desconocido'}`);
+                                    }
+                                    resetCheckButton(btn, email);
+                                }
+                            }
+                        } catch (pollErr) {
+                            console.warn("Error consultando Firebase:", pollErr);
+                        }
+                    }, interval);
+
+                } catch (err) {
+                    console.error("Error al iniciar workflow en GitHub:", err);
+                    btn.innerHTML = '❌ Error GH';
+                    btn.style.background = 'rgba(255, 75, 75, 0.2)';
+                    btn.style.color = 'var(--accent-red)';
+                    btn.style.borderColor = 'var(--accent-red)';
+                    
+                    // Si el token es inválido o no tiene permisos, borrarlo para forzar que pregunte de nuevo
+                    if (err.message.includes("401") || err.message.includes("403") || err.message.includes("credentials") || err.message.includes("token")) {
+                        localStorage.removeItem('githubPAT');
+                        alert(`Error al iniciar workflow en GitHub (Token inválido o expirado):\n${err.message}`);
+                    } else {
+                        alert(`Error al iniciar workflow en GitHub:\n${err.message}`);
+                    }
+                    resetCheckButton(btn, email);
                 }
-            } catch (err) {
-                console.error("Error en comprobación local", err);
-                btn.innerHTML = '❌ Error';
-                btn.style.background = 'rgba(255, 75, 75, 0.2)';
-                btn.style.color = 'var(--accent-red)';
-                btn.style.borderColor = 'var(--accent-red)';
-                alert(`Error al comprobar cuenta:\n${err.message}`);
-            } finally {
-                resetCheckButton(btn, email);
             }
         }
 
