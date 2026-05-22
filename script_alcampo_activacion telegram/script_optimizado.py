@@ -272,8 +272,9 @@ def update_single_check_progress(email, status, message, percent, balance=None, 
         print(f"Error actualizando progreso en Firebase: {e}")
 
 
-def check_single_account(email, password, scrape_card=True):
+def check_single_account(email, password, scrape_card=True, existing_card_number=None):
     """Logs in and checks the balance (and optionally card number) of a single account.
+    If existing_card_number is provided, skips the card scraping entirely.
     Returns: {"status": "success"/"error", "balance": float/None, "card_number": str/None, "error": str/None}
     """
     driver = None
@@ -284,16 +285,23 @@ def check_single_account(email, password, scrape_card=True):
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--window-size=1280,1024")
+        # Performance: smaller window, disable unnecessary features
+        chrome_options.add_argument("--window-size=1024,768")
         chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.add_argument("--disable-extensions")
+        chrome_options.add_argument("--disable-plugins")
+        chrome_options.add_argument("--disable-images")
+        chrome_options.add_argument("--blink-settings=imagesEnabled=false")
+        chrome_options.add_argument("--disable-javascript-harmony-shipping")
+        chrome_options.add_argument("--memory-pressure-off")
         chrome_options.page_load_strategy = "eager"
         
         driver = webdriver.Chrome(
             service=Service(CHROME_DRIVER_PATH),
             options=chrome_options
         )
-        driver.set_page_load_timeout(25)
-        driver.implicitly_wait(1)
+        driver.set_page_load_timeout(15)  # Reduced from 25s
+        driver.implicitly_wait(0)  # Rely on explicit WebDriverWait only
         
         # 1. Login
         update_single_check_progress(email, "running", "Cargando...", 35)
@@ -303,7 +311,7 @@ def check_single_account(email, password, scrape_card=True):
         try:
             accept_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Aceptar cookies') or contains(text(), 'Aceptar')]")))
             accept_btn.click()
-            time.sleep(1)
+            # No sleep needed: wait for the form field to be ready instead
         except Exception:
             pass
             
@@ -369,27 +377,30 @@ def check_single_account(email, password, scrape_card=True):
             raise Exception(f"No se pudo determinar el saldo. HTML: {saldo_str}")
             
         # 4. Optional: scrape card number
-        card_number = None
-        if scrape_card:
+        # If an existing card number is passed in (from env or caller), reuse it directly
+        card_number = existing_card_number if existing_card_number else None
+        if scrape_card and not card_number:
             update_single_check_progress(email, "running", "Tarjeta...", 85)
             try:
-                # MUST navigate driver to settings/loyalty page first!
+                # Navigate driver to settings/loyalty page
                 driver.get("https://www.compraonline.alcampo.es/settings/loyalty")
-                time.sleep(3)
+                # Wait for the "Mi cuenta Club Alcampo" button instead of blind sleep
+                card_wait = WebDriverWait(driver, 10)
                 
-                # Accept cookies again if needed
+                # Accept cookies again if needed (quick check, no wait)
                 try:
                     accept_btn = driver.find_element(By.XPATH, "//button[contains(text(), 'Aceptar cookies') or contains(text(), 'Aceptar')]")
                     accept_btn.click()
-                    time.sleep(1)
                 except Exception:
                     pass
                 
                 # Find and click "Mi cuenta Club Alcampo"
-                btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Mi cuenta Club Alcampo')]/.. | //a[contains(text(), 'Mi cuenta Club Alcampo')]")))
+                btn = card_wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Mi cuenta Club Alcampo')]/.. | //a[contains(text(), 'Mi cuenta Club Alcampo')]")))
                 main_handle = driver.current_window_handle
                 btn.click()
-                time.sleep(4)
+                
+                # Wait for new tab to open instead of fixed sleep
+                WebDriverWait(driver, 8).until(lambda d: len(d.window_handles) > 1)
                 
                 all_handles = driver.window_handles
                 portal_handle = None
@@ -401,7 +412,13 @@ def check_single_account(email, password, scrape_card=True):
                 if portal_handle:
                     driver.switch_to.window(portal_handle)
                     update_single_check_progress(email, "running", "Finalizando...", 95)
-                    time.sleep(6)
+                    # Wait for page to have meaningful content instead of fixed 6s sleep
+                    try:
+                        WebDriverWait(driver, 10).until(
+                            lambda d: len(d.page_source) > 5000
+                        )
+                    except Exception:
+                        pass  # Use whatever has loaded so far
                     portal_html = driver.page_source
                     
                     match_clif = re.search(r'value="\?clif=(\d+)"', portal_html)
@@ -414,6 +431,8 @@ def check_single_account(email, password, scrape_card=True):
             except Exception as e:
                 # Log card scraping error but don't fail balance check
                 print(f"Advertencia: No se pudo extraer número de tarjeta: {e}")
+        elif card_number:
+            print(f"✔ Reutilizando número de tarjeta existente: {card_number} (sin scraping)")
                 
         return {
             "status": "success",
@@ -667,7 +686,11 @@ def main():
     if args.check_single:
         email, password = args.check_single
         print(f"🔎 Iniciando comprobación de saldo individual para: {email}")
-        res = check_single_account(email, password, scrape_card=True)
+        # Read existing card number from env (passed by dashboard to skip scraping)
+        existing_card = os.environ.get("EXISTING_CARD_NUMBER") or None
+        if existing_card:
+            print(f"ℹ️ Número de tarjeta ya conocido ({existing_card}), se omitirá el scraping del portal.")
+        res = check_single_account(email, password, scrape_card=True, existing_card_number=existing_card)
         print(f"Resultado: {res}")
         
         # Safe update to Firebase RTDB and local top_accounts.json

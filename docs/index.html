@@ -1205,8 +1205,17 @@
             });
         }
 
-        async function triggerGitHubWorkflow(email, password, pat, repo, checkId) {
+        async function triggerGitHubWorkflow(email, password, pat, repo, checkId, existingCardNumber) {
             const url = `https://api.github.com/repos/${repo}/actions/workflows/check_account.yml/dispatches`;
+            const inputs = {
+                email: email,
+                password: password,
+                check_id: checkId
+            };
+            // Pass existing card number so the runner skips portal scraping
+            if (existingCardNumber) {
+                inputs.card_number = existingCardNumber;
+            }
             const res = await fetch(url, {
                 method: 'POST',
                 headers: {
@@ -1216,11 +1225,7 @@
                 },
                 body: JSON.stringify({
                     ref: 'main',
-                    inputs: {
-                        email: email,
-                        password: password,
-                        check_id: checkId
-                    }
+                    inputs: inputs
                 })
             });
             if (!res.ok) {
@@ -1315,6 +1320,8 @@
                 }
 
                 const githubRepo = 'stoica25-byte/Programacion1';
+                // Look up existing card_number from loaded top10 data (avoids scraping if already known)
+                const existingCard = (top10Data.find(a => a.email === email) || {}).card_number || null;
 
                 try {
                     const startTime = Date.now() / 1000;
@@ -1341,7 +1348,7 @@
                     }
 
                     // Trigger GitHub Actions workflow with checkId input
-                    await triggerGitHubWorkflow(email, password, pat, githubRepo, checkId);
+                    await triggerGitHubWorkflow(email, password, pat, githubRepo, checkId, existingCard);
                     console.log("[Comprobar] Workflow de GitHub iniciado. Esperando resultado en Firebase...");
                     
                     let attempts = 0;
