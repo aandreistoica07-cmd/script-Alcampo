@@ -412,10 +412,10 @@ def check_single_account(email, password, scrape_card=True, existing_card_number
                 if portal_handle:
                     driver.switch_to.window(portal_handle)
                     update_single_check_progress(email, "running", "Finalizando...", 95)
-                    # Wait for page to have meaningful content instead of fixed 6s sleep
+                    # Wait for page to load the card number (which happens asynchronously)
                     try:
-                        WebDriverWait(driver, 10).until(
-                            lambda d: len(d.page_source) > 5000
+                        WebDriverWait(driver, 12).until(
+                            lambda d: re.search(r'\b\d{13}\b', d.page_source) or re.search(r'value="\?clif=(\d+)"', d.page_source)
                         )
                     except Exception:
                         pass  # Use whatever has loaded so far
