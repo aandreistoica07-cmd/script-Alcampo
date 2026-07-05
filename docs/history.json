@@ -586,5 +586,17 @@
         "error": 189,
         "success_rate": 74.11,
         "total_balance": 174.71
+    },
+    {
+        "id": 50,
+        "date": "2026-07-05T10:32:44+02:00",
+        "version": "Optimized Script",
+        "duration": 2849.71,
+        "checked": 730,
+        "success": 542,
+        "zero": 230,
+        "error": 188,
+        "success_rate": 74.25,
+        "total_balance": 182.39
     }
 ]
