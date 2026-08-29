@@ -1,17 +1,5 @@
 [
     {
-        "id": 6,
-        "date": "2026-05-22T08:47:07Z",
-        "version": "Optimized Script",
-        "duration": 2761.33,
-        "checked": 730,
-        "success": 601,
-        "zero": 150,
-        "error": 129,
-        "success_rate": 82.33,
-        "total_balance": 224.67
-    },
-    {
         "id": 7,
         "date": "2026-05-23T10:01:35+02:00",
         "version": "Optimized Script",
@@ -1198,5 +1186,17 @@
         "error": 371,
         "success_rate": 49.18,
         "total_balance": 98.4
+    },
+    {
+        "id": 106,
+        "date": "2026-08-29T14:21:53+02:00",
+        "version": "Optimized Script",
+        "duration": 3743.13,
+        "checked": 730,
+        "success": 357,
+        "zero": 178,
+        "error": 373,
+        "success_rate": 48.9,
+        "total_balance": 109.97
     }
 ]
