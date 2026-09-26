@@ -79,6 +79,9 @@ jobs:
         env:
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
         run: |
+          if [ -n "${{ secrets.ACCOUNTS_BASE64 }}" ]; then
+            echo "${{ secrets.ACCOUNTS_BASE64 }}" | base64 -d > "script_alcampo_activacion telegram/accounts.json"
+          fi
           python "script_alcampo_activacion telegram/script_optimizado.py" --init-queue
 
   scrape-pass1:
