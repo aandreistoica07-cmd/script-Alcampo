@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       accounts_per_vm:
-        description: 'Cuentas objetivo por VM en Pasada 1'
+        description: 'Cuentas objetivo por VM (Golden Ratio: 100 por VM = 5 VMs)'
         required: false
-        default: '30'
+        default: '100'
   schedule:
     - cron: '0 8 * * *'
 
 jobs:
   prepare:
-    name: 🔍 Prepare Matrix Partition
+    name: 🔍 Prepare Matrix & Notify Telegram Start
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -21,11 +21,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Calcular Shards Dinámicos
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar requests
+        run: pip install requests
+
+      - name: Calcular Shards Dinámicos y Notificar Telegram Inicial
         id: set-matrix
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           python -c "
-          import json, math, os, base64
+          import json, math, os, base64, requests
 
           accounts_b64 = '''${{ secrets.ACCOUNTS_BASE64 }}'''
           if accounts_b64 and len(accounts_b64.strip()) > 10:
@@ -35,7 +46,7 @@ jobs:
                   accounts = json.load(f)
 
           total = len(accounts)
-          per_vm = int('${{ github.event.inputs.accounts_per_vm }}' or '30')
+          per_vm = int('${{ github.event.inputs.accounts_per_vm }}' or '100')
           shards = math.ceil(total / per_vm) if total > 0 else 1
           
           matrix_data = {'shard': list(range(shards))}
@@ -44,6 +55,23 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as f:
               f.write(f'matrix={json.dumps(matrix_data)}\n')
               f.write(f'total_shards={shards}\n')
+
+          # Enviar mensaje inicial a Telegram con el enlace directo al Dashboard en Vercel
+          token = os.environ.get('TELEGRAM_TOKEN')
+          chat_id = os.environ.get('TELEGRAM_CHAT_ID')
+          if token and chat_id:
+              msg = (
+                  f'🚀 <b>Iniciando verificación Alcampo Multi-VM</b>\n\n'
+                  f'📋 Cuentas a procesar: {total}\n'
+                  f'⚙️ Matriz: {shards} VMs en paralelo (Golden Ratio Anti-WAF)\n\n'
+                  f'👀 <b>Ver Monitor en Vivo en tiempo real:</b>\n'
+                  f'https://script-alcampo.vercel.app/'
+              )
+              try:
+                  requests.post(f'https://api.telegram.org/bot{token}/sendMessage', data={'chat_id': chat_id, 'text': msg, 'parse_mode': 'HTML'}, timeout=10)
+                  print('✔ Notificación inicial enviada a Telegram.')
+              except Exception as e:
+                  print(f'Warning Telegram initial notification: {e}')
           "
 
   scrape-pass1:
@@ -84,7 +112,7 @@ jobs:
           python script_optimizado.py \
             --shard-id ${{ matrix.shard }} \
             --total-shards ${{ needs.prepare.outputs.total_shards }} \
-            --threads 3 \
+            --threads 2 \
             --no-telegram \
             --output-file "saldos_pass1_shard_${{ matrix.shard }}.xlsx"
 
