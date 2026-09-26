@@ -326,68 +326,57 @@ def init_firebase_queue(accounts):
         print(f"⚠️ Error inicializando cola dinámica en Firebase: {e}")
         return False
 
-def claim_accounts_from_queue(worker_id, count=10):
-    """Atomically claims up to `count` pending or stale (>60s) accounts from the shared Firebase queue in 1 PATCH request."""
+def claim_account_from_queue(worker_id):
+    """Atomically claims the next pending or stale (>60s) account from the shared Firebase queue 1-by-1."""
     firebase_url = get_firebase_url()
     if not firebase_url:
-        return []
+        return None
     
     with queue_lock:
         try:
             url = firebase_url.strip().rstrip('/') + "/queue.json"
             res = requests.get(url, timeout=5)
             if not res.ok:
-                return []
+                return None
             queue_data = res.json()
             if not isinstance(queue_data, dict):
-                return []
+                return None
 
-            claimed = []
-            updates = {}
             now = time.time()
-            
-            # Phase 1: Try claiming pending accounts
+            # Phase 1: Try claiming a pending account
             for key, item in queue_data.items():
                 if isinstance(item, dict) and item.get("status") == "pending":
+                    claim_url = firebase_url.strip().rstrip('/') + f"/queue/{key}.json"
                     item["status"] = "in_progress"
                     item["claimed_by"] = str(worker_id)
                     item["claimed_at"] = now
                     item["timestamp"] = now
-                    claimed.append({"email": item["email"], "password": item["password"]})
-                    updates[f"queue/{key}"] = item
-                    if len(claimed) >= count:
-                        break
-                        
-            # Phase 2: Stale claim recovery (work stealing for accounts in_progress for > 60s without heartbeat)
-            if len(claimed) < count:
-                for key, item in queue_data.items():
-                    if isinstance(item, dict) and item.get("status") == "in_progress":
-                        last_time = item.get("timestamp") or item.get("claimed_at") or 0
-                        if now - last_time > 60:
-                            print(f"🏴‍☠️ [WORK STEAL] Robando cuenta estancada {item.get('email')} de {item.get('claimed_by')} (>60s sin actividad).")
-                            item["status"] = "in_progress"
-                            item["claimed_by"] = str(worker_id)
-                            item["claimed_at"] = now
-                            item["timestamp"] = now
-                            claimed.append({"email": item["email"], "password": item["password"]})
-                            updates[f"queue/{key}"] = item
-                            if len(claimed) >= count:
-                                break
+                    requests.put(claim_url, json=item, timeout=5)
+                    return {"email": item["email"], "password": item["password"]}
 
-            if updates:
-                # Update all claimed accounts in 1 single atomic HTTP PATCH call to Firebase
-                patch_url = firebase_url.strip().rstrip('/') + "/.json"
-                requests.patch(patch_url, json=updates, timeout=5)
-                
-            return claimed
+            # Phase 2: Stale claim recovery (work stealing for accounts in_progress > 60s)
+            for key, item in queue_data.items():
+                if isinstance(item, dict) and item.get("status") == "in_progress":
+                    last_time = item.get("timestamp") or item.get("claimed_at") or 0
+                    if now - last_time > 60:
+                        print(f"🏴‍☠️ [WORK STEAL] Robando cuenta estancada {item.get('email')} de {item.get('claimed_by')} (>60s sin actividad).")
+                        claim_url = firebase_url.strip().rstrip('/') + f"/queue/{key}.json"
+                        item["status"] = "in_progress"
+                        item["claimed_by"] = str(worker_id)
+                        item["claimed_at"] = now
+                        item["timestamp"] = now
+                        requests.put(claim_url, json=item, timeout=5)
+                        return {"email": item["email"], "password": item["password"]}
+
+            return None
         except Exception as e:
-            print(f"Warning claiming accounts from queue: {e}")
-            return []
+            print(f"Warning claiming account from queue: {e}")
+            return None
 
-def claim_account_from_queue(worker_id):
-    """Wrapper for claiming a single account from queue for backwards compatibility."""
-    res = claim_accounts_from_queue(worker_id, count=1)
-    return res[0] if res else None
+def claim_accounts_from_queue(worker_id, count=1):
+    """Wrapper for batch claiming compatibility."""
+    acc = claim_account_from_queue(worker_id)
+    return [acc] if acc else []
 
 
 # Install ChromeDriver once globally
@@ -1010,20 +999,15 @@ def procesar_bloque_dinamico(worker_name, thread_idx):
         driver.implicitly_wait(1)
 
     acc_index = 0
-    local_buffer = []
     while True:
         if circuit_breaker.triggered:
             print(f"[{worker_name} Hilo {thread_idx}] 🛑 Circuit Breaker activado. Abortando consumo de cola.")
             break
 
-        if not local_buffer:
-            local_buffer = claim_accounts_from_queue(f"{worker_name}_t{thread_idx}", count=15)
-
-        if not local_buffer:
+        acc = claim_account_from_queue(f"{worker_name}_t{thread_idx}")
+        if not acc:
             print(f"[{worker_name} Hilo {thread_idx}] 🎉 No quedan más cuentas en la cola dinámica de Firebase.")
             break
-
-        acc = local_buffer.pop(0)
 
         acc_index += 1
         email = acc["email"]

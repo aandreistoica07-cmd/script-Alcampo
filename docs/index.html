@@ -393,6 +393,15 @@
             
             // Set active class on clicked button
             btnElement.classList.add('active');
+
+            // Trigger chart resize when switching back to analytics tab
+            if (tabId === 'analytics-tab') {
+                setTimeout(() => {
+                    if (balanceChart) balanceChart.resize();
+                    if (statusChart) statusChart.resize();
+                    if (durationChart) durationChart.resize();
+                }, 50);
+            }
         }
 
         // --- Data Variables ---
