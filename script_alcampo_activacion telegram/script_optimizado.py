@@ -137,10 +137,8 @@ circuit_breaker = CircuitBreaker(max_consecutive_failures=5, max_failure_ratio=0
 
 def get_firebase_url():
     url = (os.environ.get("FIREBASE_DB_URL") or "").strip()
-    if not url or url.lower() in ("none", "null", "***", "undefined"):
-        return None
-    if not url.startswith("http"):
-        return None
+    if not url or url.lower() in ("none", "null", "***", "undefined") or not url.startswith("http"):
+        return "https://monitor-alcampo-default-rtdb.europe-west1.firebasedatabase.app/"
     return url
 
 
