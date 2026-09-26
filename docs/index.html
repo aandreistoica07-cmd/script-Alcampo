@@ -27,7 +27,7 @@
                 <div class="logo-icon" id="header-pulse-dot"></div>
                 <div>
                     <h1>Alcampo Scraper Analytics</h1>
-                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">Panel Inteligente | Pipeline Matriz 5 VMs Golden Ratio (Anti-WAF & Auto-Curación)</p>
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">Panel Inteligente | Pipeline Matriz Multi-VM Golden Ratio (75 Cuentas/VM ~5-7 min | 3 Hilos/VM)</p>
                 </div>
             </div>
             <div class="header-status-badge badge-idle" id="global-status-badge">
@@ -223,7 +223,7 @@
                         <span style="font-size: 1.5rem; text-shadow: 0 0 10px rgba(255, 159, 67, 0.4);">🔥</span>
                         <div>
                             <h3 style="margin: 0; font-size: 1rem; font-weight: 700; color: var(--text-primary);">Conexión Firebase Realtime DB</h3>
-                            <p style="margin: 0; font-size: 0.75rem; color: var(--text-secondary);">Monitoriza las 5 VMs paralelas de GitHub Actions en tiempo real con Auto-Curación o ejecuciones locales.</p>
+                            <p style="margin: 0; font-size: 0.75rem; color: var(--text-secondary);">Monitoriza las VMs paralelas de GitHub Actions en tiempo real con Cola Dinámica Firebase y Auto-Curación.</p>
                         </div>
                     </div>
                     <div style="display: flex; gap: 0.5rem; flex: 1; min-width: 280px; max-width: 500px;">
@@ -534,7 +534,7 @@
             document.getElementById('latest-error-acc').innerText = latestRun.error;
             document.getElementById('latest-success-rate').innerText = `${latestRun.success_rate.toFixed(1)}%`;
             document.getElementById('latest-duration').innerText = formatDuration(latestRun.duration);
-            document.getElementById('latest-script-version').innerText = 'Script Optimizado v2.0';
+            document.getElementById('latest-script-version').innerText = `Versión: ${latestRun.version || 'Multi-VM Matrix 2-Pass'}`;
         }
 
         // Helper to format UTC date string to local timezone
@@ -986,6 +986,12 @@
                     const lastActiveDiff = t.timestamp ? nowSec - Math.round(t.timestamp) : 999;
                     const isActive = lastActiveDiff < 45; 
                     
+                    let threadName = `Hilo ${tid}`;
+                    if (tid.includes('_t')) {
+                        const parts = tid.split('_t');
+                        threadName = `VM ${parts[0].replace('VM_', '')} Hilo ${parts[1]}`;
+                    }
+
                     let badgeColorClass = 'thread-badge-pending';
                     if (t.last_status === 'success') badgeColorClass = 'thread-badge-success';
                     if (t.last_status === 'error') badgeColorClass = 'thread-badge-error';
@@ -994,7 +1000,7 @@
                         <div class="thread-item">
                             <div class="thread-left">
                                 <span class="thread-status-dot ${isActive ? 'active' : 'idle'}"></span>
-                                <span class="thread-number">Hilo ${tid}</span>
+                                <span class="thread-number">${threadName}</span>
                             </div>
                             <div class="thread-email" title="${t.last_account || ''}">${t.last_account || 'Esperando asignación...'}</div>
                             <span class="thread-badge ${badgeColorClass}">${t.last_status || 'Espera'}</span>
