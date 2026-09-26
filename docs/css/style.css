@@ -590,47 +590,58 @@ main {
 
 /* --- Live Console Terminal --- */
 .console-panel {
-    background-color: var(--bg-darker);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 12px;
-    height: 400px;
+    background-color: #020408;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    height: 440px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    box-shadow: inset 0 2px 20px rgba(0, 0, 0, 0.8);
+    box-shadow: inset 0 2px 25px rgba(0, 0, 0, 0.9), 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
 .console-header {
-    background-color: rgba(13, 20, 38, 0.85);
+    background-color: rgba(10, 16, 32, 0.95);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     padding: 0.6rem 1rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
 }
 
 .console-dots {
     display: flex;
-    gap: 6px;
+    align-items: center;
+    gap: 7px;
 }
 
 .console-dot {
-    width: 10px;
-    height: 10px;
+    width: 11px;
+    height: 11px;
     border-radius: 50%;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+    cursor: pointer;
+}
+
+.console-dot:hover {
+    transform: scale(1.2);
+    opacity: 0.9;
 }
 
 .console-title {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    color: var(--text-muted);
+    font-size: 0.78rem;
+    color: var(--text-secondary);
     font-weight: 700;
+    letter-spacing: 0.2px;
 }
 
 .console-body {
     flex: 1;
     overflow-y: auto;
-    padding: 1rem;
+    padding: 0.85rem 1rem;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.82rem;
     line-height: 1.6;
@@ -639,33 +650,64 @@ main {
     word-break: break-all;
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: 0.25rem;
 }
 
 .console-collapsible-btn {
     background: transparent;
-    border: none;
-    color: var(--accent-blue);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary);
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     font-weight: 600;
     display: flex;
     align-items: center;
     gap: 0.25rem;
+    transition: all var(--transition-fast);
 }
 
-/* Console logs syntax coloration */
+.console-collapsible-btn:hover {
+    background: rgba(255, 56, 96, 0.15);
+    color: var(--accent-red);
+    border-color: rgba(255, 56, 96, 0.3);
+}
+
+/* Console logs syntax coloration & badges */
 .log-line {
-    padding: 0.1rem 0;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+    transition: background 0.15s ease;
+}
+
+.log-line:hover {
+    background: rgba(255, 255, 255, 0.04);
 }
 
 .log-info { color: #57c7ff; }
-.log-success { color: var(--accent-green); font-weight: 500; }
-.log-warning { color: var(--accent-orange); }
-.log-error { color: var(--accent-red); font-weight: 500; }
-.log-thread { color: #c3a6ff; }
+.log-success { color: var(--accent-green); font-weight: 600; text-shadow: 0 0 10px rgba(0, 255, 135, 0.2); }
+.log-warning { color: var(--accent-orange); font-weight: 500; }
+.log-error { color: var(--accent-red); font-weight: 600; }
+.log-thread { color: #c3a6ff; font-weight: 500; }
 .log-system { color: var(--text-secondary); font-style: italic; }
+
+.log-badge-queue {
+    background: rgba(255, 159, 67, 0.2);
+    color: var(--accent-orange);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-weight: 700;
+}
+
+.log-badge-steal {
+    background: rgba(0, 210, 255, 0.2);
+    color: var(--accent-blue);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-weight: 700;
+}
 
 /* --- Detailed History Table Section --- */
 .history-section {
