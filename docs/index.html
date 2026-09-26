@@ -432,10 +432,27 @@
         // --- Load & Parse History ---
         async function loadHistory() {
             try {
-                const response = await fetch('history.json', { cache: 'no-store' });
-                if (!response.ok) throw new Error('No se pudo cargar history.json');
-                
-                historyData = await response.json();
+                let data = null;
+                const fbUrl = "https://monitor-alcampo-default-rtdb.europe-west1.firebasedatabase.app/history.json";
+                try {
+                    const resFb = await fetch(fbUrl, { cache: 'no-store' });
+                    if (resFb.ok) {
+                        const parsed = await resFb.json();
+                        if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+                            data = parsed;
+                        }
+                    }
+                } catch (fbErr) {
+                    console.warn("No se pudo cargar history desde Firebase, usando archivo local:", fbErr);
+                }
+
+                if (!data) {
+                    const response = await fetch('history.json', { cache: 'no-store' });
+                    if (!response.ok) throw new Error('No se pudo cargar history.json');
+                    data = await response.json();
+                }
+
+                historyData = data;
                 
                 // Sort chronologically by date
                 historyData.sort((a, b) => new Date(a.date) - new Date(b.date));
