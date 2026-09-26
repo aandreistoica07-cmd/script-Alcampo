@@ -301,6 +301,10 @@ def update_progress(thread_idx, email, status, saldo_str):
 
 # --- FIREBASE DYNAMIC WORK QUEUE ---
 queue_lock = threading.Lock()
+firebase_session = requests.Session()
+fb_adapter = requests.adapters.HTTPAdapter(pool_connections=20, pool_maxsize=20)
+firebase_session.mount("https://", fb_adapter)
+firebase_session.mount("http://", fb_adapter)
 
 def init_firebase_queue(accounts):
     """Initializes the shared work-stealing queue on Firebase Realtime DB."""
@@ -319,7 +323,7 @@ def init_firebase_queue(accounts):
                 "claimed_by": None,
                 "timestamp": time.time()
             }
-        requests.put(url, json=queue_data, timeout=8)
+        firebase_session.put(url, json=queue_data, timeout=8)
         print(f"📦 [FIREBASE QUEUE] Cola dinámica inicializada con {len(accounts)} cuentas en Firebase.")
         return True
     except Exception as e:
@@ -335,7 +339,7 @@ def claim_account_from_queue(worker_id):
     with queue_lock:
         try:
             url = firebase_url.strip().rstrip('/') + "/queue.json"
-            res = requests.get(url, timeout=5)
+            res = firebase_session.get(url, timeout=5)
             if not res.ok:
                 return None
             queue_data = res.json()
@@ -351,7 +355,7 @@ def claim_account_from_queue(worker_id):
                     item["claimed_by"] = str(worker_id)
                     item["claimed_at"] = now
                     item["timestamp"] = now
-                    requests.put(claim_url, json=item, timeout=5)
+                    firebase_session.put(claim_url, json=item, timeout=5)
                     return {"email": item["email"], "password": item["password"]}
 
             # Phase 2: Stale claim recovery (work stealing for accounts in_progress > 60s)
@@ -365,7 +369,7 @@ def claim_account_from_queue(worker_id):
                         item["claimed_by"] = str(worker_id)
                         item["claimed_at"] = now
                         item["timestamp"] = now
-                        requests.put(claim_url, json=item, timeout=5)
+                        firebase_session.put(claim_url, json=item, timeout=5)
                         return {"email": item["email"], "password": item["password"]}
 
             return None
