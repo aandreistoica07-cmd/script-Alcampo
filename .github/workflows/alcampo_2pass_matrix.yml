@@ -64,7 +64,7 @@ jobs:
               msg = (
                   f'🚀 <b>Iniciando verificación Alcampo Multi-VM</b>\n\n'
                   f'📋 Cuentas a procesar: {total}\n'
-                  f'⚙️ Matriz: {shards} VMs en paralelo (Golden Ratio Anti-WAF)\n\n'
+                  f'⚙️ Matriz: {shards} VMs en paralelo (Cola Dinámica Firebase)\n\n'
                   f'👀 <b>Ver Monitor en Vivo en tiempo real:</b>\n'
                   f'https://script-alcampo.vercel.app/'
               )
@@ -74,6 +74,12 @@ jobs:
               except Exception as e:
                   print(f'Warning Telegram initial notification: {e}')
           "
+
+      - name: Inicializar Cola Dinámica en Firebase
+        env:
+          FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+        run: |
+          python "script_alcampo_activacion telegram/script_optimizado.py" --init-queue
 
   scrape-pass1:
     name: 🚀 Pasada 1 (Matrix Shard ${{ matrix.shard }})
@@ -106,12 +112,13 @@ jobs:
             echo "${{ secrets.ACCOUNTS_BASE64 }}" | base64 -d > "script_alcampo_activacion telegram/accounts.json"
           fi
 
-      - name: Ejecutar Scraper en IP Fresca (VM ${{ matrix.shard }})
+      - name: Ejecutar Scraper con Cola Dinámica Firebase (VM ${{ matrix.shard }})
         env:
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
         run: |
           cd "script_alcampo_activacion telegram"
           python script_optimizado.py \
+            --use-queue \
             --shard-id ${{ matrix.shard }} \
             --total-shards ${{ needs.prepare.outputs.total_shards }} \
             --threads 2 \
