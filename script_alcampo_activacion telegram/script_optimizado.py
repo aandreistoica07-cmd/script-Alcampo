@@ -73,6 +73,68 @@ def print_and_log(*args, **kwargs):
 builtins.print = print_and_log
 
 
+# --- CIRCUIT BREAKER (SERVER DOWN / CLOUDFLARE GUARD) ---
+class CircuitBreaker:
+    """Interruptor de Seguridad: detecta caídas del servidor de Alcampo/Cloudflare
+    y aborta la ejecución para no consumir minutos en GitHub Actions inutilmente."""
+    def __init__(self, max_consecutive_failures=5, max_failure_ratio=0.40, min_processed_threshold=5):
+        self.lock = threading.Lock()
+        self.consecutive_server_errors = 0
+        self.total_server_errors = 0
+        self.total_processed = 0
+        self.max_consecutive = max_consecutive_failures
+        self.max_ratio = max_failure_ratio
+        self.min_threshold = min_processed_threshold
+        self.triggered = False
+        self.trigger_reason = ""
+
+    def is_server_down_error(self, status_code=None, page_source="", error_msg=""):
+        combined = f"{page_source} {error_msg}".lower()
+        if status_code and (500 <= status_code <= 599 or status_code in (520, 521, 522, 523, 524, 525, 526)):
+            return True, f"HTTP Status {status_code}"
+
+        cf_signatures = [
+            "error 522", "error 524", "error 520", "error 502", "error 503", "error 504",
+            "502 bad gateway", "503 service unavailable", "504 gateway time-out",
+            "connection timed out", "host error", "cloudflare ray id", "origin unreachable"
+        ]
+        for sig in cf_signatures:
+            if sig in combined:
+                return True, f"Firma Cloudflare/Servidor: '{sig}'"
+
+        maint_signatures = [
+            "mantenimiento", "estamos realizando tareas de mantenimiento",
+            "sitio en mantenimiento", "servidor no disponible", "web temporalmente fuera de servicio"
+        ]
+        for sig in maint_signatures:
+            if sig in combined:
+                return True, f"Banner Mantenimiento: '{sig}'"
+
+        return False, ""
+
+    def record_result(self, is_server_error, reason=""):
+        with self.lock:
+            self.total_processed += 1
+            if is_server_error:
+                self.consecutive_server_errors += 1
+                self.total_server_errors += 1
+            else:
+                self.consecutive_server_errors = 0
+
+            ratio = (self.total_server_errors / self.total_processed) if self.total_processed > 0 else 0.0
+
+            if self.consecutive_server_errors >= self.max_consecutive:
+                self.triggered = True
+                self.trigger_reason = f"🚨 {self.consecutive_server_errors} errores consecutivos de servidor ({reason})"
+            elif self.total_processed >= self.min_threshold and ratio > self.max_ratio:
+                self.triggered = True
+                self.trigger_reason = f"🚨 {ratio*100:.1f}% de errores de servidor en {self.total_processed} cuentas"
+
+            return self.triggered, self.trigger_reason
+
+circuit_breaker = CircuitBreaker(max_consecutive_failures=5, max_failure_ratio=0.40, min_processed_threshold=5)
+
+
 def get_firebase_url():
     url = (os.environ.get("FIREBASE_DB_URL") or "").strip()
     if not url or url.lower() in ("none", "null", "***", "undefined"):
@@ -570,6 +632,10 @@ def procesar_bloque(accounts_chunk, thread_idx):
         driver.implicitly_wait(1)
 
     for idx, acc in enumerate(accounts_chunk):
+        if circuit_breaker.triggered:
+            print(f"[Hilo {thread_idx}] 🛑 Circuit Breaker activado previamente. Abortando {acc['email']}")
+            break
+
         email = acc["email"]
         password = acc["password"]
         print(f"[Hilo {thread_idx}] → Procesando ({idx+1}/{len(accounts_chunk)}): {email}")
@@ -658,6 +724,11 @@ def procesar_bloque(accounts_chunk, thread_idx):
                     else:
                         saldo = "Error: Bloqueo/Timeout"
                     print(f"[Hilo {thread_idx}] 🔴 {email} → {saldo}")
+                    is_down, reason = circuit_breaker.is_server_down_error(page_source=page_html, error_msg=saldo)
+                    triggered, trigger_reason = circuit_breaker.record_result(is_down, reason)
+                    if triggered:
+                        print(f"🚨 [CIRCUIT BREAKER DISPARADO] {trigger_reason}. Abortando hilo {thread_idx}.")
+                        break
                     break
                     
                 # 4. Obtener cookies de la sesión

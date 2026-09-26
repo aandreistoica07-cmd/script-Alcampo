@@ -14,6 +14,7 @@ jobs:
   prepare:
     name: 🔍 Prepare Matrix & Notify Telegram Start
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       total_shards: ${{ steps.set-matrix.outputs.total_shards }}
@@ -78,6 +79,7 @@ jobs:
     name: 🚀 Pasada 1 (Matrix Shard ${{ matrix.shard }})
     needs: prepare
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
@@ -127,6 +129,7 @@ jobs:
     name: 🕵️ Detectar Timeouts para Reintento
     needs: [scrape-pass1]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       has_timeouts: ${{ steps.check.outputs.has_timeouts }}
       failed_count: ${{ steps.check.outputs.failed_count }}

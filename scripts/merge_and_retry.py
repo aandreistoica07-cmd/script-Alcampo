@@ -57,8 +57,29 @@ def main():
                 print(f"Error leyendo {f}: {e}")
                 
         print(f"🔴 Cuentas con timeout detectadas para reintento: {len(failed_accounts)}")
-        
-        has_timeouts = "true" if len(failed_accounts) > 0 else "false"
+
+        # Check for stagnation / lack of progress in retries (Early Exit Guard)
+        prev_history_file = "previous_failures.json"
+        is_stagnant = False
+        if len(failed_accounts) > 0 and os.path.exists(prev_history_file):
+            try:
+                with open(prev_history_file, "r", encoding="utf-8") as pf:
+                    prev_data = json.load(pf)
+                    prev_count = prev_data.get("count", 0)
+                if len(failed_accounts) >= prev_count:
+                    is_stagnant = True
+                    print(f"⚠️ [EARLY EXIT] Los fallos no disminuyeron ({prev_count} → {len(failed_accounts)}). Abortando reintentos adicionales para proteger minutos de GitHub Actions.")
+            except Exception as pe:
+                print(f"Warning reading failure history: {pe}")
+
+        if len(failed_accounts) > 0 and not is_stagnant:
+            try:
+                with open(prev_history_file, "w", encoding="utf-8") as pf:
+                    json.dump({"count": len(failed_accounts)}, pf)
+            except Exception:
+                pass
+
+        has_timeouts = "true" if (len(failed_accounts) > 0 and not is_stagnant) else "false"
         if len(failed_accounts) > 0:
             with open(args.failed_json, "w", encoding="utf-8") as f:
                 json.dump(failed_accounts, f, ensure_ascii=False, indent=2)
