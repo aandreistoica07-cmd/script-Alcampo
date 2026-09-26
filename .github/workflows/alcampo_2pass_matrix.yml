@@ -193,22 +193,45 @@ jobs:
         with:
           name: failed-accounts-json
 
-      - name: Reintentar Cuentas Fallidas en IP Fresca
+      - name: Reintentar Cuentas Fallidas en Bucle Continuo hasta 100% de Éxito
         run: |
           cd "script_alcampo_activacion telegram"
-          python script_optimizado.py \
-            --input-file "../failed_accounts.json" \
-            --shard-id ${{ matrix.shard }} \
-            --total-shards ${{ matrix.total_shards }} \
-            --threads 2 \
-            --no-telegram \
-            --output-file "saldos_retry_shard_${{ matrix.shard }}.xlsx"
+          CYCLE=1
+          MAX_CYCLES=5
+          
+          while [ $CYCLE -le $MAX_CYCLES ]; do
+            echo "🔄 === INICIANDO CICLO $CYCLE DE AUTO-CURACIÓN (Shard ${{ matrix.shard }}) ==="
+            
+            python script_optimizado.py \
+              --input-file "../failed_accounts.json" \
+              --shard-id ${{ matrix.shard }} \
+              --total-shards ${{ matrix.total_shards }} \
+              --threads 2 \
+              --no-telegram \
+              --output-file "saldos_retry_shard_${{ matrix.shard }}_cycle_${CYCLE}.xlsx"
 
-      - name: Subir Artefacto Pasada 2
+            # Inspeccionar si aún existen timeouts en este shard
+            python ../scripts/merge_and_retry.py \
+              --mode check-timeouts \
+              --input-dir "." \
+              --failed-json "../failed_accounts_cycle_${CYCLE}.json"
+
+            if [ -s "../failed_accounts_cycle_${CYCLE}.json" ]; then
+              echo "⚠️ Quedan cuentas pendientes con timeout. Preparando Ciclo $((CYCLE+1))..."
+              cp "../failed_accounts_cycle_${CYCLE}.json" "../failed_accounts.json"
+              CYCLE=$((CYCLE+1))
+              sleep 2
+            else
+              echo "🎉 ¡0 timeouts pendientes en Shard ${{ matrix.shard }}! Todas las cuentas del shard han sido resueltas."
+              break
+            fi
+          done
+
+      - name: Subir Artefacto Pasada 2 (Ciclos Consolidados)
         uses: actions/upload-artifact@v4
         with:
           name: pass2-retry-shard-${{ matrix.shard }}
-          path: "script_alcampo_activacion telegram/saldos_retry_shard_${{ matrix.shard }}.xlsx"
+          path: "script_alcampo_activacion telegram/saldos_retry_shard_${{ matrix.shard }}_cycle_*.xlsx"
           retention-days: 1
 
   final-consolidate:
