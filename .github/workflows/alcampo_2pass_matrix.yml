@@ -197,6 +197,8 @@ jobs:
           name: failed-accounts-json
 
       - name: Reintentar Cuentas Fallidas en Bucle Continuo hasta 100% de Éxito
+        env:
+          FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
         run: |
           cd "script_alcampo_activacion telegram"
           CYCLE=1
