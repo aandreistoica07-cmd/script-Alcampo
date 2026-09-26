@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Selenium / ChromeDriver
+chromedriver
+chromedriver.exe
+
+# Temporary & Output data (do not track large runtime files if desired)
+*.log
+script_alcampo_activacion telegram/saldos_alcampo.xlsx
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
