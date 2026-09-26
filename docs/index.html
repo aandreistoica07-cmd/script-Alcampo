@@ -955,14 +955,22 @@
             }
 
             // Update Progress Details
-            const percent = data.total > 0 ? Math.round((data.processed / data.total) * 100) : 0;
+            const total = data.total || 0;
+            const processed = data.processed || 0;
+            const percent = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0;
+            
             document.getElementById('live-progress-percent').innerText = `${percent}%`;
-            document.getElementById('live-accounts-ratio').innerText = `${data.processed} / ${data.total} Cuentas`;
+            
+            let ratioLabel = `${processed} / ${total} Cuentas`;
+            if (data.cycle === 2 || (data.retry_total > 0 && !data.is_finished)) {
+                ratioLabel += ` 🔄 (Ciclo 2: Recuperando errores)`;
+            }
+            document.getElementById('live-accounts-ratio').innerText = ratioLabel;
             document.getElementById('live-progress-fill').style.width = `${percent}%`;
 
             // Speed & ETA
-            if (data.processed > 0 && data.elapsed > 0) {
-                const rate = (data.processed / data.elapsed) * 60; // accounts per minute
+            if (processed > 0 && data.elapsed > 0) {
+                const rate = (processed / data.elapsed) * 60; // accounts per minute
                 document.getElementById('live-speed').innerText = `Velocidad: ${rate.toFixed(1)} cuentas/min`;
                 document.getElementById('live-eta').innerText = `Tiempo restante: ${formatTime(data.eta)}`;
             } else {
@@ -971,10 +979,11 @@
             }
 
             // Live Money Counters
-            document.getElementById('live-balance').innerText = `${data.total_balance.toFixed(2)} €`;
-            document.getElementById('live-money-count').innerText = data.money;
-            document.getElementById('live-zero-count').innerText = data.zero;
-            document.getElementById('live-error-count').innerText = data.error;
+            const liveBal = data.total_balance != null ? Number(data.total_balance) : 0.0;
+            document.getElementById('live-balance').innerText = `${liveBal.toFixed(2)} €`;
+            document.getElementById('live-money-count').innerText = data.money != null ? data.money : 0;
+            document.getElementById('live-zero-count').innerText = data.zero != null ? data.zero : 0;
+            document.getElementById('live-error-count').innerText = Math.max(0, data.error != null ? data.error : 0);
 
             if (data.start_time) {
                 const dateObj = new Date(data.start_time * 1000);

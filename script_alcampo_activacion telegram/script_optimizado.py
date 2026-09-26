@@ -215,88 +215,153 @@ def init_progress(total_accounts):
             except Exception:
                 pass
 
+results_lock = threading.Lock()
+local_results = {}
+
 def update_progress(thread_idx, email, status, saldo_str):
-    """Thread-safely updates progress metrics, saves to progreso.json, and pushes to Firebase."""
-    global progress_state
+    """Thread-safely updates progress metrics, saves to progreso.json, and pushes deduplicated results to Firebase."""
+    global progress_state, local_results
     
-    # Parse balance to calculate metrics
     saldo_val = limpiar_saldo(saldo_str)
+    email_key = email.replace('.', '_').replace('@', '_').replace('$', '_').replace('#', '_').replace('[', '_').replace(']', '_')
+    
+    result_entry = {
+        "email": email,
+        "status": status,
+        "saldo": saldo_str,
+        "balance": saldo_val,
+        "timestamp": time.time()
+    }
     
     with log_lock:
-        progress_state["processed"] += 1
-        
-        if status == "success":
-            progress_state["success"] += 1
-            if saldo_val is not None:
-                progress_state["total_balance"] += saldo_val
-                if saldo_val > 0:
-                    progress_state["money"] += 1
-                else:
-                    progress_state["zero"] += 1
-            # If saldo_val is None but login was successful, count as zero (could not read balance page)
-            else:
-                progress_state["zero"] += 1
-        else:
-            progress_state["error"] += 1
+        with results_lock:
+            local_results[email_key] = result_entry
+            progress_state["threads"][str(thread_idx)] = {
+                "last_account": email,
+                "last_status": status,
+                "timestamp": time.time()
+            }
             
-        # Calculate time metrics
-        elapsed = time.time() - progress_state["start_time"]
+        # Local deduplicated recalculation
+        money_count = 0
+        zero_count = 0
+        error_count = 0
+        total_bal = 0.0
+        
+        with results_lock:
+            for k, item in local_results.items():
+                st = item.get("status")
+                bal = item.get("balance")
+                if st == "success":
+                    if bal is not None and isinstance(bal, (int, float)) and bal > 0:
+                        money_count += 1
+                        total_bal += float(bal)
+                    else:
+                        zero_count += 1
+                elif st == "error":
+                    error_count += 1
+                    
+        success_count = money_count + zero_count
+        processed_count = success_count + error_count
+        
+        progress_state["processed"] = max(progress_state.get("processed", 0), processed_count)
+        progress_state["success"] = success_count
+        progress_state["money"] = money_count
+        progress_state["zero"] = zero_count
+        progress_state["error"] = error_count
+        progress_state["total_balance"] = round(total_bal, 2)
+        
+        elapsed = time.time() - progress_state.get("start_time", time.time())
         progress_state["elapsed"] = elapsed
         
-        if progress_state["processed"] > 0:
+        if progress_state["processed"] > 0 and progress_state.get("total", 0) > 0:
             avg_time = elapsed / progress_state["processed"]
-            remaining = progress_state["total"] - progress_state["processed"]
+            remaining = max(0, progress_state["total"] - progress_state["processed"])
             progress_state["eta"] = remaining * avg_time
             
-        # Update specific thread status
-        progress_state["threads"][str(thread_idx)] = {
-            "last_account": email,
-            "last_status": status,
-            "timestamp": time.time()
-        }
-        
-        # Save to file
         try:
             with open(ROOT / "progreso.json", "w", encoding="utf-8") as f:
                 json.dump(progress_state, f, indent=4)
         except Exception:
             pass
 
-        # Asynchronously push to Firebase Realtime DB if URL is configured
-        # Push only every 3 accounts to avoid overloading the network/Firebase limits, or at the end
-        firebase_url = get_firebase_url()
-        if firebase_url and (progress_state["processed"] % 3 == 0 or progress_state["processed"] == progress_state["total"]):
+    firebase_url = get_firebase_url()
+    if firebase_url:
+        def push_to_firebase():
             try:
-                def push_to_firebase(state_snap):
-                    try:
-                        url = firebase_url.strip()
-                        # Push progress
-                        prog_url = url.rstrip('/') + "/progress.json"
-                        requests.put(prog_url, json=state_snap, timeout=5)
-                        
-                        # Push latest logs (last 100 lines), filtering Selenium stack traces
-                        try:
-                            log_path = ROOT / "consola.log"
-                            if log_path.exists():
-                                with open(log_path, "r", encoding="utf-8") as f:
-                                    lines = f.readlines()
-                                # Filter out Selenium/Chrome stack trace lines (memory addresses)
-                                filtered = [l for l in lines if not (l.strip().startswith('#') and '0x' in l)
-                                            and 'Stacktrace:' not in l
-                                            and '(Session info:' not in l
-                                            and '<unknown>' not in l]
-                                latest_logs = "".join(filtered[-100:])
-                                logs_url = url.rstrip('/') + "/logs.json"
-                                requests.put(logs_url, json=latest_logs, timeout=5)
-                        except Exception:
-                            pass
-                    except Exception:
-                        pass
-                # Shallow copy the state to avoid thread race conditions
-                state_snap = json.loads(json.dumps(progress_state))
-                threading.Thread(target=push_to_firebase, args=(state_snap,), daemon=True).start()
-            except Exception:
+                url = firebase_url.strip().rstrip('/')
+                # 1. Update individual result entry in /results/{email_key}
+                firebase_session.put(f"{url}/results/{email_key}.json", json=result_entry, timeout=5)
+                # 2. Update queue entry status
+                firebase_session.patch(f"{url}/queue/{email_key}.json", json={"status": status, "saldo": saldo_str, "balance": saldo_val}, timeout=5)
+                
+                # 3. Fetch all /results.json from Firebase to merge across all parallel VMs & retry passes
+                res = firebase_session.get(f"{url}/results.json", timeout=5)
+                all_results = {}
+                if res.ok and isinstance(res.json(), dict):
+                    all_results = res.json()
+                
+                with results_lock:
+                    for k, v in local_results.items():
+                        all_results[k] = v
+                
+                fb_money = 0
+                fb_zero = 0
+                fb_error = 0
+                fb_balance = 0.0
+                
+                for k, item in all_results.items():
+                    if not isinstance(item, dict):
+                        continue
+                    st = item.get("status")
+                    bal = item.get("balance")
+                    if st == "success":
+                        if bal is not None and isinstance(bal, (int, float)) and bal > 0:
+                            fb_money += 1
+                            fb_balance += float(bal)
+                        else:
+                            fb_zero += 1
+                    elif st == "error":
+                        fb_error += 1
+                
+                fb_success = fb_money + fb_zero
+                fb_processed = fb_success + fb_error
+                fb_total = max(progress_state.get("total", 0), fb_processed)
+                
+                prog_snap = {
+                    "total": fb_total,
+                    "processed": fb_processed,
+                    "success": fb_success,
+                    "money": fb_money,
+                    "zero": fb_zero,
+                    "error": fb_error,
+                    "total_balance": round(fb_balance, 2),
+                    "elapsed": round(time.time() - progress_state.get("start_time", time.time()), 1),
+                    "threads": progress_state.get("threads", {}),
+                    "timestamp": time.time()
+                }
+                
+                with log_lock:
+                    progress_state.update(prog_snap)
+                    
+                firebase_session.put(f"{url}/progress.json", json=prog_snap, timeout=5)
+                
+                # Push latest logs
+                try:
+                    log_path = ROOT / "consola.log"
+                    if log_path.exists():
+                        with open(log_path, "r", encoding="utf-8") as f:
+                            lines = f.readlines()
+                        filtered = [l for l in lines if not (l.strip().startswith('#') and '0x' in l)
+                                    and 'Stacktrace:' not in l and '(Session info:' not in l and '<unknown>' not in l]
+                        latest_logs = "".join(filtered[-100:])
+                        firebase_session.put(f"{url}/logs.json", json=latest_logs, timeout=5)
+                except Exception:
+                    pass
+            except Exception as e:
                 pass
+                
+        threading.Thread(target=push_to_firebase, daemon=True).start()
 
 
 # --- FIREBASE DYNAMIC WORK QUEUE ---

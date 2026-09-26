@@ -91,6 +91,19 @@ def main():
             with open(args.failed_json, "w", encoding="utf-8") as f:
                 json.dump(failed_accounts, f, ensure_ascii=False, indent=2)
             print(f"💾 Cuentas fallidas guardadas en {args.failed_json}")
+            
+            # Update Firebase RTDB progress node for Cycle 2 retry state
+            firebase_url = os.environ.get("FIREBASE_DB_URL") or "https://monitor-alcampo-default-rtdb.europe-west1.firebasedatabase.app/"
+            if firebase_url:
+                try:
+                    fb_base = firebase_url.strip().rstrip("/")
+                    requests.patch(f"{fb_base}/progress.json", json={
+                        "cycle": 2,
+                        "retry_total": len(failed_accounts),
+                        "is_finished": False
+                    }, timeout=5)
+                except Exception as fe:
+                    print(f"Warning updating retry state in Firebase: {fe}")
         else:
             if os.path.exists(args.failed_json):
                 os.remove(args.failed_json)
