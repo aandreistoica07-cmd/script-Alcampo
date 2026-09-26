@@ -205,20 +205,22 @@ jobs:
           MAX_CYCLES=5
           
           while [ $CYCLE -le $MAX_CYCLES ]; do
-            echo "🔄 === INICIANDO CICLO $CYCLE DE AUTO-CURACIÓN (Shard ${{ matrix.shard }}) ==="
+            # Intercambio Cruzado de Shard entre ciclos: (shard_id + CYCLE - 1) % total_shards
+            EFFECTIVE_SHARD=$(( (${{ matrix.shard }} + CYCLE - 1) % ${{ matrix.total_shards }} ))
+            echo "🔄 === INICIANDO CICLO $CYCLE DE AUTO-CURACIÓN (Shard Efectivo: $EFFECTIVE_SHARD) ==="
             
             python script_optimizado.py \
               --input-file "../failed_accounts.json" \
-              --shard-id ${{ matrix.shard }} \
+              --shard-id $EFFECTIVE_SHARD \
               --total-shards ${{ matrix.total_shards }} \
               --threads 2 \
               --no-telegram \
               --output-file "saldos_retry_shard_${{ matrix.shard }}_cycle_${CYCLE}.xlsx"
 
-            # Inspeccionar si aún existen timeouts en este shard
+            # Inspeccionar ÚNICAMENTE el archivo de este ciclo para evitar acumulación errónea
             python ../scripts/merge_and_retry.py \
               --mode check-timeouts \
-              --input-dir "." \
+              --single-file "saldos_retry_shard_${{ matrix.shard }}_cycle_${CYCLE}.xlsx" \
               --failed-json "../failed_accounts_cycle_${CYCLE}.json"
 
             if [ -s "../failed_accounts_cycle_${CYCLE}.json" ]; then

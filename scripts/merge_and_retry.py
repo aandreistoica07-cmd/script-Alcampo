@@ -10,6 +10,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Merge and Retry Helper for Alcampo GitHub Actions Pipeline")
     parser.add_argument("--mode", choices=["check-timeouts", "final-merge"], required=True)
     parser.add_argument("--input-dir", default="./all_shards", help="Directory containing shard Excel files")
+    parser.add_argument("--single-file", default=None, help="Inspect a specific single Excel file instead of a directory")
     parser.add_argument("--failed-json", default="failed_accounts.json", help="Path to write failed accounts JSON")
     parser.add_argument("--output-excel", default="REPORTE_DEFINITIVO_TELEGRAM.xlsx", help="Final output Excel path")
     return parser.parse_args()
@@ -38,8 +39,11 @@ def main():
     args = parse_args()
     
     if args.mode == "check-timeouts":
-        files = glob.glob(os.path.join(args.input_dir, "**", "*.xlsx"), recursive=True)
-        print(f"🔎 Inspeccionando {len(files)} archivos de la Pasada 1...")
+        if args.single_file and os.path.exists(args.single_file):
+            files = [args.single_file]
+        else:
+            files = glob.glob(os.path.join(args.input_dir, "**", "*.xlsx"), recursive=True)
+        print(f"🔎 Inspeccionando {len(files)} archivo(s)...")
         
         failed_accounts = []
         for f in files:
@@ -80,10 +84,13 @@ def main():
                 pass
 
         has_timeouts = "true" if (len(failed_accounts) > 0 and not is_stagnant) else "false"
-        if len(failed_accounts) > 0:
+        if len(failed_accounts) > 0 and not is_stagnant:
             with open(args.failed_json, "w", encoding="utf-8") as f:
                 json.dump(failed_accounts, f, ensure_ascii=False, indent=2)
             print(f"💾 Cuentas fallidas guardadas en {args.failed_json}")
+        else:
+            if os.path.exists(args.failed_json):
+                os.remove(args.failed_json)
             
         # Write to GITHUB_OUTPUT if available
         if "GITHUB_OUTPUT" in os.environ:
