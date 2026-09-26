@@ -376,7 +376,7 @@ def claim_accounts_from_queue(worker_id, count=10):
 
             if updates:
                 # Update all claimed accounts in 1 single atomic HTTP PATCH call to Firebase
-                patch_url = firebase_url.strip().rstrip('/') + ".json"
+                patch_url = firebase_url.strip().rstrip('/') + "/.json"
                 requests.patch(patch_url, json=updates, timeout=5)
                 
             return claimed
