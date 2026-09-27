@@ -105,6 +105,15 @@ class CircuitBreaker:
             if sig in combined:
                 return True, f"Firma Cloudflare/Servidor: '{sig}'"
 
+        ip_block_signatures = [
+            "authenticationerror", "bloqueo/timeout", "cuenta bloqueada",
+            "too many requests", "rate limit", "429 too many requests",
+            "access denied", "access forbidden", "blocked by cloudflare"
+        ]
+        for sig in ip_block_signatures:
+            if sig in combined:
+                return True, f"IP Rate-Limit / Bloqueo Salesforce: '{sig}'"
+
         maint_signatures = [
             "mantenimiento", "estamos realizando tareas de mantenimiento",
             "sitio en mantenimiento", "servidor no disponible", "web temporalmente fuera de servicio"
@@ -135,7 +144,7 @@ class CircuitBreaker:
 
             return self.triggered, self.trigger_reason
 
-circuit_breaker = CircuitBreaker(max_consecutive_failures=5, max_failure_ratio=0.40, min_processed_threshold=5)
+circuit_breaker = CircuitBreaker(max_consecutive_failures=4, max_failure_ratio=0.40, min_processed_threshold=5)
 
 
 def get_firebase_url():
