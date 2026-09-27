@@ -104,26 +104,71 @@ def get_telegram_config():
 
 
 
-# --- PROGRESS TRACKING FUNCTIONS ---
-def init_progress(total_accounts):
-    """Initializes the progress files before scraping starts."""
+# @section: Progress-Tracking
+def init_progress(total_accounts, cycle=1, master_total=None):
+    """Initializes or preserves progress state across execution cycles."""
     global progress_state
+    firebase_url = get_firebase_url()
+    
     with log_lock:
-        progress_state["total"] = total_accounts
-        progress_state["processed"] = 0
-        progress_state["success"] = 0
-        progress_state["money"] = 0
-        progress_state["zero"] = 0
-        progress_state["error"] = 0
-        progress_state["total_balance"] = 0.0
-        progress_state["start_time"] = time.time()
-        progress_state["elapsed"] = 0.0
-        progress_state["eta"] = None
-        progress_state["threads"] = {}
+        existing_state = None
+        if cycle > 1:
+            # Try to fetch existing master state from Firebase or local file
+            if firebase_url:
+                try:
+                    prog_url = firebase_url.strip().rstrip('/') + "/progress.json"
+                    res = requests.get(prog_url, timeout=5)
+                    if res.ok and res.json():
+                        existing_state = res.json()
+                except Exception:
+                    pass
+            if not existing_state and (ROOT / "progreso.json").exists():
+                try:
+                    with open(ROOT / "progreso.json", "r", encoding="utf-8") as f:
+                        existing_state = json.load(f)
+                except Exception:
+                    pass
 
-        # Reset consola.log and write initial progreso.json
+        if cycle > 1 and existing_state and isinstance(existing_state, dict):
+            # Preserve master metrics from Cycle 1
+            m_total = master_total or existing_state.get("total", total_accounts)
+            progress_state["cycle"] = cycle
+            progress_state["total"] = m_total
+            progress_state["processed"] = existing_state.get("processed", m_total)
+            progress_state["success"] = existing_state.get("success", 0)
+            progress_state["money"] = existing_state.get("money", 0)
+            progress_state["zero"] = existing_state.get("zero", 0)
+            progress_state["error"] = existing_state.get("error", total_accounts)
+            progress_state["total_balance"] = float(existing_state.get("total_balance", 0.0))
+            progress_state["retry_total"] = total_accounts
+            progress_state["retry_processed"] = 0
+            progress_state["retry_success"] = 0
+            progress_state["start_time"] = time.time()
+            progress_state["elapsed"] = 0.0
+            progress_state["eta"] = None
+            progress_state["threads"] = {}
+        else:
+            # Fresh Cycle 1 initialization
+            m_total = master_total or total_accounts
+            progress_state["cycle"] = cycle
+            progress_state["total"] = m_total
+            progress_state["processed"] = 0
+            progress_state["success"] = 0
+            progress_state["money"] = 0
+            progress_state["zero"] = 0
+            progress_state["error"] = 0
+            progress_state["total_balance"] = 0.0
+            progress_state["retry_total"] = 0
+            progress_state["retry_processed"] = 0
+            progress_state["retry_success"] = 0
+            progress_state["start_time"] = time.time()
+            progress_state["elapsed"] = 0.0
+            progress_state["eta"] = None
+            progress_state["threads"] = {}
+
+        # Reset consola.log (only in Cycle 1) and write initial progreso.json
         try:
-            if os.path.exists(ROOT / "consola.log"):
+            if cycle == 1 and os.path.exists(ROOT / "consola.log"):
                 os.remove(ROOT / "consola.log")
         except Exception:
             pass
@@ -134,8 +179,7 @@ def init_progress(total_accounts):
         except Exception:
             pass
 
-        # Asynchronously reset Firebase Realtime DB if URL is configured
-        firebase_url = get_firebase_url()
+        # Asynchronously update Firebase Realtime DB
         if firebase_url:
             try:
                 def reset_firebase():
@@ -145,44 +189,69 @@ def init_progress(total_accounts):
                         requests.put(prog_url, json=progress_state, timeout=5)
                         
                         logs_url = url.rstrip('/') + "/logs.json"
-                        requests.put(logs_url, json="🚀 [SISTEMA] Iniciando Alcampo Scraper v2.0 (Optimizado)...\n", timeout=5)
+                        banner = f"🚀 [SISTEMA] Iniciando Alcampo Scraper v2.0 (Ciclo {cycle})...\n"
+                        requests.put(logs_url, json=banner, timeout=5)
                     except Exception:
                         pass
                 threading.Thread(target=reset_firebase, daemon=True).start()
             except Exception:
                 pass
 
+
 def update_progress(thread_idx, email, status, saldo_str):
     """Thread-safely updates progress metrics, saves to progreso.json, and pushes to Firebase."""
     global progress_state
     
-    # Parse balance to calculate metrics
     saldo_val = limpiar_saldo(saldo_str)
+    cycle = progress_state.get("cycle", 1)
     
     with log_lock:
-        progress_state["processed"] += 1
-        
-        if status == "success":
-            progress_state["success"] += 1
-            if saldo_val is not None:
-                progress_state["total_balance"] += saldo_val
-                if saldo_val > 0:
-                    progress_state["money"] += 1
+        if cycle > 1:
+            # Cycle 2 / Retry Mode logic: Update retry stats and reduce master error count
+            progress_state["retry_processed"] = progress_state.get("retry_processed", 0) + 1
+            
+            if status == "success":
+                progress_state["retry_success"] = progress_state.get("retry_success", 0) + 1
+                progress_state["success"] += 1
+                progress_state["error"] = max(0, progress_state.get("error", 0) - 1)
+                
+                if saldo_val is not None:
+                    progress_state["total_balance"] += saldo_val
+                    if saldo_val > 0:
+                        progress_state["money"] += 1
+                    else:
+                        progress_state["zero"] += 1
                 else:
                     progress_state["zero"] += 1
-            # If saldo_val is None but login was successful, count as zero (could not read balance page)
             else:
-                progress_state["zero"] += 1
+                # Retried account failed again; remains an error (was already counted in master error)
+                pass
         else:
-            progress_state["error"] += 1
+            # Cycle 1 Mode logic
+            progress_state["processed"] += 1
+            if status == "success":
+                progress_state["success"] += 1
+                if saldo_val is not None:
+                    progress_state["total_balance"] += saldo_val
+                    if saldo_val > 0:
+                        progress_state["money"] += 1
+                    else:
+                        progress_state["zero"] += 1
+                else:
+                    progress_state["zero"] += 1
+            else:
+                progress_state["error"] += 1
             
         # Calculate time metrics
         elapsed = time.time() - progress_state["start_time"]
         progress_state["elapsed"] = elapsed
         
-        if progress_state["processed"] > 0:
-            avg_time = elapsed / progress_state["processed"]
-            remaining = progress_state["total"] - progress_state["processed"]
+        proc_count = progress_state.get("retry_processed", 0) if cycle > 1 else progress_state["processed"]
+        tot_count = progress_state.get("retry_total", 0) if cycle > 1 else progress_state["total"]
+        
+        if proc_count > 0 and tot_count > 0:
+            avg_time = elapsed / proc_count
+            remaining = max(0, tot_count - proc_count)
             progress_state["eta"] = remaining * avg_time
             
         # Update specific thread status
@@ -199,25 +268,24 @@ def update_progress(thread_idx, email, status, saldo_str):
         except Exception:
             pass
 
-        # Asynchronously push to Firebase Realtime DB if URL is configured
-        # Push only every 3 accounts to avoid overloading the network/Firebase limits, or at the end
+        # Asynchronously push to Firebase Realtime DB
         firebase_url = get_firebase_url()
-        if firebase_url and (progress_state["processed"] % 3 == 0 or progress_state["processed"] == progress_state["total"]):
+        p_check = progress_state.get("retry_processed", 0) if cycle > 1 else progress_state["processed"]
+        p_total = progress_state.get("retry_total", 0) if cycle > 1 else progress_state["total"]
+        
+        if firebase_url and (p_check % 3 == 0 or p_check == p_total):
             try:
                 def push_to_firebase(state_snap):
                     try:
                         url = firebase_url.strip()
-                        # Push progress
                         prog_url = url.rstrip('/') + "/progress.json"
                         requests.put(prog_url, json=state_snap, timeout=5)
                         
-                        # Push latest logs (last 100 lines), filtering Selenium stack traces
                         try:
                             log_path = ROOT / "consola.log"
                             if log_path.exists():
                                 with open(log_path, "r", encoding="utf-8") as f:
                                     lines = f.readlines()
-                                # Filter out Selenium/Chrome stack trace lines (memory addresses)
                                 filtered = [l for l in lines if not (l.strip().startswith('#') and '0x' in l)
                                             and 'Stacktrace:' not in l
                                             and '(Session info:' not in l
@@ -229,11 +297,11 @@ def update_progress(thread_idx, email, status, saldo_str):
                             pass
                     except Exception:
                         pass
-                # Shallow copy the state to avoid thread race conditions
                 state_snap = json.loads(json.dumps(progress_state))
                 threading.Thread(target=push_to_firebase, args=(state_snap,), daemon=True).start()
             except Exception:
                 pass
+# @end: Progress-Tracking
 
 
 # Install ChromeDriver once globally
@@ -455,6 +523,7 @@ def check_single_account(email, password, scrape_card=True, existing_card_number
                 pass
 
 
+# @section: CLI-Arguments-and-Main
 def parse_args():
     parser = argparse.ArgumentParser(description="Alcampo Account Balance Scraper (Optimized)")
     parser.add_argument(
@@ -479,6 +548,24 @@ def parse_args():
         type=int, 
         default=None, 
         help="Limit execution to first N accounts (for testing)"
+    )
+    parser.add_argument(
+        "--input-file",
+        type=str,
+        default=None,
+        help="Path to JSON file containing accounts to process (default: accounts.json)"
+    )
+    parser.add_argument(
+        "--cycle",
+        type=int,
+        default=1,
+        help="Execution cycle / pass number (1 = main pass, 2 = retry pass)"
+    )
+    parser.add_argument(
+        "--master-total",
+        type=int,
+        default=None,
+        help="Master total accounts count across cycles (for UI progress tracking)"
     )
     parser.add_argument(
         "--check-single",
@@ -784,19 +871,20 @@ def main():
     send_telegram = args.send_telegram and not args.no_telegram
 
     # Cargar cuentas
-    if not ACCOUNTS_FILE.exists():
-        print(f"❌ Error: No se encuentra {ACCOUNTS_FILE}")
+    input_filepath = Path(args.input_file) if args.input_file else ACCOUNTS_FILE
+    if not input_filepath.exists():
+        print(f"❌ Error: No se encuentra {input_filepath}")
         sys.exit(1)
         
-    with open(ACCOUNTS_FILE, "r", encoding="utf-8") as f:
+    with open(input_filepath, "r", encoding="utf-8") as f:
         accounts = json.load(f)
         
     if args.limit:
         accounts = accounts[:args.limit]
         print(f"ℹ️ Modo prueba: Limitado a las primeras {args.limit} cuentas.")
 
-    # Initialize progress files
-    init_progress(len(accounts))
+    # Initialize progress files with cycle and master total awareness
+    init_progress(len(accounts), cycle=args.cycle, master_total=args.master_total)
 
     # Repartir cuentas equitativamente entre los hilos
     num_threads = min(args.threads, len(accounts))
@@ -911,6 +999,25 @@ def main():
         except Exception as e:
             print(f"Error al exportar Top 10 cuentas: {e}")
     
+    # Export failed accounts for cycle retries / auto-healing
+    failed_accounts = [
+        {"email": r["email"], "password": r.get("password", "")}
+        for r in resultados
+        if ("Error" in str(r.get("saldo", "")) or "No encontrado" in str(r.get("saldo", "")))
+    ]
+    failed_path = ROOT / "failed_accounts.json"
+    try:
+        with open(failed_path, "w", encoding="utf-8") as f:
+            json.dump(failed_accounts, f, indent=2)
+        print(f"💾 {len(failed_accounts)} cuentas con error guardadas en: {failed_path}")
+        
+        firebase_url = get_firebase_url()
+        if firebase_url:
+            url = firebase_url.strip().rstrip('/') + "/failed_accounts.json"
+            requests.put(url, json=failed_accounts, timeout=5)
+    except Exception as e:
+        print(f"Advertencia: No se pudo guardar failed_accounts.json: {e}")
+
     if send_telegram:
         enviar_telegram_texto(telegram_token, chat_id, mensaje_resumen)
         enviar_telegram_documento(

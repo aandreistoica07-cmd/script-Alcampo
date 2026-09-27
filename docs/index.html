@@ -530,6 +530,7 @@
             const secs = Math.round(seconds % 60);
             return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
         }
+        const formatTime = formatDuration;
 
         // --- Render Charts (Chart.js) ---
         function renderCharts() {
@@ -891,9 +892,17 @@
             }
 
             // Update header badge status
-            const isCompleted = data.processed >= data.total && data.total > 0;
+            const isCycle2 = data.cycle && data.cycle > 1;
+            const isCompleted = isCycle2 
+                ? (data.retry_processed >= data.retry_total && data.retry_total > 0)
+                : (data.processed >= data.total && data.total > 0);
             
-            if (isCompleted) {
+            if (isCycle2) {
+                headerBadge.className = isCompleted ? "header-status-badge badge-idle" : "header-status-badge badge-live";
+                headerText.innerText = isCompleted ? `Ciclo 2: Completado (${data.retry_success || 0}/${data.retry_total || 0} recuperadas)` : `Ciclo 2: Auto-Curación (${data.retry_processed || 0}/${data.retry_total || 0})`;
+                headerDot.style.animation = isCompleted ? "none" : "livePulse 1.5s infinite";
+                headerDot.style.backgroundColor = isCompleted ? "var(--accent-green)" : "var(--accent-orange)";
+            } else if (isCompleted) {
                 headerBadge.className = "header-status-badge badge-idle";
                 headerText.innerText = "Completado";
                 headerDot.style.animation = "none";
@@ -913,14 +922,22 @@
             }
 
             // Update Progress Details
-            const percent = data.total > 0 ? Math.round((data.processed / data.total) * 100) : 0;
-            document.getElementById('live-progress-percent').innerText = `${percent}%`;
-            document.getElementById('live-accounts-ratio').innerText = `${data.processed} / ${data.total} Cuentas`;
+            let percent = 0;
+            if (isCycle2) {
+                percent = data.retry_total > 0 ? Math.round(((data.retry_processed || 0) / data.retry_total) * 100) : 100;
+                document.getElementById('live-progress-percent').innerText = `${percent}% (Ciclo 2)`;
+                document.getElementById('live-accounts-ratio').innerText = `${data.processed} / ${data.total} Cuentas | Reintento: ${data.retry_processed || 0}/${data.retry_total || 0}`;
+            } else {
+                percent = data.total > 0 ? Math.round((data.processed / data.total) * 100) : 0;
+                document.getElementById('live-progress-percent').innerText = `${percent}%`;
+                document.getElementById('live-accounts-ratio').innerText = `${data.processed} / ${data.total} Cuentas`;
+            }
             document.getElementById('live-progress-fill').style.width = `${percent}%`;
 
             // Speed & ETA
-            if (data.processed > 0 && data.elapsed > 0) {
-                const rate = (data.processed / data.elapsed) * 60; // accounts per minute
+            const pCount = isCycle2 ? (data.retry_processed || 0) : data.processed;
+            if (pCount > 0 && data.elapsed > 0) {
+                const rate = (pCount / data.elapsed) * 60; // accounts per minute
                 document.getElementById('live-speed').innerText = `Velocidad: ${rate.toFixed(1)} cuentas/min`;
                 document.getElementById('live-eta').innerText = `Tiempo restante: ${formatTime(data.eta)}`;
             } else {
