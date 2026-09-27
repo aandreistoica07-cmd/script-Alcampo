@@ -191,29 +191,12 @@ def init_progress(total_accounts):
         except Exception:
             pass
 
+        # Save initial local progreso.json
         try:
             with open(ROOT / "progreso.json", "w", encoding="utf-8") as f:
                 json.dump(progress_state, f, indent=4)
         except Exception:
             pass
-
-        # Asynchronously reset Firebase Realtime DB if URL is configured
-        firebase_url = get_firebase_url()
-        if firebase_url:
-            try:
-                def reset_firebase():
-                    try:
-                        url = firebase_url.strip()
-                        prog_url = url.rstrip('/') + "/progress.json"
-                        requests.put(prog_url, json=progress_state, timeout=5)
-                        
-                        logs_url = url.rstrip('/') + "/logs.json"
-                        requests.put(logs_url, json="🚀 [SISTEMA] Iniciando Alcampo Scraper v2.0 (Optimizado)...\n", timeout=5)
-                    except Exception:
-                        pass
-                threading.Thread(target=reset_firebase, daemon=True).start()
-            except Exception:
-                pass
 
 results_lock = threading.Lock()
 local_results = {}
@@ -372,12 +355,12 @@ firebase_session.mount("https://", fb_adapter)
 firebase_session.mount("http://", fb_adapter)
 
 def init_firebase_queue(accounts):
-    """Initializes the shared work-stealing queue on Firebase Realtime DB."""
+    """Initializes the shared work-stealing queue and clears old results on Firebase Realtime DB."""
     firebase_url = get_firebase_url()
     if not firebase_url:
         return False
     try:
-        url = firebase_url.strip().rstrip('/') + "/queue.json"
+        url = firebase_url.strip().rstrip('/')
         queue_data = {}
         for acc in accounts:
             email_key = acc["email"].replace('.', '_').replace('@', '_').replace('$', '_').replace('#', '_').replace('[', '_').replace(']', '_')
@@ -388,8 +371,26 @@ def init_firebase_queue(accounts):
                 "claimed_by": None,
                 "timestamp": time.time()
             }
-        firebase_session.put(url, json=queue_data, timeout=8)
-        print(f"📦 [FIREBASE QUEUE] Cola dinámica inicializada con {len(accounts)} cuentas en Firebase.")
+        firebase_session.put(f"{url}/queue.json", json=queue_data, timeout=8)
+        firebase_session.delete(f"{url}/results.json", timeout=8)
+        
+        # Reset /progress.json to zero state for the new run
+        init_progress_data = {
+            "total": len(accounts),
+            "processed": 0,
+            "success": 0,
+            "money": 0,
+            "zero": 0,
+            "error": 0,
+            "total_balance": 0.0,
+            "elapsed": 0.0,
+            "start_time": time.time(),
+            "threads": {},
+            "timestamp": time.time()
+        }
+        firebase_session.put(f"{url}/progress.json", json=init_progress_data, timeout=8)
+        firebase_session.put(f"{url}/logs.json", json="🚀 [SISTEMA] Iniciando Alcampo Scraper v2.0 (Cola Dinámica Firebase)...\n", timeout=8)
+        print(f"📦 [FIREBASE QUEUE] Cola dinámica inicializada con {len(accounts)} cuentas y nodos de progreso limpiados.")
         return True
     except Exception as e:
         print(f"⚠️ Error inicializando cola dinámica en Firebase: {e}")

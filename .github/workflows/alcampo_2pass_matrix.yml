@@ -167,6 +167,13 @@ jobs:
         run: |
           python scripts/merge_and_retry.py --mode check-timeouts --input-dir ./pass1_artifacts --failed-json failed_accounts.json
 
+      - name: Subir Artefacto de Cuentas Fallidas e Inicializar Cola de Reintento
+        if: steps.check.outputs.has_timeouts == 'true'
+        env:
+          FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+        run: |
+          python "script_alcampo_activacion telegram/script_optimizado.py" --input-file failed_accounts.json --init-queue
+
       - name: Subir Artefacto de Cuentas Fallidas
         if: steps.check.outputs.has_timeouts == 'true'
         uses: actions/upload-artifact@v4
@@ -221,6 +228,7 @@ jobs:
             
             python script_optimizado.py \
               --input-file "../failed_accounts.json" \
+              --use-queue \
               --shard-id $EFFECTIVE_SHARD \
               --total-shards ${{ matrix.total_shards }} \
               --threads 3 \
@@ -236,6 +244,7 @@ jobs:
             if [ -s "../failed_accounts_cycle_${CYCLE}.json" ]; then
               echo "⚠️ Quedan cuentas pendientes con timeout. Preparando Ciclo $((CYCLE+1))..."
               cp "../failed_accounts_cycle_${CYCLE}.json" "../failed_accounts.json"
+              python script_optimizado.py --input-file "../failed_accounts.json" --init-queue
               CYCLE=$((CYCLE+1))
               sleep 2
             else
