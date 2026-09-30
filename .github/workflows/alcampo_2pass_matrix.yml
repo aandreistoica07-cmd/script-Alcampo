@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       accounts_per_vm:
-        description: 'Cuentas objetivo por VM (Golden Ratio: 75 por VM = 6.5 VMs)'
+        description: 'Cuentas objetivo por VM (Golden Ratio: 100 por VM = 5 VMs)'
         required: false
-        default: '75'
+        default: '100'
   schedule:
     - cron: '0 8 * * *'
 
@@ -47,7 +47,7 @@ jobs:
                   accounts = json.load(f)
 
           total = len(accounts)
-          per_vm = int('${{ github.event.inputs.accounts_per_vm }}' or '75')
+          per_vm = int('${{ github.event.inputs.accounts_per_vm }}' or '100')
           shards = math.ceil(total / per_vm) if total > 0 else 1
           
           matrix_data = {'shard': list(range(shards))}
@@ -124,7 +124,7 @@ jobs:
             --use-queue \
             --shard-id ${{ matrix.shard }} \
             --total-shards ${{ needs.prepare.outputs.total_shards }} \
-            --threads 3 \
+            --threads 2 \
             --no-telegram \
             --output-file "saldos_pass1_shard_${{ matrix.shard }}.xlsx"
 
@@ -167,7 +167,7 @@ jobs:
         run: |
           python scripts/merge_and_retry.py --mode check-timeouts --input-dir ./pass1_artifacts --failed-json failed_accounts.json
 
-      - name: Subir Artefacto de Cuentas Fallidas e Inicializar Cola de Reintento
+      - name: Inicializar Cola Dinámica para Pasada 2
         if: steps.check.outputs.has_timeouts == 'true'
         env:
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
@@ -208,11 +208,6 @@ jobs:
           sudo apt-get install -y google-chrome-stable
           pip install -r "script_alcampo_activacion telegram/requirements.txt" || pip install selenium webdriver-manager pandas openpyxl requests
 
-      - name: Descargar Cuentas Fallidas JSON
-        uses: actions/download-artifact@v4
-        with:
-          name: failed-accounts-json
-
       - name: Reintentar Cuentas Fallidas con Cola Dinámica (IP Nueva Shard ${{ matrix.shard }})
         env:
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
@@ -222,7 +217,7 @@ jobs:
             --use-queue \
             --shard-id ${{ matrix.shard }} \
             --total-shards ${{ matrix.total_shards }} \
-            --threads 3 \
+            --threads 2 \
             --no-telegram \
             --output-file "saldos_retry_shard_${{ matrix.shard }}.xlsx"
 
