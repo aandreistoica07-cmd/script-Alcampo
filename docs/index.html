@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alcampo Scraper Analytics</title>
+    <title>Alcampo Scraper Analytics - Panel Inteligente</title>
     
     <!-- CSS Stylesheet -->
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=2.5">
     
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -27,7 +27,7 @@
                 <div class="logo-icon" id="header-pulse-dot"></div>
                 <div>
                     <h1>Alcampo Scraper Analytics</h1>
-                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">Panel Inteligente | Pipeline Matriz 5 VMs Golden Ratio (Anti-WAF & Auto-Curación)</p>
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">Panel Inteligente | Pipeline Matriz Multi-VM (Cola Dinámica Firebase • 2 Hilos/VM • Auto-Curación 2-Pass)</p>
                 </div>
             </div>
             <div class="header-status-badge badge-idle" id="global-status-badge">
@@ -55,7 +55,7 @@
         <!-- ==================== TAB 1: HISTORIAL ANALYTICS ==================== -->
         <div id="analytics-tab" class="tab-content active">
             
-            <!-- Section: Resumen de Ejecución -->
+            <!-- Section: Resumen de Última Ejecución -->
             <section>
                 <h2 class="section-title">Resumen de Última Ejecución</h2>
                 <div class="stats-grid">
@@ -223,7 +223,7 @@
                         <span style="font-size: 1.5rem; text-shadow: 0 0 10px rgba(255, 159, 67, 0.4);">🔥</span>
                         <div>
                             <h3 style="margin: 0; font-size: 1rem; font-weight: 700; color: var(--text-primary);">Conexión Firebase Realtime DB</h3>
-                            <p style="margin: 0; font-size: 0.75rem; color: var(--text-secondary);">Monitoriza las 5 VMs paralelas de GitHub Actions en tiempo real con Auto-Curación o ejecuciones locales.</p>
+                            <p style="margin: 0; font-size: 0.75rem; color: var(--text-secondary);">Monitoriza las VMs paralelas de GitHub Actions en tiempo real con Cola Dinámica Firebase y Auto-Curación Multi-Paso.</p>
                         </div>
                     </div>
                     <div style="display: flex; gap: 0.5rem; flex: 1; min-width: 280px; max-width: 500px;">
@@ -231,17 +231,20 @@
                         <button id="save-firebase-btn" class="pagination-btn" onclick="updateFirebaseConfig()" style="white-space: nowrap; background: rgba(255, 159, 67, 0.1); border-color: rgba(255, 159, 67, 0.2); color: var(--accent-orange);">Conectar</button>
                     </div>
                 </div>
-
+            </section>
 
             <!-- Section: Progreso en Vivo -->
             <section>
                 <div class="stats-grid">
                     <!-- Progress Card -->
-                    <div class="glass-panel live-card" style="grid-column: span 2; min-height: 140px;">
+                    <div class="glass-panel live-card live-card-span2" style="min-height: 140px;">
                         <div class="progress-header">
                             <div class="progress-title-details">
-                                <span style="font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">Progreso de la Cola</span>
-                                <span id="live-accounts-ratio" style="font-size: 1.1rem; font-weight: 700; color: var(--accent-blue); margin-top: 4px;">0 / 0 Cuentas</span>
+                                <span style="font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">PROGRESO DE LA COLA</span>
+                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 4px;">
+                                    <span id="live-accounts-ratio" style="font-size: 1.1rem; font-weight: 700; color: var(--accent-blue);">0 / 0 Cuentas</span>
+                                    <span id="live-cycle-badge" class="version-badge version-optimized" style="display: none; font-size: 0.7rem; padding: 0.15rem 0.4rem;">Ciclo 2</span>
+                                </div>
                             </div>
                             <span class="progress-percentage" id="live-progress-percent">0%</span>
                         </div>
@@ -260,7 +263,7 @@
                     <!-- Balance Live Card -->
                     <div class="glass-panel stat-card balance-card">
                         <div class="stat-card-header">
-                            <span>Saldo Live Acumulado</span>
+                            <span>SALDO LIVE ACUMULADO</span>
                             <span class="stat-icon" style="color: var(--accent-blue);">€</span>
                         </div>
                         <div>
@@ -280,7 +283,7 @@
                             <span id="live-zero-count" style="font-weight: 700;">0</span>
                         </div>
                         <div style="display: flex; justify-content: space-between; font-size: 0.8rem; padding-top: 0.4rem;">
-                            <span style="color: var(--accent-red); font-weight: 600;">Errores:</span>
+                            <span style="color: var(--accent-red); font-weight: 600;">Errores / Pendientes:</span>
                             <span id="live-error-count" style="font-weight: 700;">0</span>
                         </div>
                     </div>
@@ -333,14 +336,27 @@
                     <div class="console-panel">
                         <div class="console-header">
                             <div class="console-dots">
-                                <div class="console-dot" style="background-color: var(--accent-red);"></div>
-                                <div class="console-dot" style="background-color: var(--accent-orange);"></div>
-                                <div class="console-dot" style="background-color: var(--accent-green);"></div>
+                                <div class="console-dot" style="background-color: var(--accent-red);" title="Terminal Scraper"></div>
+                                <div class="console-dot" style="background-color: var(--accent-orange);" title="Cola Firebase"></div>
+                                <div class="console-dot" id="console-live-dot" style="background-color: var(--accent-green); box-shadow: 0 0 6px var(--accent-green);" title="En Vivo"></div>
                             </div>
-                            <div class="console-title">alcampo_scraper_console.log</div>
-                            <button class="console-collapsible-btn" onclick="clearLiveLogs()">
-                                Limpiar
-                            </button>
+                            <div class="console-title" style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span>alcampo_scraper_console.log</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+                                <div class="search-container" style="max-width: 140px;">
+                                    <input type="text" id="console-search-input" class="search-input" style="padding: 0.2rem 0.5rem 0.2rem 1.6rem; font-size: 0.72rem; height: 26px; border-radius: 6px;" placeholder="🔍 Filtrar..." oninput="filterConsoleLogs()">
+                                </div>
+                                <button class="console-collapsible-btn" id="autoscroll-btn" onclick="toggleAutoScroll()" title="Conmutar Auto-Scroll">
+                                    📌 Scroll: ON
+                                </button>
+                                <button class="console-collapsible-btn" id="copy-console-btn" onclick="copyConsoleLogs()" title="Copiar consola al portapapeles">
+                                    📋 Copiar
+                                </button>
+                                <button class="console-collapsible-btn" onclick="clearLiveLogs()" title="Limpiar pantalla">
+                                    🗑️ Limpiar
+                                </button>
+                            </div>
                         </div>
                         <div class="console-body" id="live-console-body">
                             [SISTEMA] Iniciando visor de consola... Conectando con la fuente de datos...
@@ -377,24 +393,19 @@
     <script>
         // --- Navigation Logic ---
         function switchTab(tabId, btnElement) {
-            // Hide all tabs
             const tabs = document.querySelectorAll('.tab-content');
             tabs.forEach(tab => tab.classList.remove('active'));
             
-            // Deactivate all tab buttons
             const buttons = document.querySelectorAll('.tab-btn');
             buttons.forEach(btn => btn.classList.remove('active'));
             
-            // Show target tab
             const targetTab = document.getElementById(tabId);
             if (targetTab) {
                 targetTab.classList.add('active');
             }
             
-            // Set active class on clicked button
-            btnElement.classList.add('active');
+            if (btnElement) btnElement.classList.add('active');
 
-            // Trigger chart resize when switching back to analytics tab
             if (tabId === 'analytics-tab') {
                 setTimeout(() => {
                     if (balanceChart) balanceChart.resize();
@@ -419,22 +430,19 @@
         let firebaseURL = localStorage.getItem('firebaseURL') || 'https://monitor-alcampo-default-rtdb.europe-west1.firebasedatabase.app/';
         let livePollInterval = null;
         let consoleContentLength = 0;
+        let autoScrollEnabled = true;
+        let currentConsoleFilter = '';
+        let fullConsoleLines = [];
 
-        let checkingStates = {}; // Map of email -> true/false checking state
-        let activeCheckingProgress = {}; // Map of email -> { status, percent, message }
+        let checkingStates = {};
+        let activeCheckingProgress = {};
 
         // Initialize Page
         window.addEventListener('DOMContentLoaded', async () => {
-            // Set input value
             const fbInput = document.getElementById('firebase-url-input');
             if (fbInput) fbInput.value = firebaseURL;
 
-
-
-            // Load Historical Data
             await loadHistory();
-
-            // Start Live Polling (Tab 2)
             startLiveMonitor();
         });
 
@@ -462,18 +470,11 @@
                 }
 
                 historyData = data;
-                
-                // Sort chronologically by date
                 historyData.sort((a, b) => new Date(a.date) - new Date(b.date));
                 filteredData = [...historyData];
 
-                // Render metrics based on latest run
                 renderLatestRunStats();
-
-                // Build Charts
                 renderCharts();
-
-                // Render Table
                 currentPage = 1;
                 renderTable();
 
@@ -489,14 +490,12 @@
             }
         }
 
-        // Render Stats of the last run
         function renderLatestRunStats() {
             if (historyData.length === 0) return;
             
             const latestRun = historyData[historyData.length - 1];
             const prevRun = historyData.length > 1 ? historyData[historyData.length - 2] : null;
 
-            // Balance & Trend
             document.getElementById('latest-balance').innerText = `${latestRun.total_balance.toFixed(2)} €`;
             
             const trendBadge = document.getElementById('balance-trend');
@@ -528,19 +527,17 @@
                 trendBadge.className = 'stat-badge badge-trend-flat';
             }
 
-            // Other indicators
             document.getElementById('latest-money-acc').innerText = latestRun.success - latestRun.zero;
             document.getElementById('latest-zero-acc').innerText = latestRun.zero;
             document.getElementById('latest-error-acc').innerText = latestRun.error;
             document.getElementById('latest-success-rate').innerText = `${latestRun.success_rate.toFixed(1)}%`;
             document.getElementById('latest-duration').innerText = formatDuration(latestRun.duration);
-            document.getElementById('latest-script-version').innerText = 'Script Optimizado v2.0';
+            document.getElementById('latest-script-version').innerText = `Versión: ${latestRun.version || 'Multi-VM Matrix 2-Pass'}`;
         }
 
-        // Helper to format UTC date string to local timezone
         function formatLocalDate(dateStr) {
             const d = new Date(dateStr);
-            if (isNaN(d.getTime())) return dateStr; // fallback if unparseable
+            if (isNaN(d.getTime())) return dateStr;
             return d.toLocaleString('es-ES', {
                 year: 'numeric', month: '2-digit', day: '2-digit',
                 hour: '2-digit', minute: '2-digit', second: '2-digit',
@@ -548,7 +545,6 @@
             });
         }
 
-        // Helper to format duration seconds to human-friendly format
         function formatDuration(seconds) {
             if (seconds === null || seconds === undefined || isNaN(seconds)) return '--';
             if (seconds < 60) return `${Math.round(seconds)}s`;
@@ -557,18 +553,15 @@
             return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
         }
 
-        // --- Render Charts (Chart.js) ---
         function renderCharts() {
             if (historyData.length === 0) return;
 
-            // Convert UTC dates to local timezone for display
             const dates = historyData.map(run => {
                 const d = new Date(run.date);
                 return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
             });
             const balances = historyData.map(run => run.total_balance);
             const durations = historyData.map(run => run.duration);
-            const versions = historyData.map(run => run.version);
             
             const successCounts = historyData.map(run => run.success - run.zero);
             const zeroCounts = historyData.map(run => run.zero);
@@ -581,16 +574,11 @@
                 },
                 ticks: {
                     color: 'var(--text-secondary)',
-                    font: {
-                        family: 'Outfit'
-                    }
+                    font: { family: 'Outfit' }
                 }
             };
 
-            // Chart 1: Total Balance Evolution (Line Chart)
             const ctx1 = document.getElementById('balanceChart').getContext('2d');
-            
-            // Create gradient
             const balanceGradient = ctx1.createLinearGradient(0, 0, 0, 250);
             balanceGradient.addColorStop(0, 'rgba(0, 210, 255, 0.3)');
             balanceGradient.addColorStop(1, 'rgba(0, 210, 255, 0)');
@@ -601,54 +589,27 @@
                 data: {
                     labels: dates,
                     datasets: [{
-                        label: 'Saldo Acumulado (€)',
+                        label: 'Saldo Total (€)',
                         data: balances,
                         borderColor: '#00d2ff',
                         borderWidth: 3,
                         backgroundColor: balanceGradient,
                         fill: true,
-                        tension: 0.4,
+                        tension: 0.35,
                         pointBackgroundColor: '#00d2ff',
-                        pointBorderColor: 'rgba(255, 255, 255, 0.2)',
-                        pointHoverRadius: 7,
-                        pointRadius: 4
+                        pointBorderColor: '#ffffff',
+                        pointHoverRadius: 7
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: 'rgba(13, 20, 38, 0.95)',
-                            borderColor: 'rgba(255, 255, 255, 0.1)',
-                            borderWidth: 1,
-                            titleColor: '#fff',
-                            bodyColor: '#a0aec0',
-                            bodyFont: { family: 'Outfit' },
-                            titleFont: { family: 'Outfit', weight: 'bold' }
-                        }
-                    },
-                    scales: {
-                        x: commonGridOptions,
-                        y: {
-                            ...commonGridOptions,
-                            ticks: {
-                                ...commonGridOptions.ticks,
-                                callback: value => `${value} €`
-                            }
-                        }
-                    }
+                    plugins: { legend: { display: false } },
+                    scales: { x: commonGridOptions, y: commonGridOptions }
                 }
             });
 
-            // Chart 2: Execution Time Comparison (Bar Chart)
             const ctx2 = document.getElementById('durationChart').getContext('2d');
-            
-            // All bars use the same accent color (only Optimized Script runs remain)
-            const barColors = durations.map(() => '#00d2ff');
-            const barBorderColors = durations.map(() => 'rgba(0, 210, 255, 0.8)');
-
             if (durationChart) durationChart.destroy();
             durationChart = new Chart(ctx2, {
                 type: 'bar',
@@ -657,108 +618,39 @@
                     datasets: [{
                         label: 'Duración (segundos)',
                         data: durations,
-                        backgroundColor: barColors,
-                        borderColor: barBorderColors,
-                        borderWidth: 1,
-                        borderRadius: 6,
-                        barThickness: 24
+                        backgroundColor: 'rgba(255, 159, 67, 0.4)',
+                        borderColor: '#ff9f43',
+                        borderWidth: 1.5,
+                        borderRadius: 6
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: 'rgba(13, 20, 38, 0.95)',
-                            borderColor: 'rgba(255, 255, 255, 0.1)',
-                            borderWidth: 1,
-                            titleColor: '#fff',
-                            bodyColor: '#a0aec0',
-                            bodyFont: { family: 'Outfit' },
-                            titleFont: { family: 'Outfit', weight: 'bold' },
-                            callbacks: {
-                                label: context => `Duración: ${formatDuration(context.raw)}`
-                            }
-                        }
-                    },
-                    scales: {
-                        x: commonGridOptions,
-                        y: {
-                            ...commonGridOptions,
-                            ticks: {
-                                ...commonGridOptions.ticks,
-                                callback: value => `${value}s`
-                            }
-                        }
-                    }
+                    plugins: { legend: { display: false } },
+                    scales: { x: commonGridOptions, y: commonGridOptions }
                 }
             });
 
-            // Chart 3: Status distribution stacked
             const ctx3 = document.getElementById('statusChart').getContext('2d');
-            
             if (statusChart) statusChart.destroy();
             statusChart = new Chart(ctx3, {
                 type: 'bar',
                 data: {
                     labels: dates,
                     datasets: [
-                        {
-                            label: 'Con Saldo',
-                            data: successCounts,
-                            backgroundColor: '#00ff87',
-                            borderColor: 'rgba(0, 255, 135, 0.3)',
-                            borderWidth: 1,
-                            borderRadius: 4
-                        },
-                        {
-                            label: 'Saldo 0€',
-                            data: zeroCounts,
-                            backgroundColor: '#8395a7',
-                            borderColor: 'rgba(131, 149, 167, 0.3)',
-                            borderWidth: 1,
-                            borderRadius: 4
-                        },
-                        {
-                            label: 'Errores',
-                            data: errorCounts,
-                            backgroundColor: '#ff3860',
-                            borderColor: 'rgba(255, 56, 96, 0.3)',
-                            borderWidth: 1,
-                            borderRadius: 4
-                        }
+                        { label: 'Con Saldo (>0€)', data: successCounts, backgroundColor: 'rgba(0, 255, 135, 0.75)', borderRadius: 4 },
+                        { label: 'Saldo Cero (0€)', data: zeroCounts, backgroundColor: 'rgba(131, 149, 167, 0.6)', borderRadius: 4 },
+                        { label: 'Errores', data: errorCounts, backgroundColor: 'rgba(255, 56, 96, 0.75)', borderRadius: 4 }
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            labels: {
-                                color: 'var(--text-secondary)',
-                                font: { family: 'Outfit', size: 11 }
-                            }
-                        },
-                        tooltip: {
-                            backgroundColor: 'rgba(13, 20, 38, 0.95)',
-                            borderColor: 'rgba(255, 255, 255, 0.1)',
-                            borderWidth: 1
-                        }
-                    },
+                    plugins: { legend: { labels: { color: 'var(--text-secondary)' } } },
                     scales: {
-                        x: {
-                            ...commonGridOptions,
-                            stacked: true
-                        },
-                        y: {
-                            ...commonGridOptions,
-                            stacked: true,
-                            ticks: {
-                                stepSize: 2,
-                                ...commonGridOptions.ticks
-                            }
-                        }
+                        x: { ...commonGridOptions, stacked: true },
+                        y: { ...commonGridOptions, stacked: true }
                     }
                 }
             });
@@ -783,22 +675,19 @@
                 return;
             }
 
-            // Show newest runs first in the table
             const sortedTableData = [...filteredData].sort((a, b) => new Date(b.date) - new Date(a.date));
-
             const totalPages = Math.ceil(sortedTableData.length / rowsPerPage);
             const startIndex = (currentPage - 1) * rowsPerPage;
             const pageData = sortedTableData.slice(startIndex, startIndex + rowsPerPage);
 
             pageData.forEach(run => {
                 const tr = document.createElement('tr');
-                
-                const isOptimized = run.version.toLowerCase().includes('optimized') || run.version.toLowerCase().includes('optimizado');
+                const isOptimized = (run.version || '').toLowerCase().includes('optimized') || (run.version || '').toLowerCase().includes('optimizado') || (run.version || '').toLowerCase().includes('matrix');
                 const badgeClass = isOptimized ? 'version-optimized' : 'version-old';
                 
                 tr.innerHTML = `
                     <td style="font-weight: 500;">${formatLocalDate(run.date)}</td>
-                    <td><span class="version-badge ${badgeClass}">${run.version}</span></td>
+                    <td><span class="version-badge ${badgeClass}">${run.version || 'Multi-VM Matrix'}</span></td>
                     <td style="font-family: 'JetBrains Mono', monospace;">${formatDuration(run.duration)}</td>
                     <td>${run.checked} cuentas</td>
                     <td style="font-weight: 600; color: ${run.success_rate >= 90 ? 'var(--accent-green)' : run.success_rate >= 75 ? 'var(--accent-orange)' : 'var(--accent-red)'}">
@@ -809,7 +698,6 @@
                 tbody.appendChild(tr);
             });
 
-            // Update Pagination
             document.getElementById('page-info').innerText = `Página ${currentPage} de ${totalPages}`;
             document.getElementById('prev-btn').disabled = currentPage === 1;
             document.getElementById('next-btn').disabled = currentPage === totalPages;
@@ -821,17 +709,18 @@
             renderTable();
         }
 
-        // Search Input Event
         const searchInput = document.getElementById('search-input');
-        searchInput.addEventListener('input', (e) => {
-            const term = e.target.value.toLowerCase().trim();
-            filteredData = historyData.filter(run => 
-                run.date.toLowerCase().includes(term) || 
-                run.version.toLowerCase().includes(term)
-            );
-            currentPage = 1;
-            renderTable();
-        });
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                const term = e.target.value.toLowerCase().trim();
+                filteredData = historyData.filter(run => 
+                    run.date.toLowerCase().includes(term) || 
+                    (run.version || '').toLowerCase().includes(term)
+                );
+                currentPage = 1;
+                renderTable();
+            });
+        }
 
         // --- Firebase Live Execution Logic ---
         function updateFirebaseConfig() {
@@ -839,7 +728,6 @@
             firebaseURL = val;
             localStorage.setItem('firebaseURL', firebaseURL);
             
-            // Flash colorize to show connection
             const btn = document.getElementById('save-firebase-btn');
             btn.innerText = "¡Conectado!";
             btn.style.background = "rgba(0, 255, 135, 0.15)";
@@ -853,24 +741,20 @@
                 btn.style.borderColor = "rgba(255, 159, 67, 0.2)";
             }, 2000);
 
-            // Re-trigger live fetch
             fetchLiveProgress();
             fetchLiveLogs();
             fetchTop10Accounts();
         }
 
-
         function startLiveMonitor() {
             if (livePollInterval) clearInterval(livePollInterval);
             
-            // Poll progress, logs, and top accounts
             livePollInterval = setInterval(() => {
                 fetchLiveProgress();
                 fetchLiveLogs();
                 fetchTop10Accounts();
             }, 2000);
 
-            // Initial fetch
             fetchLiveProgress();
             fetchLiveLogs();
             fetchTop10Accounts();
@@ -878,29 +762,95 @@
 
         async function fetchLiveProgress() {
             let data = null;
+            let queueData = null;
+            let threadsData = null;
             
             if (firebaseURL) {
                 try {
                     let cleanedUrl = firebaseURL.endsWith('/') ? firebaseURL.slice(0, -1) : firebaseURL;
-                    const res = await fetch(`${cleanedUrl}/progress.json`);
-                    if (res.ok) {
-                        data = await res.json();
+                    
+                    // Fetch queue, threads, and progress concurrently
+                    const [resQueue, resThreads, resProg] = await Promise.allSettled([
+                        fetch(`${cleanedUrl}/queue.json`),
+                        fetch(`${cleanedUrl}/threads.json`),
+                        fetch(`${cleanedUrl}/progress.json`)
+                    ]);
+
+                    if (resQueue.status === 'fulfilled' && resQueue.value.ok) {
+                        queueData = await resQueue.value.json();
+                    }
+                    if (resThreads.status === 'fulfilled' && resThreads.value.ok) {
+                        threadsData = await resThreads.value.json();
+                    }
+                    if (resProg.status === 'fulfilled' && resProg.value.ok) {
+                        data = await resProg.value.json();
                     }
                 } catch (err) {
-                    console.warn("Error leyendo Firebase progress node, usando fallback local...", err);
+                    console.warn("Error leyendo Firebase, usando fallback local...", err);
                 }
             }
 
-            // Fallback to local progreso.json
-            if (!data) {
+            // Fallback to local progreso.json if no remote data
+            if (!data && !queueData) {
                 try {
                     const res = await fetch('progreso.json', { cache: 'no-store' });
                     if (res.ok) {
                         data = await res.json();
                     }
                 } catch (err) {
-                    // Fail silently, showing empty state
+                    // Fail silently
                 }
+            }
+
+            // Aggregate metrics directly from queueData to eliminate multi-VM race conditions
+            if (queueData && typeof queueData === 'object' && Object.keys(queueData).length > 0) {
+                const keys = Object.keys(queueData);
+                const qTotal = keys.length;
+                let qMoney = 0;
+                let qZero = 0;
+                let qError = 0;
+                let qBalance = 0.0;
+                let qInProgress = 0;
+
+                keys.forEach(k => {
+                    const item = queueData[k];
+                    if (!item || typeof item !== 'object') return;
+                    const st = item.status;
+                    const bal = item.balance;
+                    if (st === 'success') {
+                        if (bal !== null && bal !== undefined && Number(bal) > 0) {
+                            qMoney++;
+                            qBalance += Number(bal);
+                        } else {
+                            qZero++;
+                        }
+                    } else if (st === 'error') {
+                        qError++;
+                    } else if (st === 'in_progress') {
+                        qInProgress++;
+                    }
+                });
+
+                const qProcessed = qMoney + qZero + qError;
+                const isFinished = (data && data.is_finished === true) || (qProcessed >= qTotal && qTotal > 0 && qInProgress === 0);
+
+                data = {
+                    total: qTotal,
+                    processed: qProcessed,
+                    money: qMoney,
+                    zero: qZero,
+                    error: qError,
+                    total_balance: qBalance,
+                    elapsed: data && data.elapsed ? data.elapsed : 0,
+                    eta: data && data.eta ? data.eta : null,
+                    cycle: data && data.cycle ? data.cycle : 1,
+                    retry_total: data && data.retry_total ? data.retry_total : 0,
+                    start_time: data && data.start_time ? data.start_time : null,
+                    is_finished: isFinished,
+                    threads: (threadsData && typeof threadsData === 'object') ? threadsData : (data && data.threads ? data.threads : {})
+                };
+            } else if (threadsData && typeof threadsData === 'object' && data) {
+                data.threads = threadsData;
             }
 
             const headerBadge = document.getElementById('global-status-badge');
@@ -916,8 +866,7 @@
                 return;
             }
 
-            // Update header badge status
-            const isCompleted = data.processed >= data.total && data.total > 0;
+            const isCompleted = (data.processed >= data.total && data.total > 0) || data.is_finished === true;
             
             if (isCompleted) {
                 headerBadge.className = "header-status-badge badge-idle";
@@ -938,15 +887,30 @@
                 headerDot.style.boxShadow = "none";
             }
 
-            // Update Progress Details
-            const percent = data.total > 0 ? Math.round((data.processed / data.total) * 100) : 0;
+            const total = data.total || 0;
+            const processed = data.processed || 0;
+            const percent = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0;
+            
             document.getElementById('live-progress-percent').innerText = `${percent}%`;
-            document.getElementById('live-accounts-ratio').innerText = `${data.processed} / ${data.total} Cuentas`;
+            
+            let ratioLabel = `${processed} / ${total} Cuentas`;
+            const cycleBadge = document.getElementById('live-cycle-badge');
+            
+            if (data.cycle === 2 || (data.retry_total > 0 && !data.is_finished)) {
+                ratioLabel = `${processed} / ${total} Cuentas`;
+                if (cycleBadge) {
+                    cycleBadge.style.display = "inline-block";
+                    cycleBadge.innerText = "Ciclo 2: Auto-Curación";
+                }
+            } else if (cycleBadge) {
+                cycleBadge.style.display = "none";
+            }
+            
+            document.getElementById('live-accounts-ratio').innerText = ratioLabel;
             document.getElementById('live-progress-fill').style.width = `${percent}%`;
 
-            // Speed & ETA
-            if (data.processed > 0 && data.elapsed > 0) {
-                const rate = (data.processed / data.elapsed) * 60; // accounts per minute
+            if (processed > 0 && data.elapsed > 0) {
+                const rate = (processed / data.elapsed) * 60;
                 document.getElementById('live-speed').innerText = `Velocidad: ${rate.toFixed(1)} cuentas/min`;
                 document.getElementById('live-eta').innerText = `Tiempo restante: ${formatTime(data.eta)}`;
             } else {
@@ -954,38 +918,42 @@
                 document.getElementById('live-eta').innerText = `Tiempo restante: --:--`;
             }
 
-            // Live Money Counters
-            document.getElementById('live-balance').innerText = `${data.total_balance.toFixed(2)} €`;
-            document.getElementById('live-money-count').innerText = data.money;
-            document.getElementById('live-zero-count').innerText = data.zero;
-            document.getElementById('live-error-count').innerText = data.error;
+            const liveBal = data.total_balance != null ? Number(data.total_balance) : 0.0;
+            document.getElementById('live-balance').innerText = `${liveBal.toFixed(2)} €`;
+            document.getElementById('live-money-count').innerText = data.money != null ? data.money : 0;
+            document.getElementById('live-zero-count').innerText = data.zero != null ? data.zero : 0;
+            document.getElementById('live-error-count').innerText = Math.max(0, data.error != null ? data.error : 0);
 
             if (data.start_time) {
                 const dateObj = new Date(data.start_time * 1000);
-                // Format to HH:MM:SS
                 if (!isNaN(dateObj.getTime())) {
                     document.getElementById('live-run-started').innerText = `Hora inicio: ${dateObj.toTimeString().split(' ')[0]}`;
                 }
             }
 
-            // Thread Activity List
             const threadsContainer = document.getElementById('live-threads-container');
             const threadsTitleCount = document.getElementById('live-threads-count');
             
             if (data.threads && Object.keys(data.threads).length > 0) {
                 const threadIds = Object.keys(data.threads).sort();
-                // Filter out null/undefined entries (Firebase converts sparse dict to array with null at index 0)
                 const validThreadIds = threadIds.filter(tid => data.threads[tid] != null);
                 threadsTitleCount.innerText = `${validThreadIds.length} Hilos configurados`;
                 
                 let html = '';
                 validThreadIds.forEach(tid => {
                     const t = data.threads[tid];
-                    // Check if idle (last active time > 45 seconds ago)
                     const nowSec = Math.round(Date.now() / 1000);
                     const lastActiveDiff = t.timestamp ? nowSec - Math.round(t.timestamp) : 999;
                     const isActive = lastActiveDiff < 45; 
                     
+                    let threadName = `Hilo ${tid}`;
+                    if (t.worker && t.thread) {
+                        threadName = `${t.worker.replace('_', ' ')} • Hilo ${t.thread}`;
+                    } else if (tid.includes('_t')) {
+                        const parts = tid.split('_t');
+                        threadName = `VM ${parts[0].replace('VM_', '')} • Hilo ${parts[1]}`;
+                    }
+
                     let badgeColorClass = 'thread-badge-pending';
                     if (t.last_status === 'success') badgeColorClass = 'thread-badge-success';
                     if (t.last_status === 'error') badgeColorClass = 'thread-badge-error';
@@ -994,7 +962,7 @@
                         <div class="thread-item">
                             <div class="thread-left">
                                 <span class="thread-status-dot ${isActive ? 'active' : 'idle'}"></span>
-                                <span class="thread-number">Hilo ${tid}</span>
+                                <span class="thread-number">${threadName}</span>
                             </div>
                             <div class="thread-email" title="${t.last_account || ''}">${t.last_account || 'Esperando asignación...'}</div>
                             <span class="thread-badge ${badgeColorClass}">${t.last_status || 'Espera'}</span>
@@ -1009,6 +977,101 @@
                     </div>
                 `;
                 threadsTitleCount.innerText = "0 Hilos activos";
+            }
+        }
+
+        function toggleAutoScroll() {
+            autoScrollEnabled = !autoScrollEnabled;
+            const btn = document.getElementById('autoscroll-btn');
+            if (btn) {
+                btn.innerText = autoScrollEnabled ? "📌 Scroll: ON" : "📌 Scroll: OFF";
+                btn.style.borderColor = autoScrollEnabled ? "rgba(0, 210, 255, 0.4)" : "rgba(255, 255, 255, 0.1)";
+                btn.style.color = autoScrollEnabled ? "var(--accent-blue)" : "var(--text-secondary)";
+            }
+            if (autoScrollEnabled) {
+                const consoleBody = document.getElementById('live-console-body');
+                if (consoleBody) consoleBody.scrollTop = consoleBody.scrollHeight;
+            }
+        }
+
+        function filterConsoleLogs() {
+            const input = document.getElementById('console-search-input');
+            if (input) {
+                currentConsoleFilter = input.value.toLowerCase().trim();
+                renderFilteredLogs();
+            }
+        }
+
+        function copyConsoleLogs() {
+            const consoleBody = document.getElementById('live-console-body');
+            if (!consoleBody) return;
+            const textToCopy = consoleBody.innerText;
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const btn = document.getElementById('copy-console-btn');
+                if (btn) {
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '✅ Copiado';
+                    btn.style.color = 'var(--accent-green)';
+                    btn.style.borderColor = 'rgba(0, 255, 135, 0.3)';
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                        btn.style.color = 'var(--text-secondary)';
+                        btn.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                    }, 2000);
+                }
+            }).catch(err => {
+                console.error("Error al copiar consola:", err);
+            });
+        }
+
+        function renderFilteredLogs() {
+            const consoleBody = document.getElementById('live-console-body');
+            if (!consoleBody) return;
+            consoleBody.innerHTML = '';
+
+            const linesToRender = fullConsoleLines.filter(line => {
+                if (!line.trim()) return false;
+                if ((line.trim().startsWith('#') && line.includes('0x')) || line.includes('Stacktrace:') || line.includes('(Session info:') || line.includes('<unknown>')) return false;
+                if (currentConsoleFilter && !line.toLowerCase().includes(currentConsoleFilter)) return false;
+                return true;
+            });
+
+            if (linesToRender.length === 0) {
+                consoleBody.innerHTML = `<div class="log-line"><span class="log-system">${currentConsoleFilter ? '[FILTRO] No hay líneas que coincidan con la búsqueda.' : '[SISTEMA] No hay logs en la consola.'}</span></div>`;
+                return;
+            }
+
+            linesToRender.forEach(line => {
+                const div = document.createElement('div');
+                div.className = 'log-line';
+
+                let colorClass = 'log-system';
+                if (line.includes('✔') || line.includes('SALDO') || line.includes('exitoso') || line.includes('success')) {
+                    colorClass = 'log-success';
+                } else if (line.includes('❌') || line.includes('Error') || line.includes('fallidos') || line.includes('error')) {
+                    colorClass = 'log-error';
+                } else if (line.includes('⚠') || line.includes('Warning') || line.includes('Credenciales incorrectas') || line.includes('bloqueo')) {
+                    colorClass = 'log-warning';
+                } else if (line.includes('[Hilo') || line.includes('[HILO') || line.includes('→')) {
+                    colorClass = 'log-thread';
+                } else if (line.includes('🚀') || line.includes('📊') || line.includes('💾') || line.includes('⏱')) {
+                    colorClass = 'log-info';
+                }
+
+                let lineContent = escapeHtml(line);
+                if (line.includes('COLA DINÁMICA FIREBASE')) {
+                    lineContent = lineContent.replace('COLA DINÁMICA FIREBASE', '<span class="log-badge-queue">COLA FIREBASE</span>');
+                }
+                if (line.includes('Robando') || line.includes('steal')) {
+                    lineContent = lineContent.replace(/(Robando[^\s]*)/gi, '<span class="log-badge-steal">$1</span>');
+                }
+
+                div.innerHTML = `<span class="${colorClass}">${lineContent}</span>`;
+                consoleBody.appendChild(div);
+            });
+
+            if (autoScrollEnabled) {
+                consoleBody.scrollTop = consoleBody.scrollHeight;
             }
         }
 
@@ -1034,7 +1097,6 @@
                 }
             }
 
-            // Fallback to local consola.log
             if (!text) {
                 try {
                     const res = await fetch('consola.log', { cache: 'no-store' });
@@ -1048,46 +1110,13 @@
 
             if (!text) return;
 
-            // Only redraw if text length changes to prevent CPU load
             if (text.length === consoleContentLength) return;
             consoleContentLength = text.length;
 
             const lines = text.split('\n');
-            const consoleBody = document.getElementById('live-console-body');
-            consoleBody.innerHTML = '';
-            
-            // Limit viewer to last 150 lines for performance on mobile
-            const sliceStart = Math.max(0, lines.length - 150);
-            const slicedLines = lines.slice(sliceStart);
-
-            slicedLines.forEach(line => {
-                if (!line.trim()) return;
-                // Filter out Selenium/Chrome stack traces (memory addresses)
-                if ((line.trim().startsWith('#') && line.includes('0x')) || line.includes('Stacktrace:') || line.includes('(Session info:') || line.includes('<unknown>')) return;
-                
-                const div = document.createElement('div');
-                div.className = 'log-line';
-                
-                // Colorize text (detect both ✔️ with variation selector and ✔ without)
-                let colorClass = 'log-system';
-                if (line.includes('✔') || line.includes('SALDO') || line.includes('exitoso') || line.includes('success')) {
-                    colorClass = 'log-success';
-                } else if (line.includes('❌') || line.includes('Error') || line.includes('fallidos') || line.includes('error')) {
-                    colorClass = 'log-error';
-                } else if (line.includes('⚠') || line.includes('Warning') || line.includes('Credenciales incorrectas') || line.includes('bloqueo')) {
-                    colorClass = 'log-warning';
-                } else if (line.includes('[Hilo') || line.includes('[HILO') || line.includes('→')) {
-                    colorClass = 'log-thread';
-                } else if (line.includes('🚀') || line.includes('📊') || line.includes('💾') || line.includes('⏱')) {
-                    colorClass = 'log-info';
-                }
-
-                div.innerHTML = `<span class="${colorClass}">${escapeHtml(line)}</span>`;
-                consoleBody.appendChild(div);
-            });
-
-            // Scroll to bottom
-            consoleBody.scrollTop = consoleBody.scrollHeight;
+            const sliceStart = Math.max(0, lines.length - 200);
+            fullConsoleLines = lines.slice(sliceStart);
+            renderFilteredLogs();
         }
 
         // --- Top 10 Accounts Logic ---
@@ -1107,7 +1136,6 @@
                 }
             }
 
-            // Fallback to local top_accounts.json
             if (!data) {
                 try {
                     const res = await fetch('top_accounts.json', { cache: 'no-store' });
@@ -1238,7 +1266,6 @@
                 password: password,
                 check_id: checkId
             };
-            // Pass existing card number so the runner skips portal scraping
             if (existingCardNumber) {
                 inputs.card_number = existingCardNumber;
             }
@@ -1260,21 +1287,15 @@
             }
         }
 
-
         async function checkAccount(btn) {
             const email = btn.getAttribute('data-email');
             const password = btn.getAttribute('data-password');
             if (checkingStates[email] || activeCheckingProgress[email]) return; 
             
-            // Comprobar si estamos ejecutando localmente
             const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === '';
-            
             checkingStates[email] = true;
             
-            // Unique check session identifier to prevent collision, clock skew and caching issues
             const checkId = `check_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            
-            // Initial state (En cola)
             activeCheckingProgress[email] = {
                 status: 'queued',
                 percent: 5,
@@ -1283,49 +1304,32 @@
             };
             renderTop10();
 
-
             if (isLocal) {
-                console.log(`[Comprobar] Iniciando comprobación local para ${email}`);
-
                 try {
-                    // Update to local execution state (intermediate visual progress)
-                    activeCheckingProgress[email] = {
-                        status: 'running',
-                        percent: 40,
-                        message: 'Cargando...'
-                    };
+                    activeCheckingProgress[email] = { status: 'running', percent: 40, message: 'Cargando...' };
                     renderTop10();
                     
                     const res = await fetch(`/api/check_account?email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`);
-                    if (!res.ok) {
-                        throw new Error(`Error HTTP ${res.status}`);
-                    }
+                    if (!res.ok) throw new Error(`Error HTTP ${res.status}`);
                     const data = await res.json();
                     if (data.status === 'success') {
-                        activeCheckingProgress[email] = {
-                            status: 'success'
-                        };
+                        activeCheckingProgress[email] = { status: 'success' };
                         updateLocalAccountData(email, data.balance, data.card_number);
                     } else {
                         throw new Error(data.error || 'Error desconocido');
                     }
                 } catch (err) {
                     console.error("Error en comprobación local", err);
-                    activeCheckingProgress[email] = {
-                        status: 'error'
-                    };
+                    activeCheckingProgress[email] = { status: 'error' };
                     renderTop10();
                     alert(`Error al comprobar cuenta:\n${err.message}`);
                 } finally {
                     resetCheckButton(btn, email);
                 }
             } else {
-                // Modo remoto (Vercel) usando GitHub Actions
-                console.log(`[Comprobar] Iniciando comprobación remota para ${email}`);
-
                 let pat = localStorage.getItem('githubPAT') || '';
                 if (!pat) {
-                    pat = prompt("🔑 Para iniciar la comprobación remota (Vercel), ingresa tu GitHub Personal Access Token (PAT).\nEste token solo se guardará localmente en tu navegador y no se compartirá con ningún servidor externo:");
+                    pat = prompt("🔑 Para iniciar la comprobación remota (Vercel), ingresa tu GitHub Personal Access Token (PAT):");
                     if (!pat || !pat.trim()) {
                         alert("⚠️ Token no ingresado. Comprobación abortada.");
                         activeCheckingProgress[email] = null;
@@ -1347,7 +1351,7 @@
 
                 let githubRepo = localStorage.getItem('githubRepo') || '';
                 if (!githubRepo) {
-                    githubRepo = prompt("📦 Ingresa tu usuario y repositorio de GitHub (ejemplo: tu_usuario/tu_repositorio):\nEste dato se guardará localmente en tu navegador:", "stoica25-byte/Programacion1");
+                    githubRepo = prompt("📦 Ingresa tu usuario y repositorio de GitHub (ejemplo: usuario/repo):", "stoica25-byte/Programacion1");
                     if (!githubRepo || !githubRepo.trim()) {
                         alert("⚠️ Repositorio no ingresado. Comprobación abortada.");
                         activeCheckingProgress[email] = null;
@@ -1358,7 +1362,6 @@
                     githubRepo = githubRepo.trim();
                     localStorage.setItem('githubRepo', githubRepo);
                 }
-                // Look up existing card_number from loaded top10 data (avoids scraping if already known)
                 const existingCard = (top10Data.find(a => a.email === email) || {}).card_number || null;
 
                 try {
@@ -1367,7 +1370,6 @@
                     let cleanedFirebase = firebaseURL.endsWith('/') ? firebaseURL.slice(0, -1) : firebaseURL;
                     const pollUrl = `${cleanedFirebase}/single_check_result/${emailSanitized}.json`;
 
-                    // Write initial queued state to Firebase directly, including session checkId
                     try {
                         await fetch(pollUrl, {
                             method: 'PUT',
@@ -1385,9 +1387,7 @@
                         console.warn("Error escribiendo estado inicial en Firebase:", fbErr);
                     }
 
-                    // Trigger GitHub Actions workflow with checkId input
                     await triggerGitHubWorkflow(email, password, pat, githubRepo, checkId, existingCard);
-                    console.log("[Comprobar] Workflow de GitHub iniciado. Esperando resultado en Firebase...");
                     
                     let attempts = 0;
                     const maxAttempts = 60; 
@@ -1397,10 +1397,7 @@
                         attempts++;
                         if (attempts > maxAttempts) {
                             clearInterval(pollTimer);
-                            activeCheckingProgress[email] = {
-                                status: 'error',
-                                message: 'Timeout'
-                            };
+                            activeCheckingProgress[email] = { status: 'error', message: 'Timeout' };
                             renderTop10();
                             alert("La comprobación tardó demasiado. Revisa el estado del workflow en GitHub.");
                             resetCheckButton(btn, email);
@@ -1411,7 +1408,6 @@
                             const response = await fetch(pollUrl + '?nocache=' + Date.now());
                             if (response.ok) {
                                 const data = await response.json();
-                                // Validate session check_id to avoid clock skew, old data or caching issues
                                 const isFresh = data && data.check_id === checkId;
                                 
                                 if (isFresh) {
@@ -1424,17 +1420,13 @@
                                         renderTop10();
                                     } else if (data.status === 'success') {
                                         clearInterval(pollTimer);
-                                        activeCheckingProgress[email] = {
-                                            status: 'success'
-                                        };
+                                        activeCheckingProgress[email] = { status: 'success' };
                                         updateLocalAccountData(email, data.balance, data.card_number);
                                         renderTop10();
                                         resetCheckButton(btn, email);
                                     } else if (data.status === 'error') {
                                         clearInterval(pollTimer);
-                                        activeCheckingProgress[email] = {
-                                            status: 'error'
-                                        };
+                                        activeCheckingProgress[email] = { status: 'error' };
                                         renderTop10();
                                         alert(`La comprobación falló:\n${data.error || 'Error desconocido'}`);
                                         resetCheckButton(btn, email);
@@ -1448,9 +1440,7 @@
 
                 } catch (err) {
                     console.error("Error al iniciar workflow en GitHub:", err);
-                    activeCheckingProgress[email] = {
-                        status: 'error'
-                    };
+                    activeCheckingProgress[email] = { status: 'error' };
                     renderTop10();
                     
                     if (err.message.includes("401") || err.message.includes("403") || err.message.includes("credentials") || err.message.includes("token")) {
@@ -1524,13 +1514,16 @@
         }
 
         function clearLiveLogs() {
-            document.getElementById('live-console-body').innerHTML = `
-                <div class="log-line"><span class="log-system">[SISTEMA] Consola limpiada por el usuario. Esperando nuevas actualizaciones...</span></div>
-            `;
+            fullConsoleLines = [];
             consoleContentLength = 0;
+            const consoleBody = document.getElementById('live-console-body');
+            if (consoleBody) {
+                consoleBody.innerHTML = `
+                    <div class="log-line"><span class="log-system">[SISTEMA] Consola limpiada por el usuario. Esperando nuevas actualizaciones...</span></div>
+                `;
+            }
         }
 
-        // Helper to format remaining seconds into MM:SS
         function formatTime(seconds) {
             if (seconds === null || seconds === undefined || isNaN(seconds) || seconds < 0) return '--:--';
             const m = Math.floor(seconds / 60);
@@ -1538,7 +1531,6 @@
             return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
         }
 
-        // HTML Escape helper
         function escapeHtml(text) {
             return text
                 .replace(/&/g, "&amp;")

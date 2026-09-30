@@ -135,7 +135,7 @@ class CircuitBreaker:
 
             return self.triggered, self.trigger_reason
 
-circuit_breaker = CircuitBreaker(max_consecutive_failures=5, max_failure_ratio=0.40, min_processed_threshold=5)
+circuit_breaker = CircuitBreaker(max_consecutive_failures=6, max_failure_ratio=0.40, min_processed_threshold=5)
 
 
 def get_firebase_url():
@@ -197,30 +197,15 @@ def init_progress(total_accounts):
         except Exception:
             pass
 
-        # Asynchronously reset Firebase Realtime DB if URL is configured
-        firebase_url = get_firebase_url()
-        if firebase_url:
-            try:
-                def reset_firebase():
-                    try:
-                        url = firebase_url.strip()
-                        prog_url = url.rstrip('/') + "/progress.json"
-                        requests.put(prog_url, json=progress_state, timeout=5)
-                        
-                        logs_url = url.rstrip('/') + "/logs.json"
-                        requests.put(logs_url, json="🚀 [SISTEMA] Iniciando Alcampo Scraper v2.0 (Optimizado)...\n", timeout=5)
-                    except Exception:
-                        pass
-                threading.Thread(target=reset_firebase, daemon=True).start()
-            except Exception:
-                pass
 
-def update_progress(thread_idx, email, status, saldo_str):
-    """Thread-safely updates progress metrics, saves to progreso.json, and pushes to Firebase."""
+def update_progress(thread_idx, email, status, saldo_str, worker_name="Worker"):
+    """Thread-safely updates progress metrics, saves to progreso.json, and pushes account & thread updates to Firebase."""
     global progress_state
     
     # Parse balance to calculate metrics
     saldo_val = limpiar_saldo(saldo_str)
+    worker_id = f"{worker_name}_t{thread_idx}"
+    email_key = email.replace('.', '_').replace('@', '_').replace('$', '_').replace('#', '_').replace('[', '_').replace(']', '_')
     
     with log_lock:
         progress_state["processed"] += 1
@@ -233,13 +218,11 @@ def update_progress(thread_idx, email, status, saldo_str):
                     progress_state["money"] += 1
                 else:
                     progress_state["zero"] += 1
-            # If saldo_val is None but login was successful, count as zero (could not read balance page)
             else:
                 progress_state["zero"] += 1
         else:
             progress_state["error"] += 1
             
-        # Calculate time metrics
         elapsed = time.time() - progress_state["start_time"]
         progress_state["elapsed"] = elapsed
         
@@ -248,67 +231,76 @@ def update_progress(thread_idx, email, status, saldo_str):
             remaining = progress_state["total"] - progress_state["processed"]
             progress_state["eta"] = remaining * avg_time
             
-        # Update specific thread status
-        progress_state["threads"][str(thread_idx)] = {
+        # Update thread status in progress state
+        progress_state["threads"][worker_id] = {
+            "worker": worker_name,
+            "thread": thread_idx,
             "last_account": email,
             "last_status": status,
             "timestamp": time.time()
         }
         
-        # Save to file
+        # Save to local file
         try:
             with open(ROOT / "progreso.json", "w", encoding="utf-8") as f:
                 json.dump(progress_state, f, indent=4)
         except Exception:
             pass
 
-        # Asynchronously push to Firebase Realtime DB if URL is configured
-        # Push only every 3 accounts to avoid overloading the network/Firebase limits, or at the end
-        firebase_url = get_firebase_url()
-        if firebase_url and (progress_state["processed"] % 3 == 0 or progress_state["processed"] == progress_state["total"]):
+    # Push to Firebase asynchronously and safely without race conditions
+    firebase_url = get_firebase_url()
+    if firebase_url:
+        def push_to_firebase():
             try:
-                def push_to_firebase(state_snap):
-                    try:
-                        url = firebase_url.strip()
-                        # Push progress
-                        prog_url = url.rstrip('/') + "/progress.json"
-                        requests.put(prog_url, json=state_snap, timeout=5)
-                        
-                        # Push latest logs (last 100 lines), filtering Selenium stack traces
-                        try:
-                            log_path = ROOT / "consola.log"
-                            if log_path.exists():
-                                with open(log_path, "r", encoding="utf-8") as f:
-                                    lines = f.readlines()
-                                # Filter out Selenium/Chrome stack trace lines (memory addresses)
-                                filtered = [l for l in lines if not (l.strip().startswith('#') and '0x' in l)
-                                            and 'Stacktrace:' not in l
-                                            and '(Session info:' not in l
-                                            and '<unknown>' not in l]
-                                latest_logs = "".join(filtered[-100:])
-                                logs_url = url.rstrip('/') + "/logs.json"
-                                requests.put(logs_url, json=latest_logs, timeout=5)
-                        except Exception:
-                            pass
-                    except Exception:
-                        pass
-                # Shallow copy the state to avoid thread race conditions
-                state_snap = json.loads(json.dumps(progress_state))
-                threading.Thread(target=push_to_firebase, args=(state_snap,), daemon=True).start()
+                base_url = firebase_url.strip().rstrip('/')
+                now = time.time()
+                # 1. Update this account's status and balance in Firebase /queue/{email_key}
+                patch_account = {
+                    "status": status,
+                    "saldo": saldo_str,
+                    "balance": saldo_val,
+                    "claimed_by": worker_id,
+                    "finished_at": now
+                }
+                requests.patch(f"{base_url}/queue/{email_key}.json", json=patch_account, timeout=5)
+
+                # 2. Update thread status in Firebase /threads/{worker_id}
+                thread_payload = {
+                    "worker": worker_name,
+                    "thread": thread_idx,
+                    "last_account": email,
+                    "last_status": status,
+                    "timestamp": now
+                }
+                requests.put(f"{base_url}/threads/{worker_id}.json", json=thread_payload, timeout=5)
+
+                # 3. Periodically push logs to Firebase
+                if progress_state["processed"] % 2 == 0 or status == "error":
+                    log_path = ROOT / "consola.log"
+                    if log_path.exists():
+                        with open(log_path, "r", encoding="utf-8") as f:
+                            lines = f.readlines()
+                        filtered = [l for l in lines if not (l.strip().startswith('#') and '0x' in l)
+                                    and 'Stacktrace:' not in l
+                                    and '(Session info:' not in l
+                                    and '<unknown>' not in l]
+                        latest_logs = "".join(filtered[-100:])
+                        requests.put(f"{base_url}/logs.json", json=latest_logs, timeout=5)
             except Exception:
                 pass
+        threading.Thread(target=push_to_firebase, daemon=True).start()
 
 
 # --- FIREBASE DYNAMIC WORK QUEUE ---
 queue_lock = threading.Lock()
 
 def init_firebase_queue(accounts):
-    """Initializes the shared work-stealing queue on Firebase Realtime DB."""
+    """Initializes the shared work-stealing queue on Firebase Realtime DB and cleans up old threads and logs."""
     firebase_url = get_firebase_url()
     if not firebase_url:
         return False
     try:
-        url = firebase_url.strip().rstrip('/') + "/queue.json"
+        url = firebase_url.strip().rstrip('/')
         queue_data = {}
         for acc in accounts:
             email_key = acc["email"].replace('.', '_').replace('@', '_').replace('$', '_').replace('#', '_').replace('[', '_').replace(']', '_')
@@ -319,8 +311,23 @@ def init_firebase_queue(accounts):
                 "claimed_by": None,
                 "timestamp": time.time()
             }
-        requests.put(url, json=queue_data, timeout=8)
-        print(f"📦 [FIREBASE QUEUE] Cola dinámica inicializada con {len(accounts)} cuentas en Firebase.")
+        requests.put(f"{url}/queue.json", json=queue_data, timeout=8)
+        requests.delete(f"{url}/threads.json", timeout=5)
+        init_progress_data = {
+            "total": len(accounts),
+            "processed": 0,
+            "success": 0,
+            "money": 0,
+            "zero": 0,
+            "error": 0,
+            "total_balance": 0.0,
+            "start_time": time.time(),
+            "timestamp": time.time(),
+            "is_finished": False
+        }
+        requests.put(f"{url}/progress.json", json=init_progress_data, timeout=5)
+        requests.put(f"{url}/logs.json", json="🚀 [SISTEMA] Iniciando Alcampo Scraper v2.0 (Cola Dinámica Firebase)...\n", timeout=5)
+        print(f"📦 [FIREBASE QUEUE] Cola dinámica inicializada con {len(accounts)} cuentas y nodos limpios.")
         return True
     except Exception as e:
         print(f"⚠️ Error inicializando cola dinámica en Firebase: {e}")
@@ -753,7 +760,7 @@ def procesar_bloque(accounts_chunk, thread_idx):
                 # 3. Dynamic polling & redirect detection
                 start_p = time.time()
                 is_logged_in = False
-                while time.time() - start_p < 8.0:
+                while time.time() - start_p < 15.0:
                     curr_url = driver.current_url
                     if "compraonline.alcampo.es" in curr_url and "login" not in curr_url and "my.site.com" not in curr_url:
                         is_logged_in = True
@@ -767,7 +774,7 @@ def procesar_bloque(accounts_chunk, thread_idx):
                             break
                     except Exception:
                         pass
-                    time.sleep(0.3)
+                    time.sleep(0.4)
 
                 # Check reset password button fallback
                 reset_btns = driver.find_elements(By.ID, "btnPwReset")
@@ -947,7 +954,7 @@ def procesar_bloque(accounts_chunk, thread_idx):
         
         # Update real-time progress state
         status = "error" if ("Error" in saldo or "No encontrado" in saldo) else "success"
-        update_progress(thread_idx, email, status, saldo)
+        update_progress(thread_idx, email, status, saldo, worker_name=f"Chunk_{thread_idx}")
         
         # 7. Borrar cookies cross-domain vía CDP y localStorage para preparar siguiente cuenta
         if driver:
@@ -1036,9 +1043,9 @@ def procesar_bloque_dinamico(worker_name, thread_idx):
                 # 3. Dynamic polling & redirect detection
                 start_p = time.time()
                 is_logged_in = False
-                while time.time() - start_p < 8.0:
+                while time.time() - start_p < 15.0:
                     curr_url = driver.current_url
-                    if "compraonline.alcampo.es" in curr_url and "login" not in curr_url and "my.site.com" not in curr_url:
+                    if "compraonline.alcampo.es" in curr_url and "login" not in curr_url and "my.site.com" not in curr_url and "authenticationError" not in curr_url:
                         is_logged_in = True
                         break
                     reset_elements = driver.find_elements(By.ID, "btnPwReset")
@@ -1050,7 +1057,7 @@ def procesar_bloque_dinamico(worker_name, thread_idx):
                             break
                     except Exception:
                         pass
-                    time.sleep(0.3)
+                    time.sleep(0.4)
 
                 if not is_logged_in and ("login" in driver.current_url or "my.site.com" in driver.current_url or "authenticationError" in driver.current_url or "authentication" in driver.current_url):
                     # Check if cookies allow navigating directly despite authenticationError redirect
@@ -1204,7 +1211,7 @@ def procesar_bloque_dinamico(worker_name, thread_idx):
                     
         resultados.append({"email": email, "password": password, "saldo": saldo})
         status = "error" if ("Error" in saldo or "No encontrado" in saldo) else "success"
-        update_progress(thread_idx, email, status, saldo)
+        update_progress(thread_idx, email, status, saldo, worker_name=worker_name)
         
         if driver:
             try:

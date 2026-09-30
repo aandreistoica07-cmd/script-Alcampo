@@ -167,6 +167,13 @@ jobs:
         run: |
           python scripts/merge_and_retry.py --mode check-timeouts --input-dir ./pass1_artifacts --failed-json failed_accounts.json
 
+      - name: Inicializar Cola Dinámica para Pasada 2
+        if: steps.check.outputs.has_timeouts == 'true'
+        env:
+          FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+        run: |
+          python "script_alcampo_activacion telegram/script_optimizado.py" --input-file failed_accounts.json --init-queue
+
       - name: Subir Artefacto de Cuentas Fallidas
         if: steps.check.outputs.has_timeouts == 'true'
         uses: actions/upload-artifact@v4
@@ -201,54 +208,24 @@ jobs:
           sudo apt-get install -y google-chrome-stable
           pip install -r "script_alcampo_activacion telegram/requirements.txt" || pip install selenium webdriver-manager pandas openpyxl requests
 
-      - name: Descargar Cuentas Fallidas JSON
-        uses: actions/download-artifact@v4
-        with:
-          name: failed-accounts-json
-
-      - name: Reintentar Cuentas Fallidas en Bucle Continuo hasta 100% de Éxito
+      - name: Reintentar Cuentas Fallidas con Cola Dinámica (IP Nueva Shard ${{ matrix.shard }})
         env:
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
         run: |
           cd "script_alcampo_activacion telegram"
-          CYCLE=1
-          MAX_CYCLES=5
-          
-          while [ $CYCLE -le $MAX_CYCLES ]; do
-            # Intercambio Cruzado de Shard entre ciclos: (shard_id + CYCLE - 1) % total_shards
-            EFFECTIVE_SHARD=$(( (${{ matrix.shard }} + CYCLE - 1) % ${{ matrix.total_shards }} ))
-            echo "🔄 === INICIANDO CICLO $CYCLE DE AUTO-CURACIÓN (Shard Efectivo: $EFFECTIVE_SHARD) ==="
-            
-            python script_optimizado.py \
-              --input-file "../failed_accounts.json" \
-              --shard-id $EFFECTIVE_SHARD \
-              --total-shards ${{ matrix.total_shards }} \
-              --threads 2 \
-              --no-telegram \
-              --output-file "saldos_retry_shard_${{ matrix.shard }}_cycle_${CYCLE}.xlsx"
+          python script_optimizado.py \
+            --use-queue \
+            --shard-id ${{ matrix.shard }} \
+            --total-shards ${{ matrix.total_shards }} \
+            --threads 2 \
+            --no-telegram \
+            --output-file "saldos_retry_shard_${{ matrix.shard }}.xlsx"
 
-            # Inspeccionar ÚNICAMENTE el archivo de este ciclo para evitar acumulación errónea
-            python ../scripts/merge_and_retry.py \
-              --mode check-timeouts \
-              --single-file "saldos_retry_shard_${{ matrix.shard }}_cycle_${CYCLE}.xlsx" \
-              --failed-json "../failed_accounts_cycle_${CYCLE}.json"
-
-            if [ -s "../failed_accounts_cycle_${CYCLE}.json" ]; then
-              echo "⚠️ Quedan cuentas pendientes con timeout. Preparando Ciclo $((CYCLE+1))..."
-              cp "../failed_accounts_cycle_${CYCLE}.json" "../failed_accounts.json"
-              CYCLE=$((CYCLE+1))
-              sleep 2
-            else
-              echo "🎉 ¡0 timeouts pendientes en Shard ${{ matrix.shard }}! Todas las cuentas del shard han sido resueltas."
-              break
-            fi
-          done
-
-      - name: Subir Artefacto Pasada 2 (Ciclos Consolidados)
+      - name: Subir Artefacto Pasada 2 (Shard ${{ matrix.shard }})
         uses: actions/upload-artifact@v4
         with:
           name: pass2-retry-shard-${{ matrix.shard }}
-          path: "script_alcampo_activacion telegram/saldos_retry_shard_${{ matrix.shard }}_cycle_*.xlsx"
+          path: "script_alcampo_activacion telegram/saldos_retry_shard_${{ matrix.shard }}.xlsx"
           retention-days: 1
 
   final-consolidate:
