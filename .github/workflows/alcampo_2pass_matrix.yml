@@ -88,7 +88,7 @@ jobs:
     name: 🚀 Pasada 1 (Matrix Shard ${{ matrix.shard }})
     needs: prepare
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
@@ -105,8 +105,7 @@ jobs:
 
       - name: Instalar Google Chrome y Dependencias
         run: |
-          sudo apt-get update
-          sudo apt-get install -y google-chrome-stable
+          which google-chrome || (sudo apt-get update && sudo apt-get install -y google-chrome-stable)
           pip install -r "script_alcampo_activacion telegram/requirements.txt" || pip install selenium webdriver-manager pandas openpyxl requests
 
       - name: Decodificar Cuentas desde Secrets
@@ -187,6 +186,7 @@ jobs:
     needs: [check-timeouts]
     if: needs.check-timeouts.outputs.has_timeouts == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -204,8 +204,7 @@ jobs:
 
       - name: Instalar Google Chrome y Dependencias
         run: |
-          sudo apt-get update
-          sudo apt-get install -y google-chrome-stable
+          which google-chrome || (sudo apt-get update && sudo apt-get install -y google-chrome-stable)
           pip install -r "script_alcampo_activacion telegram/requirements.txt" || pip install selenium webdriver-manager pandas openpyxl requests
 
       - name: Reintentar Cuentas Fallidas con Cola Dinámica (IP Nueva Shard ${{ matrix.shard }})
