@@ -569,12 +569,15 @@ def parse_args():
         help="Master total accounts count across cycles (for UI progress tracking)"
     )
     parser.add_argument(
-        "--check-single",
-        nargs=2,
-        metavar=("EMAIL", "PASSWORD"),
-        help="Check balance and card number of a single account and exit"
+        "input_file_pos",
+        nargs="?",
+        default=None,
+        help="Optional positional input file path (e.g. credenciales_limpias.xlsx)"
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.input_file_pos and not args.input_file:
+        args.input_file = args.input_file_pos
+    return args
 
 
 def enviar_telegram_texto(token, chat_id, mensaje):
