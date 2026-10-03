@@ -10,6 +10,7 @@ import builtins
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
+import pandas as pd
 
 
 from selenium import webdriver
@@ -774,7 +775,15 @@ def cargar_cuentas_desde_archivo(filepath=None):
     """
     target_path = None
     if filepath:
-        target_path = Path(filepath)
+        p1 = Path(filepath)
+        p2 = ROOT / filepath
+        p3 = Path.cwd() / filepath
+        for p in [p1, p2, p3]:
+            if p.exists() and p.is_file():
+                target_path = p
+                break
+        if not target_path:
+            target_path = p1
     else:
         # Buscar en orden de preferencia en la carpeta del script o en la raíz
         candidates = [
