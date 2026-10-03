@@ -767,29 +767,110 @@ def limpiar_saldo(saldo_str):
         return None
 
 
+def cargar_cuentas_desde_archivo(filepath=None):
+    """
+    Carga cuentas desde un archivo JSON, Excel (.xlsx, .xls, .ods) o CSV.
+    Detecta automáticamente las columnas de email y contraseña.
+    """
+    target_path = None
+    if filepath:
+        target_path = Path(filepath)
+    else:
+        # Buscar en orden de preferencia en la carpeta del script o en la raíz
+        candidates = [
+            ROOT / "accounts.json",
+            Path("accounts.json"),
+            ROOT / "cuentasError.ods",
+            Path("cuentasError.ods"),
+            ROOT / "cuentas.xlsx",
+            Path("cuentas.xlsx"),
+            ROOT / "saldos_alcampo.xlsx",
+            Path("saldos_alcampo.xlsx")
+        ]
+        # Buscar también cualquier otro archivo .xlsx, .ods, .csv o .json en la carpeta
+        for ext_pattern in ["*.xlsx", "*.ods", "*.csv", "*.json"]:
+            for f in list(ROOT.glob(ext_pattern)) + list(Path(".").glob(ext_pattern)):
+                if f not in candidates and not f.name.startswith("~$") and f.name not in ["progreso.json", "history.json", "top_accounts.json"]:
+                    candidates.append(f)
+                    
+        for cand in candidates:
+            if cand.exists() and cand.is_file() and cand.stat().st_size > 0:
+                target_path = cand
+                break
+
+    if not target_path or not target_path.exists():
+        print("❌ Error: No se encontró ningún archivo de cuentas (.json, .xlsx, .ods, .csv)")
+        sys.exit(1)
+
+    print(f"📂 Cargando cuentas desde: {target_path}")
+    ext = target_path.suffix.lower()
+
+    if ext == ".json":
+        with open(target_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if isinstance(data, list):
+                return data
+            elif isinstance(data, dict) and "accounts" in data:
+                return data["accounts"]
+            else:
+                raise ValueError("Estructura JSON no reconocida. Se esperaba una lista de cuentas.")
+
+    elif ext in [".xlsx", ".xls", ".ods", ".csv"]:
+        if ext == ".csv":
+            df = pd.read_csv(target_path)
+        elif ext == ".ods":
+            df = pd.read_excel(target_path, engine="odf")
+        else:
+            df = pd.read_excel(target_path)
+
+        cols_lower = {str(c).strip().lower(): c for c in df.columns}
+
+        email_col = None
+        for col_name in ["email", "correo", "usuario", "account", "cuentas", "mail", "user"]:
+            if col_name in cols_lower:
+                email_col = cols_lower[col_name]
+                break
+        if not email_col and len(df.columns) >= 1:
+            email_col = df.columns[0]
+
+        pass_col = None
+        for col_name in ["password", "pass", "contraseña", "clave", "contrasena", "pwd"]:
+            if col_name in cols_lower:
+                pass_col = cols_lower[col_name]
+                break
+        if not pass_col and len(df.columns) >= 2:
+            pass_col = df.columns[1]
+
+        accounts = []
+        for idx, row in df.iterrows():
+            email_val = str(row[email_col]).strip() if pd.notna(row[email_col]) else ""
+            pass_val = str(row[pass_col]).strip() if pass_col and pd.notna(row[pass_col]) else ""
+            if email_val and "@" in email_val and not email_val.lower().startswith("email"):
+                accounts.append({"email": email_val, "password": pass_val})
+
+        print(f"✔ Se cargaron {len(accounts)} cuentas válidas desde {target_path.name}")
+        return accounts
+    else:
+        print(f"❌ Formato no soportado: {ext}")
+        sys.exit(1)
+
+
 def main():
     args = parse_args()
     
     if args.check_single:
         email, password = args.check_single
         print(f"🔎 Iniciando comprobación de saldo individual para: {email}")
-        # Read existing card number from env (passed by dashboard to skip scraping)
         existing_card = os.environ.get("EXISTING_CARD_NUMBER") or None
         if existing_card:
             print(f"ℹ️ Número de tarjeta ya conocido ({existing_card}), se omitirá el scraping del portal.")
         res = check_single_account(email, password, scrape_card=True, existing_card_number=existing_card)
         print(f"Resultado: {res}")
         
-        # Safe update to Firebase RTDB and local top_accounts.json
         firebase_url = get_firebase_url()
-        
-        # 1. Update in Firebase if URL is set
         if firebase_url:
             try:
-                # Sanitize email for Firebase keys
                 email_sanitized = email.replace('.', '_').replace('@', '_').replace('$', '_').replace('#', '_').replace('[', '_').replace(']', '_')
-                
-                # Update single check result node
                 check_id = os.environ.get("CHECK_ID")
                 payload = {
                     "email": email,
@@ -804,8 +885,6 @@ def main():
                 url = firebase_url.strip().rstrip('/') + f"/single_check_result/{email_sanitized}.json"
                 requests.put(url, json=payload, timeout=5)
 
-                
-                # Update in /top_accounts.json if it is already there
                 if res["status"] == "success":
                     top_url = firebase_url.strip().rstrip('/') + "/top_accounts.json"
                     top_res = requests.get(top_url, timeout=5)
@@ -824,7 +903,6 @@ def main():
             except Exception as e:
                 print(f"Error actualizando Firebase: {e}")
         
-        # 2. Update local top_accounts.json if the account is in it
         if res["status"] == "success":
             try:
                 top_local_path = ROOT.parent / "docs" / "top_accounts.json"
@@ -846,7 +924,6 @@ def main():
             except Exception as e:
                 print(f"Error actualizando top_accounts.json local: {e}")
                 
-        # Also update accounts.json if a card number was successfully found/updated!
         if res["status"] == "success" and res["card_number"]:
             try:
                 with open(ACCOUNTS_FILE, "r", encoding="utf-8") as f:
@@ -870,14 +947,8 @@ def main():
     telegram_token, chat_id = get_telegram_config()
     send_telegram = args.send_telegram and not args.no_telegram
 
-    # Cargar cuentas
-    input_filepath = Path(args.input_file) if args.input_file else ACCOUNTS_FILE
-    if not input_filepath.exists():
-        print(f"❌ Error: No se encuentra {input_filepath}")
-        sys.exit(1)
-        
-    with open(input_filepath, "r", encoding="utf-8") as f:
-        accounts = json.load(f)
+    # Cargar cuentas (JSON, Excel .xlsx / .ods, o CSV)
+    accounts = cargar_cuentas_desde_archivo(args.input_file)
         
     if args.limit:
         accounts = accounts[:args.limit]
