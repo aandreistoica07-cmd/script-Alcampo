@@ -22,3 +22,11 @@ script_alcampo_activacion telegram/saldos_alcampo.xlsx
 Thumbs.db
 .idea/
 .vscode/
+
+# Debug and evidence
+debug/
+debug_test/
+**/debug/
+**/debug_test/
+*.png
+
