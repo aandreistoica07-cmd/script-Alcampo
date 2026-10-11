@@ -323,29 +323,34 @@ def init_progress(total_accounts):
 results_lock = threading.Lock()
 local_results = {}
 
-def update_progress(thread_idx, email, status, saldo_str):
-    """Thread-safely updates progress metrics, saves to progreso.json, and pushes deduplicated results to Firebase."""
+def update_progress(thread_idx, email, status, saldo_str, worker_name="Worker"):
+    """Thread-safely updates progress metrics, saves to progreso.json, and pushes deduplicated results & thread state to Firebase."""
     global progress_state, local_results
     
     saldo_val = limpiar_saldo(saldo_str)
+    worker_id = f"{worker_name}_t{thread_idx}"
     email_key = email.replace('.', '_').replace('@', '_').replace('$', '_').replace('#', '_').replace('[', '_').replace(']', '_')
+    now = time.time()
     
     result_entry = {
         "email": email,
         "status": status,
         "saldo": saldo_str,
         "balance": saldo_val,
-        "timestamp": time.time()
+        "timestamp": now
+    }
+    thread_payload = {
+        "worker": worker_name,
+        "thread": thread_idx,
+        "last_account": mask_email(email),
+        "last_status": status,
+        "timestamp": now
     }
     
     with log_lock:
         with results_lock:
             local_results[email_key] = result_entry
-            progress_state["threads"][str(thread_idx)] = {
-                "last_account": mask_email(email),
-                "last_status": status,
-                "timestamp": time.time()
-            }
+            progress_state["threads"][worker_id] = thread_payload
             
         money_count = 0
         zero_count = 0
@@ -396,7 +401,15 @@ def update_progress(thread_idx, email, status, saldo_str):
                 prefix = os.environ.get("FIREBASE_QUEUE_PREFIX", "")
                 url = firebase_url.strip().rstrip('/')
                 firebase_session.put(f"{url}/{prefix}results/{email_key}.json", json=result_entry, timeout=8)
-                firebase_session.patch(f"{url}/{prefix}queue/{email_key}.json", json={"status": status, "saldo": saldo_str, "balance": saldo_val, "timestamp": time.time()}, timeout=8)
+                firebase_session.patch(f"{url}/{prefix}queue/{email_key}.json", json={
+                    "status": status,
+                    "saldo": saldo_str,
+                    "balance": saldo_val,
+                    "claimed_by": worker_id,
+                    "finished_at": now,
+                    "timestamp": now
+                }, timeout=8)
+                firebase_session.put(f"{url}/{prefix}threads/{worker_id}.json", json=thread_payload, timeout=8)
                 
                 res = firebase_session.get(f"{url}/{prefix}results.json", timeout=8)
                 all_results = {}
@@ -477,7 +490,7 @@ firebase_session.mount("https://", fb_adapter)
 firebase_session.mount("http://", fb_adapter)
 
 def init_firebase_queue(accounts):
-    """Initializes the shared work-stealing queue and clears old results on Firebase Realtime DB."""
+    """Initializes the shared work-stealing queue and clears old results and threads on Firebase Realtime DB."""
     firebase_url = get_firebase_url()
     if not firebase_url:
         return False
@@ -498,6 +511,7 @@ def init_firebase_queue(accounts):
             }
         firebase_session.put(f"{url}/{prefix}queue.json", json=queue_data, timeout=10)
         firebase_session.delete(f"{url}/{prefix}results.json", timeout=10)
+        firebase_session.delete(f"{url}/{prefix}threads.json", timeout=10)
         
         init_progress_data = {
             "total": len(accounts),
@@ -1201,7 +1215,7 @@ def procesar_bloque(accounts_chunk, thread_idx, job_start_time=None):
                 circuit_breaker.record_result(False, error_type=err_type)
 
             status = "success" if err_type == "ok" else ("needs_attention" if err_type == "needs_attention" else "error")
-            update_progress(thread_idx, email, status, res_item["saldo"])
+            update_progress(thread_idx, email, status, res_item["saldo"], worker_name=f"Chunk_{thread_idx}")
     finally:
         if driver:
             try:
@@ -1228,6 +1242,7 @@ def procesar_bloque_dinamico(worker_name, thread_idx, job_start_time=None):
         return driver
 
     acc_index = 0
+    current_claimed_email = None
     try:
         while True:
             if circuit_breaker.triggered:
@@ -1242,6 +1257,7 @@ def procesar_bloque_dinamico(worker_name, thread_idx, job_start_time=None):
                 print(f"[{worker_name} Hilo {thread_idx}] 🎉 No quedan más cuentas pendientes en la cola dinámica.")
                 break
 
+            current_claimed_email = acc["email"]
             if acc_index > 0 and OPT_ADAPTIVE_PACING:
                 adaptive_pacer.wait()
 
@@ -1257,25 +1273,39 @@ def procesar_bloque_dinamico(worker_name, thread_idx, job_start_time=None):
                 adaptive_pacer.record_success(res_item.get("total_s", 10.0))
                 circuit_breaker.record_result(False, error_type="ok")
                 resultados.append(res_item)
-                update_progress(thread_idx, email, "success", res_item["saldo"])
+                update_progress(thread_idx, email, "success", res_item["saldo"], worker_name=worker_name)
+                current_claimed_email = None
             elif err_type == "ip_error":
                 adaptive_pacer.record_pressure(res_item.get("saldo", ""))
                 # Return account to queue (if retries < 2) so another healthy VM can process it
                 released = release_account_to_queue(email, reason=res_item.get("saldo", "ip_error"))
+                current_claimed_email = None
                 if not released:
                     resultados.append(res_item)
-                    update_progress(thread_idx, email, "error", res_item["saldo"])
+                    update_progress(thread_idx, email, "error", res_item["saldo"], worker_name=worker_name)
                 triggered, trigger_reason = circuit_breaker.record_result(True, reason=res_item.get("saldo", ""), error_type="ip_error")
                 if triggered:
-                    print(f"🚨 [CIRCUIT BREAKER DISPARADO] {trigger_reason}. Poniedo {worker_name} en cuarentena.")
+                    print(f"🚨 [CIRCUIT BREAKER DISPARADO] {trigger_reason}. Poniendo {worker_name} en cuarentena.")
+                    t_tok, t_chat = get_telegram_config()
+                    if t_tok and t_chat:
+                        try:
+                            enviar_telegram_texto(t_tok, t_chat, f"🚨 <b>ALERTA URGENTE: Circuit Breaker por Bloqueo IP</b>\n\n• Worker: <code>{worker_name} (Hilo {thread_idx})</code>\n• Motivo: {html.escape(trigger_reason)}\n• Acción: Máquina detenida y cuentas devueltas a la cola.")
+                        except Exception:
+                            pass
                     break
             else:
                 # Permanent account error or Call Center / password reset (needs_attention)
                 circuit_breaker.record_result(False, error_type=err_type)
                 resultados.append(res_item)
                 st = "needs_attention" if err_type == "needs_attention" else "error"
-                update_progress(thread_idx, email, st, res_item["saldo"])
+                update_progress(thread_idx, email, st, res_item["saldo"], worker_name=worker_name)
+                current_claimed_email = None
     finally:
+        if current_claimed_email:
+            try:
+                release_account_to_queue(current_claimed_email, reason="worker_timeout_or_abort")
+            except Exception:
+                pass
         if driver:
             try:
                 driver.quit()
@@ -1422,6 +1452,11 @@ def main():
     worker_label = f"VM_{args.shard_id}" if args.shard_id is not None else "Worker"
     if OPT_IP_CANARY and not run_ip_canary(worker_label):
         print(f"🛑 [QUARANTINE] {worker_label} descartada por canario IP fallido. Cuentas intactas en la cola.")
+        if telegram_token and chat_id:
+            try:
+                enviar_telegram_texto(telegram_token, chat_id, f"🚨 <b>ALERTA URGENTE: Máquina en Cuarentena por Bloqueo IP</b>\n\n• Worker: <code>{worker_label}</code>\n• Causa: Canario IP detectó bloqueo 403/429/WAF al iniciar.\n• Acción: Cuentas intactas en la cola dinámica para otras VMs sanas.")
+            except Exception:
+                pass
         target_excel_path = Path(args.output_file) if args.output_file else EXCEL_FILE
         import pandas as pd
         pd.DataFrame([]).to_excel(target_excel_path, index=False)

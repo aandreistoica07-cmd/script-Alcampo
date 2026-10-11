@@ -30,7 +30,11 @@ debug_test/
 **/debug_test/
 *.png
 
-# Archivos sensibles de cuentas excluidas, nuevas sin fusionar, backups y reportes locales
+# Archivos sensibles de cuentas, estado local, excluidas, backups y reportes locales
+**/accounts.json
+**/progreso.json
+**/consola.log
+**/test_subset.json
 **/credenciales_limpias*.xlsx
 **/cuentasError.ods
 **/accounts_excluidas*.json

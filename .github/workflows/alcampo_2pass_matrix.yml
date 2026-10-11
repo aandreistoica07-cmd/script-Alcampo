@@ -12,7 +12,7 @@ on:
         required: false
         default: ''
   schedule:
-    - cron: '0 8 */2 * *'
+    - cron: '0 8 * * *'
 
 concurrency:
   group: alcampo-scraper-matrix-production
@@ -33,7 +33,7 @@ env:
 
 jobs:
   prepare:
-    name: 🔍 Prepare Matrix & Notify Telegram Start
+    name: 🔍 Prepare Matrix & Validate Source (512)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -53,17 +53,15 @@ jobs:
       - name: Instalar requests
         run: pip install requests
 
-      - name: Validar Fuente (512 Cuentas), Calcular Shards y Notificar Telegram Inicial
+      - name: Validar Fuente (512 Cuentas) y Calcular Shards Dinámicos
         id: set-matrix
         env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           ACCOUNTS_B64: ${{ secrets.ACCOUNTS_BASE64 }}
           INPUT_PER_VM: ${{ github.event.inputs.accounts_per_vm }}
           TEST_LIMIT: ${{ github.event.inputs.test_limit }}
         run: |
           python -c "
-          import json, math, os, sys, base64, requests
+          import json, math, os, sys, base64
 
           expected_total = int(os.environ.get('EXPECTED_ACCOUNTS_COUNT') or '512')
           accounts_b64 = (os.environ.get('ACCOUNTS_B64') or '').strip()
@@ -94,22 +92,6 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as f:
               f.write(f'matrix={json.dumps(matrix_data)}\n')
               f.write(f'total_shards={shards}\n')
-
-          token = os.environ.get('TELEGRAM_TOKEN')
-          chat_id = os.environ.get('TELEGRAM_CHAT_ID')
-          if token and chat_id and not test_limit_str:
-              msg = (
-                  f'🚀 <b>Iniciando verificación Alcampo Multi-VM (v2.1)</b>\n\n'
-                  f'📋 Cuentas a procesar: {total}\n'
-                  f'⚙️ Matriz: {shards} VMs en paralelo (2 hilos/VM + Cola Dinámica Firebase)\n\n'
-                  f'👀 <b>Ver Monitor en Vivo en tiempo real:</b>\n'
-                  f'https://script-alcampo.vercel.app/'
-              )
-              try:
-                  requests.post(f'https://api.telegram.org/bot{token}/sendMessage', data={'chat_id': chat_id, 'text': msg, 'parse_mode': 'HTML'}, timeout=15)
-                  print('✔ Notificación inicial enviada a Telegram.')
-              except Exception as e:
-                  print(f'Warning Telegram initial notification: {e}')
           "
 
       - name: Inicializar Cola Dinámica en Firebase
@@ -373,10 +355,23 @@ jobs:
           python scripts/merge_and_retry.py --mode final-merge --input-dir ./all_final_shards --output-excel REPORTE_DEFINITIVO_TELEGRAM.xlsx
 
       - name: Actualizar Archivos de Analytics y Top 10 en Git
+        if: ${{ !github.event.inputs.test_limit }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/top_accounts.json docs/history.json top_accounts.json || true
-          git commit -m "chore: update top_accounts.json and history.json from final consolidation" || echo "No changes to commit"
-          git push origin main || echo "No changes to push"
-
+          if ! git diff --cached --quiet; then
+            git commit -m "📊 Auto-update Alcampo scraper results and history [skip ci]"
+            for attempt in 1 2 3; do
+              echo "🔄 Intento $attempt/3 de sincronización git pull --rebase + push..."
+              if git pull --rebase origin main && git push origin main; then
+                echo "✔ Push de analíticas completado en intento $attempt."
+                break
+              fi
+              git rebase --abort 2>/dev/null || true
+              git pull --no-rebase -X ours origin main || true
+              sleep $((attempt * 2))
+            done
+          else
+            echo "No hay cambios que commitear."
+          fi

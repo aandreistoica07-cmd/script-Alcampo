@@ -320,7 +320,7 @@ def main():
         with open(history_path, "w", encoding="utf-8") as hf:
             json.dump(history_data, hf, ensure_ascii=False, indent=4)
 
-        # Write GitHub Step Summary ($GITHUB_STEP_SUMMARY) without exposing raw credentials
+        # Write GitHub Step Summary ($GITHUB_STEP_SUMMARY) without exposing accounts, passwords, or balances
         if "GITHUB_STEP_SUMMARY" in os.environ:
             try:
                 summary_md = (
@@ -328,25 +328,21 @@ def main():
                     f"| Métrica | Valor |\n"
                     f"| :--- | :--- |\n"
                     f"| **Cuentas Procesadas** | {total} |\n"
-                    f"| **Exitosas (OK)** | {successes} ({success_rate:.1f}%) |\n"
-                    f"| **Con Saldo (> 0 €)** | {cuentas_dinero} |\n"
-                    f"| **Saldo 0,00 €** | {cuentas_cero} |\n"
+                    f"| **Exitosas (`OK`)** | {successes} ({success_rate:.1f}%) |\n"
                     f"| **Requieren Atención (`needs_attention`)** | {cuentas_attention} (Call Center / Reset) |\n"
-                    f"| **Otros Errores (Credenciales / Timeout)** | {len(df_errors)} |\n"
-                    f"| **Saldo Total Acumulado** | **{saldo_total:.2f} €** |\n"
+                    f"| **Otros Errores (`account_error` / `ip_error`)** | {len(df_errors)} |\n"
                     f"| **Tiempo Medio / p95 por Cuenta** | {avg_s:.2f} s / {p95_s:.2f} s |\n"
                     f"| **Minutos Facturados Estimados (Ejecución)** | ~{estimated_billed_min} min (Jobs: {len(files)} shards + 3 aux) |\n"
-                    f"| **Minutos Acumulados del Mes ({current_ym})** | **~{monthly_accumulated_min} / 2.000 min ({monthly_accumulated_min / 20.0:.1f}%)** |\n\n"
-                    f"### 🏆 Top 10 Cuentas (Enmascaradas en CI)\n"
-                    f"```text\n{top_10_masked_str}\n```\n"
+                    f"| **Minutos Acumulados del Mes ({current_ym})** | **~{monthly_accumulated_min} / 2.000 min ({monthly_accumulated_min / 20.0:.1f}%)** |\n"
                 )
                 with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as sf:
                     sf.write(summary_md)
             except Exception as se:
                 print(f"Warning writing GITHUB_STEP_SUMMARY: {se}")
 
+        prefix = os.environ.get("FIREBASE_QUEUE_PREFIX", "")
         firebase_url = os.environ.get("FIREBASE_DB_URL") or "https://monitor-alcampo-default-rtdb.europe-west1.firebasedatabase.app/"
-        if firebase_url:
+        if firebase_url and not prefix:
             try:
                 fb_base = firebase_url.strip().rstrip("/")
                 requests.put(f"{fb_base}/top_accounts.json", json=top_10_json, timeout=10)
@@ -369,20 +365,33 @@ def main():
                 print(f"⚠️ Error al sincronizar con Firebase: {fe}")
 
         msg = (
-            f"📊 <b>RESUMEN CONSOLIDADO FINAL (2 PASADAS MATRIZ)</b>\n\n"
-            f"✅ Cuentas totales: {total}\n"
-            f"💰 <b>Saldo Total Extraído:</b> {saldo_total:.2f} €\n"
-            f"💎 Cuentas con dinero: {cuentas_dinero}\n"
-            f"💤 Cuentas con saldo 0: {cuentas_cero}\n"
-            f"⚠️ Cuentas con error: {len(df_errors)} | Call Center (`needs_attention`): {cuentas_attention}\n"
-            f"⏱️ Ritmo: {avg_s:.1f}s/cta (p95: {p95_s:.1f}s) | ~{estimated_billed_min} min Actions\n\n"
-            f"🏆 <b>Top 10 Cuentas con Mayor Saldo:</b>\n{top_10_telegram_str}"
+            f"📊 <b>RESUMEN EJECUCIÓN ALCAMPO (v2.1)</b>\n\n"
+            f"✅ Procesadas: {total} | OK: {successes} ({success_rate:.1f}%)\n"
+            f"⚠️ Atención (`needs_attention`): {cuentas_attention} | Otros errores: {len(df_errors)}\n"
+            f"⏱️ Ritmo: {avg_s:.1f}s/cta (p95: {p95_s:.1f}s)\n"
+            f"⚙️ Minutos Actions: ~{estimated_billed_min} min (Mes {current_ym}: ~{monthly_accumulated_min}/2.000 min, {monthly_accumulated_min / 20.0:.1f}%)"
         )
 
         token = os.environ.get("TELEGRAM_TOKEN")
         chat_id = os.environ.get("TELEGRAM_CHAT_ID")
         if token and chat_id:
-            enviar_telegram(token, chat_id, msg, args.output_excel)
+            enviar_telegram(token, chat_id, msg)
+            if monthly_accumulated_min >= 1900:
+                quota_alert = (
+                    f"🚨 <b>AVISO DE CUOTA CRÍTICA GITHUB ACTIONS (~100%)</b>\n\n"
+                    f"• Mes: <code>{current_ym}</code>\n"
+                    f"• Consumo acumulado estimado: <b>~{monthly_accumulated_min} / 2.000 min ({monthly_accumulated_min / 20.0:.1f}%)</b>\n"
+                    f"• La ejecución diaria continúa según lo configurado (si GitHub agota la cuota, la cola quedará lista para el siguiente ciclo)."
+                )
+                enviar_telegram(token, chat_id, quota_alert)
+            elif monthly_accumulated_min > 1700:
+                quota_warn = (
+                    f"⚠️ <b>AVISO DE CUOTA GITHUB ACTIONS (&gt;85%)</b>\n\n"
+                    f"• Mes: <code>{current_ym}</code>\n"
+                    f"• Consumo acumulado estimado: <b>~{monthly_accumulated_min} / 2.000 min ({monthly_accumulated_min / 20.0:.1f}%)</b>\n"
+                    f"• La ejecución diaria se mantiene activa."
+                )
+                enviar_telegram(token, chat_id, quota_warn)
 
 # @end: MergeAndRetry-Main
 
