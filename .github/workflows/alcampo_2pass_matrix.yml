@@ -59,11 +59,17 @@ jobs:
           import json, math, os, base64, requests
 
           accounts_b64 = (os.environ.get('ACCOUNTS_B64') or '').strip()
+          with open('script_alcampo_activacion telegram/accounts.json', 'r', encoding='utf-8') as f:
+              accounts = json.load(f)
           if accounts_b64 and len(accounts_b64) > 10:
-              accounts = json.loads(base64.b64decode(accounts_b64).decode('utf-8'))
-          else:
-              with open('script_alcampo_activacion telegram/accounts.json', 'r', encoding='utf-8') as f:
-                  accounts = json.load(f)
+              try:
+                  sec_accounts = json.loads(base64.b64decode(accounts_b64).decode('utf-8'))
+                  if len(sec_accounts) < 700:
+                      accounts = sec_accounts
+                  else:
+                      print(f'⚠️ Secret ACCOUNTS_BASE64 contiene el archivo antiguo ({len(sec_accounts)} cuentas). Usando accounts.json activo ({len(accounts)} cuentas).')
+              except Exception:
+                  pass
 
           total = len(accounts)
           per_vm = int(os.environ.get('INPUT_PER_VM') or '75')
@@ -98,9 +104,15 @@ jobs:
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
           ACCOUNTS_B64: ${{ secrets.ACCOUNTS_BASE64 }}
         run: |
-          if [ -n "$ACCOUNTS_B64" ]; then
-            printf "%s" "$ACCOUNTS_B64" | base64 -d > "script_alcampo_activacion telegram/accounts.json"
-          fi
+          python -c "
+          import os, json, base64
+          b64 = (os.environ.get('ACCOUNTS_B64') or '').strip()
+          if b64 and len(b64) > 10:
+              data = json.loads(base64.b64decode(b64).decode('utf-8'))
+              if len(data) < 700:
+                  with open('script_alcampo_activacion telegram/accounts.json', 'w', encoding='utf-8', newline='\r\n') as f:
+                      json.dump(data, f, indent=2, ensure_ascii=False)
+          "
           python "script_alcampo_activacion telegram/script_optimizado.py" --init-queue
 
   scrape-pass1:
@@ -135,9 +147,15 @@ jobs:
         env:
           ACCOUNTS_B64: ${{ secrets.ACCOUNTS_BASE64 }}
         run: |
-          if [ -n "$ACCOUNTS_B64" ]; then
-            printf "%s" "$ACCOUNTS_B64" | base64 -d > "script_alcampo_activacion telegram/accounts.json"
-          fi
+          python -c "
+          import os, json, base64
+          b64 = (os.environ.get('ACCOUNTS_B64') or '').strip()
+          if b64 and len(b64) > 10:
+              data = json.loads(base64.b64decode(b64).decode('utf-8'))
+              if len(data) < 700:
+                  with open('script_alcampo_activacion telegram/accounts.json', 'w', encoding='utf-8', newline='\r\n') as f:
+                      json.dump(data, f, indent=2, ensure_ascii=False)
+          "
 
       - name: Ejecutar Scraper con Cola Dinámica Firebase (VM ${{ matrix.shard }})
         env:

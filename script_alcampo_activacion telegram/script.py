@@ -31,10 +31,12 @@ sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
 
 ROOT = Path(__file__).resolve().parent
-ACCOUNTS_FILE = ROOT / "accounts.json"
+ACCOUNTS_FILE = ROOT / os.environ.get("ALCAMPO_ACCOUNTS_FILE", "accounts.json")
 EXCEL_FILE = ROOT / "saldos_alcampo.xlsx"
 RESULTS_JSON_FILE = ROOT / "results.json"
 RESULTS_CSV_FILE = ROOT / "results.csv"
+
+# @section: ScriptPy-Engine
 
 log_lock = threading.Lock()
 results_lock = threading.Lock()
@@ -162,13 +164,8 @@ def cargar_cuentas_desde_archivo(filepath=None):
             target_path = p1
     else:
         candidates = [
-            ROOT / "credenciales_limpias.xlsx",
-            Path("credenciales_limpias.xlsx"),
-            ROOT / "accounts.json",
-            Path("accounts.json"),
-            ROOT / "cuentasError.ods",
-            Path("cuentasError.ods"),
-            ROOT / "saldos_alcampo.xlsx"
+            ACCOUNTS_FILE,
+            Path(ACCOUNTS_FILE.name)
         ]
         for cand in candidates:
             if cand.exists() and cand.is_file() and cand.stat().st_size > 0:
@@ -176,7 +173,7 @@ def cargar_cuentas_desde_archivo(filepath=None):
                 break
 
     if not target_path or not target_path.exists():
-        print(f"❌ Error: No se encontró ningún archivo de cuentas.")
+        print(f"❌ Error: No se encontró ningún archivo de cuentas ({ACCOUNTS_FILE.name}).")
         sys.exit(1)
 
     print(f"📂 Cargando cuentas desde: {target_path}")
@@ -344,6 +341,10 @@ def procesar_cuenta(acc, thread_idx, total_accs, current_idx):
 
     return res_dict
 
+# @end: ScriptPy-Engine
+
+
+# @section: ScriptPy-Main
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Alcampo Scraper Limpio")
@@ -453,3 +454,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# @end: ScriptPy-Main

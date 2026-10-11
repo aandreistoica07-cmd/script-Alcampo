@@ -30,3 +30,14 @@ debug_test/
 **/debug_test/
 *.png
 
+# Archivos sensibles de cuentas excluidas, nuevas sin fusionar, backups y reportes locales
+**/credenciales_limpias*.xlsx
+**/cuentasError.ods
+**/accounts_excluidas*.json
+**/accounts_nuevas_fallidas*.json
+**/backups/
+**/results.json
+**/results.csv
+**/saldos_*.xlsx
+REPORTE_DEFINITIVO_*.xlsx
+ultimo_reporte.xlsx

@@ -32,7 +32,8 @@ sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
 
 ROOT = Path(__file__).resolve().parent
-ACCOUNTS_FILE = ROOT / "accounts.json"
+ACCOUNTS_FILENAME = os.environ.get("ALCAMPO_ACCOUNTS_FILE", "accounts.json")
+ACCOUNTS_FILE = ROOT / ACCOUNTS_FILENAME
 EXCEL_FILE = ROOT / "saldos_alcampo.xlsx"
 
 # --- FEATURE FLAGS (REVERSIBLE OPTIMIZATIONS & ANTI-BAN GUARDS) ---
@@ -259,6 +260,8 @@ def run_ip_canary(worker_label="Worker"):
 
 
 def get_firebase_url():
+    if os.environ.get("DISABLE_FIREBASE_SYNC") == "1":
+        return None
     url = (os.environ.get("FIREBASE_DB_URL") or "").strip()
     if not url or url.lower() in ("none", "null", "***", "undefined") or not url.startswith("http"):
         return "https://monitor-alcampo-default-rtdb.europe-west1.firebasedatabase.app/"
@@ -1377,8 +1380,9 @@ def main():
                         updated = True
                         break
                 if updated:
-                    with open(ACCOUNTS_FILE, "w", encoding="utf-8") as f:
-                        json.dump(accounts, f, indent=2)
+                    with open(ACCOUNTS_FILE, "w", encoding="utf-8", newline="\r\n") as f:
+                        json.dump(accounts, f, indent=2, ensure_ascii=False)
+                        f.write("\r\n")
                     print("✔ accounts.json actualizado con número de tarjeta.")
             except Exception as e:
                 print(f"Error actualizando accounts.json: {e}")
@@ -1555,14 +1559,15 @@ def main():
                 {"email": email, "password": pwd, "balance": val, "card_number": card_map.get(email)}
                 for val, email, pwd in top_10
             ]
-            try:
-                top_local_path = ROOT.parent / "docs" / "top_accounts.json"
-                top_local_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(top_local_path, "w", encoding="utf-8") as f:
-                    json.dump(top_accounts_data, f, indent=4)
-                print(f"✔ top_accounts.json local guardado en {top_local_path}")
-            except Exception as e:
-                print(f"Error escribiendo top_accounts.json local: {e}")
+            if os.environ.get("DISABLE_FIREBASE_SYNC") != "1" and not args.output_file:
+                try:
+                    top_local_path = ROOT.parent / "docs" / "top_accounts.json"
+                    top_local_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(top_local_path, "w", encoding="utf-8") as f:
+                        json.dump(top_accounts_data, f, indent=4)
+                    print(f"✔ top_accounts.json local guardado en {top_local_path}")
+                except Exception as e:
+                    print(f"Error escribiendo top_accounts.json local: {e}")
 
             firebase_url = get_firebase_url()
             if firebase_url:
