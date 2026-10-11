@@ -293,9 +293,11 @@ def main():
         # Add overhead for prepare (1m) + check-timeouts (1m) + final-consolidate (1m)
         estimated_billed_min = sum(shard_durations_min) + 3
 
+        now_utc = datetime.now(timezone.utc)
+        current_ym = now_utc.strftime("%Y-%m")
         new_history_entry = {
             "id": next_id,
-            "date": datetime.now(timezone.utc).isoformat(),
+            "date": now_utc.isoformat(),
             "version": "Multi-VM Matrix 2-Pass v2.1",
             "duration": round(avg_s * total / max(1, len(files) * 2), 1),
             "checked": total,
@@ -308,6 +310,12 @@ def main():
             "estimated_actions_minutes": estimated_billed_min
         }
         history_data.append(new_history_entry)
+
+        monthly_accumulated_min = sum(
+            int(e.get("estimated_actions_minutes") or math.ceil(float(e.get("duration") or 0) / 60.0 * 7) + 3)
+            for e in history_data
+            if isinstance(e, dict) and str(e.get("date", "")).startswith(current_ym)
+        )
 
         with open(history_path, "w", encoding="utf-8") as hf:
             json.dump(history_data, hf, ensure_ascii=False, indent=4)
@@ -327,7 +335,8 @@ def main():
                     f"| **Otros Errores (Credenciales / Timeout)** | {len(df_errors)} |\n"
                     f"| **Saldo Total Acumulado** | **{saldo_total:.2f} €** |\n"
                     f"| **Tiempo Medio / p95 por Cuenta** | {avg_s:.2f} s / {p95_s:.2f} s |\n"
-                    f"| **Minutos Facturados Estimados (Actions)** | ~{estimated_billed_min} min (Jobs: {len(files)} shards + 3 aux) |\n\n"
+                    f"| **Minutos Facturados Estimados (Ejecución)** | ~{estimated_billed_min} min (Jobs: {len(files)} shards + 3 aux) |\n"
+                    f"| **Minutos Acumulados del Mes ({current_ym})** | **~{monthly_accumulated_min} / 2.000 min ({monthly_accumulated_min / 20.0:.1f}%)** |\n\n"
                     f"### 🏆 Top 10 Cuentas (Enmascaradas en CI)\n"
                     f"```text\n{top_10_masked_str}\n```\n"
                 )

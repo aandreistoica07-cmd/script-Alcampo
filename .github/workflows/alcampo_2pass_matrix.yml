@@ -4,11 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       accounts_per_vm:
-        description: 'Cuentas objetivo por VM (Golden Ratio: 75 por VM = 7 VMs)'
+        description: 'Cuentas objetivo por VM (Golden Ratio: 75 por VM = 7 VMs para 512 cuentas)'
         required: false
         default: '75'
+      test_limit:
+        description: 'Opcional: Probar solo N cuentas (ej. 4) en cola separada (test_queue) sin tocar la cola de 512'
+        required: false
+        default: ''
   schedule:
-    - cron: '0 8 * * *'
+    - cron: '0 8 */2 * *'
 
 concurrency:
   group: alcampo-scraper-matrix-production
@@ -24,6 +28,8 @@ env:
   OPT_ADAPTIVE_PACING: '1'
   OPT_IP_CANARY: '1'
   MAX_EXECUTION_MINUTES: '13.5'
+  EXPECTED_ACCOUNTS_COUNT: '512'
+  FIREBASE_QUEUE_PREFIX: ${{ github.event.inputs.test_limit && 'test_' || '' }}
 
 jobs:
   prepare:
@@ -47,29 +53,36 @@ jobs:
       - name: Instalar requests
         run: pip install requests
 
-      - name: Calcular Shards Dinámicos y Notificar Telegram Inicial
+      - name: Validar Fuente (512 Cuentas), Calcular Shards y Notificar Telegram Inicial
         id: set-matrix
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           ACCOUNTS_B64: ${{ secrets.ACCOUNTS_BASE64 }}
           INPUT_PER_VM: ${{ github.event.inputs.accounts_per_vm }}
+          TEST_LIMIT: ${{ github.event.inputs.test_limit }}
         run: |
           python -c "
-          import json, math, os, base64, requests
+          import json, math, os, sys, base64, requests
 
+          expected_total = int(os.environ.get('EXPECTED_ACCOUNTS_COUNT') or '512')
           accounts_b64 = (os.environ.get('ACCOUNTS_B64') or '').strip()
-          with open('script_alcampo_activacion telegram/accounts.json', 'r', encoding='utf-8') as f:
-              accounts = json.load(f)
           if accounts_b64 and len(accounts_b64) > 10:
-              try:
-                  sec_accounts = json.loads(base64.b64decode(accounts_b64).decode('utf-8'))
-                  if len(sec_accounts) < 700:
-                      accounts = sec_accounts
-                  else:
-                      print(f'⚠️ Secret ACCOUNTS_BASE64 contiene el archivo antiguo ({len(sec_accounts)} cuentas). Usando accounts.json activo ({len(accounts)} cuentas).')
-              except Exception:
-                  pass
+              accounts = json.loads(base64.b64decode(accounts_b64).decode('utf-8'))
+              source_name = 'Secret ACCOUNTS_BASE64'
+          else:
+              with open('script_alcampo_activacion telegram/accounts.json', 'r', encoding='utf-8') as f:
+                  accounts = json.load(f)
+              source_name = 'script_alcampo_activacion telegram/accounts.json'
+
+          if len(accounts) != expected_total:
+              print(f'❌ ERROR CRÍTICO: {source_name} contiene {len(accounts)} cuentas, pero se esperaban exactamente {expected_total} (495 + 17 verificadas). Actualiza el secret ACCOUNTS_BASE64.')
+              sys.exit(1)
+
+          test_limit_str = (os.environ.get('TEST_LIMIT') or '').strip()
+          if test_limit_str.isdigit() and int(test_limit_str) > 0:
+              accounts = accounts[:int(test_limit_str)]
+              print(f'🧪 MODO PRUEBA AISLADA: usando {len(accounts)} cuentas en cola test_queue.')
 
           total = len(accounts)
           per_vm = int(os.environ.get('INPUT_PER_VM') or '75')
@@ -84,7 +97,7 @@ jobs:
 
           token = os.environ.get('TELEGRAM_TOKEN')
           chat_id = os.environ.get('TELEGRAM_CHAT_ID')
-          if token and chat_id:
+          if token and chat_id and not test_limit_str:
               msg = (
                   f'🚀 <b>Iniciando verificación Alcampo Multi-VM (v2.1)</b>\n\n'
                   f'📋 Cuentas a procesar: {total}\n'
@@ -103,17 +116,35 @@ jobs:
         env:
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
           ACCOUNTS_B64: ${{ secrets.ACCOUNTS_BASE64 }}
+          TEST_LIMIT: ${{ github.event.inputs.test_limit }}
         run: |
           python -c "
-          import os, json, base64
+          import os, sys, json, base64
+          expected_total = int(os.environ.get('EXPECTED_ACCOUNTS_COUNT') or '512')
           b64 = (os.environ.get('ACCOUNTS_B64') or '').strip()
           if b64 and len(b64) > 10:
               data = json.loads(base64.b64decode(b64).decode('utf-8'))
-              if len(data) < 700:
-                  with open('script_alcampo_activacion telegram/accounts.json', 'w', encoding='utf-8', newline='\r\n') as f:
-                      json.dump(data, f, indent=2, ensure_ascii=False)
+              if len(data) != expected_total:
+                  print(f'❌ ERROR CRÍTICO: Secret ACCOUNTS_BASE64 tiene {len(data)} cuentas, se esperaban {expected_total}.')
+                  sys.exit(1)
+              with open('script_alcampo_activacion telegram/accounts.json', 'w', encoding='utf-8', newline='\r\n') as f:
+                  json.dump(data, f, indent=2, ensure_ascii=False)
+          else:
+              with open('script_alcampo_activacion telegram/accounts.json', 'r', encoding='utf-8') as f:
+                  data = json.load(f)
+              if len(data) != expected_total:
+                  print(f'❌ ERROR CRÍTICO: accounts.json tiene {len(data)} cuentas, se esperaban {expected_total}.')
+                  sys.exit(1)
+          test_limit_str = (os.environ.get('TEST_LIMIT') or '').strip()
+          if test_limit_str.isdigit() and int(test_limit_str) > 0:
+              with open('script_alcampo_activacion telegram/test_subset.json', 'w', encoding='utf-8', newline='\r\n') as f:
+                  json.dump(data[:int(test_limit_str)], f, indent=2, ensure_ascii=False)
           "
-          python "script_alcampo_activacion telegram/script_optimizado.py" --init-queue
+          if [ -n "${{ github.event.inputs.test_limit }}" ]; then
+            python "script_alcampo_activacion telegram/script_optimizado.py" --input-file "script_alcampo_activacion telegram/test_subset.json" --init-queue
+          else
+            python "script_alcampo_activacion telegram/script_optimizado.py" --init-queue
+          fi
 
   scrape-pass1:
     name: 🚀 Pasada 1 (Matrix Shard ${{ matrix.shard }})
@@ -143,27 +174,47 @@ jobs:
           fi
           pip install -r "script_alcampo_activacion telegram/requirements.txt" || pip install selenium webdriver-manager pandas openpyxl requests
 
-      - name: Decodificar Cuentas desde Secrets
+      - name: Decodificar y Validar Cuentas desde Secrets (512 esperadas)
         env:
           ACCOUNTS_B64: ${{ secrets.ACCOUNTS_BASE64 }}
+          TEST_LIMIT: ${{ github.event.inputs.test_limit }}
         run: |
           python -c "
-          import os, json, base64
+          import os, sys, json, base64
+          expected_total = int(os.environ.get('EXPECTED_ACCOUNTS_COUNT') or '512')
           b64 = (os.environ.get('ACCOUNTS_B64') or '').strip()
           if b64 and len(b64) > 10:
               data = json.loads(base64.b64decode(b64).decode('utf-8'))
-              if len(data) < 700:
-                  with open('script_alcampo_activacion telegram/accounts.json', 'w', encoding='utf-8', newline='\r\n') as f:
-                      json.dump(data, f, indent=2, ensure_ascii=False)
+              if len(data) != expected_total:
+                  print(f'❌ ERROR CRÍTICO: Secret ACCOUNTS_BASE64 tiene {len(data)} cuentas, se esperaban {expected_total}.')
+                  sys.exit(1)
+              with open('script_alcampo_activacion telegram/accounts.json', 'w', encoding='utf-8', newline='\r\n') as f:
+                  json.dump(data, f, indent=2, ensure_ascii=False)
+          else:
+              with open('script_alcampo_activacion telegram/accounts.json', 'r', encoding='utf-8') as f:
+                  data = json.load(f)
+              if len(data) != expected_total:
+                  print(f'❌ ERROR CRÍTICO: accounts.json tiene {len(data)} cuentas, se esperaban {expected_total}.')
+                  sys.exit(1)
+          test_limit_str = (os.environ.get('TEST_LIMIT') or '').strip()
+          if test_limit_str.isdigit() and int(test_limit_str) > 0:
+              with open('script_alcampo_activacion telegram/test_subset.json', 'w', encoding='utf-8', newline='\r\n') as f:
+                  json.dump(data[:int(test_limit_str)], f, indent=2, ensure_ascii=False)
           "
 
       - name: Ejecutar Scraper con Cola Dinámica Firebase (VM ${{ matrix.shard }})
         env:
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+          TEST_LIMIT: ${{ github.event.inputs.test_limit }}
         run: |
           cd "script_alcampo_activacion telegram"
+          INPUT_ARG=""
+          if [ -n "$TEST_LIMIT" ]; then
+            INPUT_ARG="--input-file test_subset.json"
+          fi
           python script_optimizado.py \
             --use-queue \
+            $INPUT_ARG \
             --shard-id ${{ matrix.shard }} \
             --total-shards ${{ needs.prepare.outputs.total_shards }} \
             --threads 2 \

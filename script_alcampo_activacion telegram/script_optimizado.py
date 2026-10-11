@@ -393,11 +393,12 @@ def update_progress(thread_idx, email, status, saldo_str):
     if firebase_url:
         def push_to_firebase():
             try:
+                prefix = os.environ.get("FIREBASE_QUEUE_PREFIX", "")
                 url = firebase_url.strip().rstrip('/')
-                firebase_session.put(f"{url}/results/{email_key}.json", json=result_entry, timeout=8)
-                firebase_session.patch(f"{url}/queue/{email_key}.json", json={"status": status, "saldo": saldo_str, "balance": saldo_val, "timestamp": time.time()}, timeout=8)
+                firebase_session.put(f"{url}/{prefix}results/{email_key}.json", json=result_entry, timeout=8)
+                firebase_session.patch(f"{url}/{prefix}queue/{email_key}.json", json={"status": status, "saldo": saldo_str, "balance": saldo_val, "timestamp": time.time()}, timeout=8)
                 
-                res = firebase_session.get(f"{url}/results.json", timeout=8)
+                res = firebase_session.get(f"{url}/{prefix}results.json", timeout=8)
                 all_results = {}
                 if res.ok and isinstance(res.json(), dict):
                     all_results = res.json()
@@ -438,6 +439,7 @@ def update_progress(thread_idx, email, status, saldo_str):
                     "error": fb_error,
                     "total_balance": round(fb_balance, 2),
                     "elapsed": round(time.time() - progress_state.get("start_time", time.time()), 1),
+                    "is_finished": fb_processed >= fb_total and fb_total > 0,
                     "threads": progress_state.get("threads", {}),
                     "timestamp": time.time()
                 }
@@ -445,7 +447,7 @@ def update_progress(thread_idx, email, status, saldo_str):
                 with log_lock:
                     progress_state.update(prog_snap)
                     
-                firebase_session.put(f"{url}/progress.json", json=prog_snap, timeout=8)
+                firebase_session.put(f"{url}/{prefix}progress.json", json=prog_snap, timeout=8)
                 
                 try:
                     log_path = ROOT / "consola.log"
@@ -455,7 +457,7 @@ def update_progress(thread_idx, email, status, saldo_str):
                         filtered = [l for l in lines if not (l.strip().startswith('#') and '0x' in l)
                                     and 'Stacktrace:' not in l and '(Session info:' not in l and '<unknown>' not in l]
                         latest_logs = "".join(filtered[-100:])
-                        firebase_session.put(f"{url}/logs.json", json=latest_logs, timeout=8)
+                        firebase_session.put(f"{url}/{prefix}logs.json", json=latest_logs, timeout=8)
                 except Exception:
                     pass
             except Exception:
@@ -479,6 +481,7 @@ def init_firebase_queue(accounts):
     firebase_url = get_firebase_url()
     if not firebase_url:
         return False
+    prefix = os.environ.get("FIREBASE_QUEUE_PREFIX", "")
     try:
         url = firebase_url.strip().rstrip('/')
         queue_data = {}
@@ -493,8 +496,8 @@ def init_firebase_queue(accounts):
                 "retries": 0,
                 "timestamp": now
             }
-        firebase_session.put(f"{url}/queue.json", json=queue_data, timeout=10)
-        firebase_session.delete(f"{url}/results.json", timeout=10)
+        firebase_session.put(f"{url}/{prefix}queue.json", json=queue_data, timeout=10)
+        firebase_session.delete(f"{url}/{prefix}results.json", timeout=10)
         
         init_progress_data = {
             "total": len(accounts),
@@ -506,12 +509,13 @@ def init_firebase_queue(accounts):
             "total_balance": 0.0,
             "elapsed": 0.0,
             "start_time": now,
+            "is_finished": False,
             "threads": {},
             "timestamp": now
         }
-        firebase_session.put(f"{url}/progress.json", json=init_progress_data, timeout=10)
-        firebase_session.put(f"{url}/logs.json", json="🚀 [SISTEMA] Iniciando Alcampo Scraper v2.1 (Cola Dinámica + Anti-Ban)...\n", timeout=10)
-        print(f"📦 [FIREBASE QUEUE] Cola dinámica inicializada con {len(accounts)} cuentas y nodos de progreso limpiados.")
+        firebase_session.put(f"{url}/{prefix}progress.json", json=init_progress_data, timeout=10)
+        firebase_session.put(f"{url}/{prefix}logs.json", json="🚀 [SISTEMA] Iniciando Alcampo Scraper v2.1 (Cola Dinámica + Anti-Ban)...\n", timeout=10)
+        print(f"📦 [FIREBASE QUEUE] Cola '{prefix}queue' inicializada con {len(accounts)} cuentas pendientes (progress=0, is_finished=False).")
         return True
     except Exception as e:
         print(f"⚠️ Error inicializando cola dinámica en Firebase: {e}")
@@ -522,10 +526,11 @@ def claim_account_from_queue(worker_id):
     firebase_url = get_firebase_url()
     if not firebase_url:
         return None
+    prefix = os.environ.get("FIREBASE_QUEUE_PREFIX", "")
     
     with queue_lock:
         try:
-            url = firebase_url.strip().rstrip('/') + "/queue.json"
+            url = firebase_url.strip().rstrip('/') + f"/{prefix}queue.json"
             res = firebase_session.get(url, timeout=8)
             if not res.ok:
                 return None
@@ -537,7 +542,7 @@ def claim_account_from_queue(worker_id):
             # Phase 1: Try claiming a pending account
             for key, item in queue_data.items():
                 if isinstance(item, dict) and item.get("status") == "pending":
-                    claim_url = firebase_url.strip().rstrip('/') + f"/queue/{key}.json"
+                    claim_url = firebase_url.strip().rstrip('/') + f"/{prefix}queue/{key}.json"
                     item["status"] = "in_progress"
                     item["claimed_by"] = str(worker_id)
                     item["claimed_at"] = now
@@ -553,7 +558,7 @@ def claim_account_from_queue(worker_id):
                     retries = int(item.get("retries") or 0)
                     if now - last_time > 75.0 and retries < 2:
                         print(f"🏴‍☠️ [WORK STEAL] Reclamando cuenta con lease expirado {mask_email(item.get('email', ''))} de {item.get('claimed_by')}.")
-                        claim_url = firebase_url.strip().rstrip('/') + f"/queue/{key}.json"
+                        claim_url = firebase_url.strip().rstrip('/') + f"/{prefix}queue/{key}.json"
                         item["status"] = "in_progress"
                         item["claimed_by"] = str(worker_id)
                         item["claimed_at"] = now
@@ -575,10 +580,11 @@ def release_account_to_queue(email, reason="ip_error"):
     firebase_url = get_firebase_url()
     if not firebase_url:
         return False
+    prefix = os.environ.get("FIREBASE_QUEUE_PREFIX", "")
     with queue_lock:
         try:
             email_key = email.replace('.', '_').replace('@', '_').replace('$', '_').replace('#', '_').replace('[', '_').replace(']', '_')
-            item_url = firebase_url.strip().rstrip('/') + f"/queue/{email_key}.json"
+            item_url = firebase_url.strip().rstrip('/') + f"/{prefix}queue/{email_key}.json"
             res = firebase_session.get(item_url, timeout=8)
             if not res.ok or not isinstance(res.json(), dict):
                 return False
