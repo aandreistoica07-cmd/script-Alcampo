@@ -892,18 +892,33 @@ def parse_args():
     return parser.parse_args()
 
 
+def _sanitize_telegram_error(err, token=None):
+    msg = type(err).__name__
+    raw = str(err)
+    if token and token in raw:
+        raw = raw.replace(token, "***")
+    raw = re.sub(r"bot\d+:[A-Za-z0-9_-]+", "bot***", raw)
+    return f"{msg}: {raw[:140]}" if raw else msg
+
+
 def enviar_telegram_texto(token, chat_id, mensaje):
+    if not token or not chat_id:
+        return False
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     data = {"chat_id": chat_id, "text": mensaje, "parse_mode": "HTML"}
     try:
         response = requests.post(url, data=data, timeout=15)
         print(f"📡 Enviando a Telegram: {response.status_code}")
         response.raise_for_status()
+        return True
     except Exception as e:
-        print(f"❌ Error sending to Telegram: {e}")
+        print(f"❌ Error sending to Telegram ({_sanitize_telegram_error(e, token)})")
+        return False
 
 
 def enviar_telegram_documento(token, chat_id, path, caption=""):
+    if not token or not chat_id or not path:
+        return False
     url = f"https://api.telegram.org/bot{token}/sendDocument"
     try:
         with open(path, "rb") as file:
@@ -911,8 +926,17 @@ def enviar_telegram_documento(token, chat_id, path, caption=""):
             response = requests.post(url, data=data, files={"document": file}, timeout=15)
             print(f"📁 Enviando documento a Telegram: {response.status_code}")
             response.raise_for_status()
+            return True
     except Exception as e:
-        print(f"❌ Error enviando documento a Telegram: {e}")
+        print(f"❌ Error enviando documento a Telegram ({_sanitize_telegram_error(e, token)})")
+        return False
+
+
+def enviar_telegram(token, chat_id, texto, excel_path=None):
+    ok = enviar_telegram_texto(token, chat_id, texto)
+    if excel_path and os.path.exists(excel_path):
+        ok = enviar_telegram_documento(token, chat_id, excel_path, caption="📊 Reporte de saldos de cuentas Alcampo") and ok
+    return ok
 
 # @end: SingleAccount-And-CLI
 
@@ -1330,8 +1354,8 @@ def procesar_bloque_dinamico(worker_name, thread_idx, job_start_time=None):
                     if t_tok and t_chat:
                         try:
                             enviar_telegram_texto(t_tok, t_chat, f"🚨 <b>ALERTA URGENTE: Circuit Breaker por Bloqueo IP</b>\n\n• Worker: <code>{worker_name} (Hilo {thread_idx})</code>\n• Motivo: {html.escape(trigger_reason)}\n• Acción: Máquina detenida y cuentas devueltas a la cola.")
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            print(f"⚠️ Error no bloqueante en alerta Circuit Breaker Telegram ({_sanitize_telegram_error(e, t_tok)})")
                     break
             else:
                 # Permanent account error or Call Center / password reset (needs_attention)
@@ -1502,8 +1526,8 @@ def main():
         if telegram_token and chat_id:
             try:
                 enviar_telegram_texto(telegram_token, chat_id, f"🚨 <b>ALERTA URGENTE: Máquina en Cuarentena por Bloqueo IP</b>\n\n• Worker: <code>{worker_label}</code>\n• Causa: Canario IP detectó bloqueo 403/429/WAF al iniciar.\n• Acción: Cuentas intactas en la cola dinámica para otras VMs sanas.")
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"⚠️ Error no bloqueante en alerta urgente Telegram ({_sanitize_telegram_error(e, telegram_token)})")
         target_excel_path = Path(args.output_file) if args.output_file else EXCEL_FILE
         import pandas as pd
         pd.DataFrame([]).to_excel(target_excel_path, index=False)
@@ -1570,7 +1594,7 @@ def main():
                 f"https://programacion1-sigma.vercel.app"
             )
         except Exception as e:
-            print(f"Error enviando mensaje inicial a Telegram: {e}")
+            print(f"⚠️ Error no bloqueante enviando mensaje inicial a Telegram ({_sanitize_telegram_error(e, telegram_token)})")
             
     resultados = []
     start_time = time.time()
@@ -1666,14 +1690,17 @@ def main():
             print(f"Error al exportar Top 10 cuentas: {e}")
     
     if send_telegram:
-        enviar_telegram_texto(telegram_token, chat_id, mensaje_resumen)
-        enviar_telegram_documento(
-            telegram_token, 
-            chat_id, 
-            target_excel_path, 
-            caption="📊 Reporte de saldos de cuentas Alcampo"
-        )
-        print("🎉 Proceso completo y enviado a Telegram.")
+        try:
+            enviar_telegram_texto(telegram_token, chat_id, mensaje_resumen)
+            enviar_telegram_documento(
+                telegram_token, 
+                chat_id, 
+                target_excel_path, 
+                caption="📊 Reporte de saldos de cuentas Alcampo"
+            )
+            print("🎉 Proceso completo y enviado a Telegram.")
+        except Exception as e:
+            print(f"⚠️ Error no bloqueante en notificación final Telegram ({_sanitize_telegram_error(e, telegram_token)})")
     else:
         print("ℹ️ Envío a Telegram desactivado. Usa el script sin --no-telegram para activarlo.")
 

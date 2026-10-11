@@ -421,6 +421,7 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+          TEST_LIMIT: ${{ github.event.inputs.test_limit }}
         run: |
           python scripts/merge_and_retry.py --mode final-merge --input-dir ./all_final_shards --output-excel REPORTE_DEFINITIVO_TELEGRAM.xlsx
 
