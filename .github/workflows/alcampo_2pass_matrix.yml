@@ -61,20 +61,34 @@ jobs:
           TEST_LIMIT: ${{ github.event.inputs.test_limit }}
         run: |
           python -c "
-          import json, math, os, sys, base64
+          import json, math, os, sys, base64, gzip
 
           expected_total = int(os.environ.get('EXPECTED_ACCOUNTS_COUNT') or '512')
           accounts_b64 = (os.environ.get('ACCOUNTS_B64') or '').strip()
           if accounts_b64 and len(accounts_b64) > 10:
-              accounts = json.loads(base64.b64decode(accounts_b64).decode('utf-8'))
+              for line in accounts_b64.splitlines():
+                  if line.strip():
+                      print(f'::add-mask::{line.strip()}', flush=True)
+              try:
+                  raw = base64.b64decode(accounts_b64)
+                  if len(raw) >= 2 and raw[0] == 0x1F and raw[1] == 0x8B:
+                      raw = gzip.decompress(raw)
+                  accounts = json.loads(raw.decode('utf-8'))
+              except Exception as e:
+                  print(f'❌ ERROR CRÍTICO: Secret ACCOUNTS_BASE64 inválido ({type(e).__name__}).')
+                  sys.exit(1)
               source_name = 'Secret ACCOUNTS_BASE64'
           else:
+              if not os.path.exists('script_alcampo_activacion telegram/accounts.json'):
+                  print('❌ ERROR CRÍTICO: Secret ACCOUNTS_BASE64 vacío y accounts.json no existe.')
+                  sys.exit(1)
               with open('script_alcampo_activacion telegram/accounts.json', 'r', encoding='utf-8') as f:
                   accounts = json.load(f)
               source_name = 'script_alcampo_activacion telegram/accounts.json'
 
-          if len(accounts) != expected_total:
-              print(f'❌ ERROR CRÍTICO: {source_name} contiene {len(accounts)} cuentas, pero se esperaban exactamente {expected_total} (495 + 17 verificadas). Actualiza el secret ACCOUNTS_BASE64.')
+          if not isinstance(accounts, list) or len(accounts) != expected_total:
+              cnt = len(accounts) if isinstance(accounts, list) else -1
+              print(f'❌ ERROR CRÍTICO: {source_name} contiene {cnt} cuentas, pero se esperaban exactamente {expected_total} (495 + 17 verificadas). Actualiza el secret ACCOUNTS_BASE64.')
               sys.exit(1)
 
           test_limit_str = (os.environ.get('TEST_LIMIT') or '').strip()
@@ -101,21 +115,34 @@ jobs:
           TEST_LIMIT: ${{ github.event.inputs.test_limit }}
         run: |
           python -c "
-          import os, sys, json, base64
+          import os, sys, json, base64, gzip
+          from pathlib import Path
           expected_total = int(os.environ.get('EXPECTED_ACCOUNTS_COUNT') or '512')
           b64 = (os.environ.get('ACCOUNTS_B64') or '').strip()
+          acc_path = Path('script_alcampo_activacion telegram/accounts.json')
           if b64 and len(b64) > 10:
-              data = json.loads(base64.b64decode(b64).decode('utf-8'))
-              if len(data) != expected_total:
-                  print(f'❌ ERROR CRÍTICO: Secret ACCOUNTS_BASE64 tiene {len(data)} cuentas, se esperaban {expected_total}.')
+              for line in b64.splitlines():
+                  if line.strip():
+                      print(f'::add-mask::{line.strip()}', flush=True)
+              try:
+                  raw = base64.b64decode(b64)
+                  if len(raw) >= 2 and raw[0] == 0x1F and raw[1] == 0x8B:
+                      raw = gzip.decompress(raw)
+                  data = json.loads(raw.decode('utf-8'))
+              except Exception as e:
+                  print(f'❌ ERROR CRÍTICO: Secret ACCOUNTS_BASE64 inválido ({type(e).__name__}).')
                   sys.exit(1)
-              with open('script_alcampo_activacion telegram/accounts.json', 'w', encoding='utf-8', newline='\r\n') as f:
-                  json.dump(data, f, indent=2, ensure_ascii=False)
+              if not isinstance(data, list) or len(data) != expected_total:
+                  print(f'❌ ERROR CRÍTICO: Secret ACCOUNTS_BASE64 tiene {len(data) if isinstance(data, list) else -1} cuentas, se esperaban {expected_total}.')
+                  sys.exit(1)
+              acc_path.write_bytes(raw)
           else:
-              with open('script_alcampo_activacion telegram/accounts.json', 'r', encoding='utf-8') as f:
-                  data = json.load(f)
-              if len(data) != expected_total:
-                  print(f'❌ ERROR CRÍTICO: accounts.json tiene {len(data)} cuentas, se esperaban {expected_total}.')
+              if not acc_path.exists():
+                  print('❌ ERROR CRÍTICO: Secret ACCOUNTS_BASE64 vacío y accounts.json no existe.')
+                  sys.exit(1)
+              data = json.loads(acc_path.read_text(encoding='utf-8'))
+              if not isinstance(data, list) or len(data) != expected_total:
+                  print(f'❌ ERROR CRÍTICO: accounts.json tiene {len(data) if isinstance(data, list) else -1} cuentas, se esperaban {expected_total}.')
                   sys.exit(1)
           test_limit_str = (os.environ.get('TEST_LIMIT') or '').strip()
           if test_limit_str.isdigit() and int(test_limit_str) > 0:
@@ -162,21 +189,34 @@ jobs:
           TEST_LIMIT: ${{ github.event.inputs.test_limit }}
         run: |
           python -c "
-          import os, sys, json, base64
+          import os, sys, json, base64, gzip
+          from pathlib import Path
           expected_total = int(os.environ.get('EXPECTED_ACCOUNTS_COUNT') or '512')
           b64 = (os.environ.get('ACCOUNTS_B64') or '').strip()
+          acc_path = Path('script_alcampo_activacion telegram/accounts.json')
           if b64 and len(b64) > 10:
-              data = json.loads(base64.b64decode(b64).decode('utf-8'))
-              if len(data) != expected_total:
-                  print(f'❌ ERROR CRÍTICO: Secret ACCOUNTS_BASE64 tiene {len(data)} cuentas, se esperaban {expected_total}.')
+              for line in b64.splitlines():
+                  if line.strip():
+                      print(f'::add-mask::{line.strip()}', flush=True)
+              try:
+                  raw = base64.b64decode(b64)
+                  if len(raw) >= 2 and raw[0] == 0x1F and raw[1] == 0x8B:
+                      raw = gzip.decompress(raw)
+                  data = json.loads(raw.decode('utf-8'))
+              except Exception as e:
+                  print(f'❌ ERROR CRÍTICO: Secret ACCOUNTS_BASE64 inválido ({type(e).__name__}).')
                   sys.exit(1)
-              with open('script_alcampo_activacion telegram/accounts.json', 'w', encoding='utf-8', newline='\r\n') as f:
-                  json.dump(data, f, indent=2, ensure_ascii=False)
+              if not isinstance(data, list) or len(data) != expected_total:
+                  print(f'❌ ERROR CRÍTICO: Secret ACCOUNTS_BASE64 tiene {len(data) if isinstance(data, list) else -1} cuentas, se esperaban {expected_total}.')
+                  sys.exit(1)
+              acc_path.write_bytes(raw)
           else:
-              with open('script_alcampo_activacion telegram/accounts.json', 'r', encoding='utf-8') as f:
-                  data = json.load(f)
-              if len(data) != expected_total:
-                  print(f'❌ ERROR CRÍTICO: accounts.json tiene {len(data)} cuentas, se esperaban {expected_total}.')
+              if not acc_path.exists():
+                  print('❌ ERROR CRÍTICO: Secret ACCOUNTS_BASE64 vacío y accounts.json no existe.')
+                  sys.exit(1)
+              data = json.loads(acc_path.read_text(encoding='utf-8'))
+              if not isinstance(data, list) or len(data) != expected_total:
+                  print(f'❌ ERROR CRÍTICO: accounts.json tiene {len(data) if isinstance(data, list) else -1} cuentas, se esperaban {expected_total}.')
                   sys.exit(1)
           test_limit_str = (os.environ.get('TEST_LIMIT') or '').strip()
           if test_limit_str.isdigit() and int(test_limit_str) > 0:
@@ -256,7 +296,7 @@ jobs:
 
       - name: Subir Artefacto de Cuentas Fallidas
         if: steps.check.outputs.has_timeouts == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.3.0
         with:
           name: failed-accounts-json
           path: failed_accounts.json
@@ -293,6 +333,34 @@ jobs:
           fi
           pip install -r "script_alcampo_activacion telegram/requirements.txt" || pip install selenium webdriver-manager pandas openpyxl requests
 
+      - name: Decodificar y Validar Cuentas desde Secrets (512 esperadas)
+        env:
+          ACCOUNTS_B64: ${{ secrets.ACCOUNTS_BASE64 }}
+        run: |
+          python -c "
+          import os, sys, json, base64, gzip
+          from pathlib import Path
+          expected_total = int(os.environ.get('EXPECTED_ACCOUNTS_COUNT') or '512')
+          b64 = (os.environ.get('ACCOUNTS_B64') or '').strip()
+          acc_path = Path('script_alcampo_activacion telegram/accounts.json')
+          if b64 and len(b64) > 10:
+              for line in b64.splitlines():
+                  if line.strip():
+                      print(f'::add-mask::{line.strip()}', flush=True)
+              try:
+                  raw = base64.b64decode(b64)
+                  if len(raw) >= 2 and raw[0] == 0x1F and raw[1] == 0x8B:
+                      raw = gzip.decompress(raw)
+                  data = json.loads(raw.decode('utf-8'))
+              except Exception as e:
+                  print(f'❌ ERROR CRÍTICO: Secret ACCOUNTS_BASE64 inválido ({type(e).__name__}).')
+                  sys.exit(1)
+              if not isinstance(data, list) or len(data) != expected_total:
+                  print(f'❌ ERROR CRÍTICO: Secret ACCOUNTS_BASE64 tiene {len(data) if isinstance(data, list) else -1} cuentas, se esperaban {expected_total}.')
+                  sys.exit(1)
+              acc_path.write_bytes(raw)
+          "
+
       - name: Descargar Cuentas Fallidas JSON
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -301,10 +369,12 @@ jobs:
       - name: Reintentar Cuentas Fallidas con Cola Dinámica (IP Nueva Shard ${{ matrix.shard }})
         env:
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+          ACCOUNTS_B64: ${{ secrets.ACCOUNTS_BASE64 }}
         run: |
           cd "script_alcampo_activacion telegram"
           python script_optimizado.py \
             --use-queue \
+            --input-file "../failed_accounts.json" \
             --shard-id ${{ matrix.shard }} \
             --total-shards ${{ matrix.total_shards }} \
             --threads 2 \

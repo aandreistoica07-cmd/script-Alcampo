@@ -64,6 +64,46 @@ def cleanup_orphan_chrome():
             pass
 
 
+def decode_accounts_secret_payload(b64_str, expected_count=None, write_path=None):
+    """Decodes ACCOUNTS_BASE64 (supports both gzip+base64 starting with 0x1f 0x8b and plain base64).
+    Validates JSON list and expected_count without printing sensitive data."""
+    import base64
+    import gzip
+    cleaned = (b64_str or "").strip()
+    if not cleaned:
+        print("❌ ERROR CRÍTICO: Secret ACCOUNTS_BASE64 está vacío.")
+        sys.exit(1)
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        for line in cleaned.splitlines():
+            if line.strip():
+                original_print(f"::add-mask::{line.strip()}", flush=True)
+    try:
+        raw_bytes = base64.b64decode(cleaned)
+    except Exception as e:
+        print(f"❌ ERROR CRÍTICO: Fallo al decodificar Base64 en ACCOUNTS_BASE64 ({type(e).__name__}).")
+        sys.exit(1)
+    if len(raw_bytes) >= 2 and raw_bytes[0] == 0x1F and raw_bytes[1] == 0x8B:
+        try:
+            raw_bytes = gzip.decompress(raw_bytes)
+        except Exception as e:
+            print(f"❌ ERROR CRÍTICO: Fallo al descomprimir Gzip (0x1f 0x8b) en ACCOUNTS_BASE64 ({type(e).__name__}).")
+            sys.exit(1)
+    try:
+        data = json.loads(raw_bytes.decode("utf-8"))
+    except Exception as e:
+        print(f"❌ ERROR CRÍTICO: El contenido de ACCOUNTS_BASE64 no es un JSON UTF-8 válido ({type(e).__name__}).")
+        sys.exit(1)
+    if not isinstance(data, list):
+        print("❌ ERROR CRÍTICO: El JSON de ACCOUNTS_BASE64 no contiene una lista de cuentas.")
+        sys.exit(1)
+    if expected_count is not None and len(data) != int(expected_count):
+        print(f"❌ ERROR CRÍTICO: ACCOUNTS_BASE64 contiene {len(data)} cuentas tras decodificar, pero se esperaban exactamente {expected_count}.")
+        sys.exit(1)
+    if write_path is not None:
+        Path(write_path).write_bytes(raw_bytes)
+    return data
+
+
 # Lock for thread-safe file writing and printing
 log_lock = threading.Lock()
 
@@ -1430,11 +1470,18 @@ def main():
 
     target_accounts_path = Path(args.input_file) if args.input_file else ACCOUNTS_FILE
     if not target_accounts_path.exists():
-        print(f"❌ Error: No se encuentra {target_accounts_path}")
-        sys.exit(1)
-        
-    with open(target_accounts_path, "r", encoding="utf-8") as f:
-        accounts = json.load(f)
+        b64_env = (os.environ.get("ACCOUNTS_B64") or os.environ.get("ACCOUNTS_BASE64") or "").strip()
+        if b64_env and len(b64_env) > 10 and not args.input_file:
+            expected_env = int(os.environ.get("EXPECTED_ACCOUNTS_COUNT") or "512")
+            accounts = decode_accounts_secret_payload(b64_env, expected_count=expected_env, write_path=ACCOUNTS_FILE)
+        elif args.use_queue and not args.init_queue:
+            accounts = []
+        else:
+            print(f"❌ Error: No se encuentra {target_accounts_path}")
+            sys.exit(1)
+    else:
+        with open(target_accounts_path, "r", encoding="utf-8") as f:
+            accounts = json.load(f)
 
     # 1. Modo Inicialización de Cola Dinámica en Firebase
     if args.init_queue:
