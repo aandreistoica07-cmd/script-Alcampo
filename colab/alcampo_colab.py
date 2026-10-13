@@ -270,15 +270,23 @@ def load_and_validate_accounts(secret_b64, expected_count=512, drive_backup_file
             except Exception as e:
                 raise ValueError(f"❌ Fallo descomprimiendo Gzip en ACCOUNTS_BASE64: {e}")
 
-    # Fallback a archivo privado en Google Drive si no vino por secreto
-    if (not raw_bytes or len(raw_bytes) < 10) and drive_backup_file and Path(drive_backup_file).exists():
-        print(f"📂 Cargando cuentas desde archivo de respaldo en Drive: {drive_backup_file}")
-        raw_bytes = Path(drive_backup_file).read_bytes()
+    # Fallback a archivo en Google Drive o /content si no vino por secreto
+    backup_rutas = [
+        drive_backup_file,
+        "/content/drive/MyDrive/Alcampo_Resultados/accounts.json",
+        "/content/drive/MyDrive/accounts.json",
+        "/content/accounts.json"
+    ]
+    for r in backup_rutas:
+        if (not raw_bytes or len(raw_bytes) < 10) and r and Path(r).exists():
+            print(f"📂 Cargando cuentas desde archivo: {r}")
+            raw_bytes = Path(r).read_bytes()
+            break
 
     if not raw_bytes:
         raise ValueError(
             "❌ ERROR CRÍTICO: No se proporcionaron cuentas en Colab Secrets (ACCOUNTS_BASE64) "
-            "ni se encontró archivo de respaldo en Drive."
+            "ni se encontró archivo 'accounts.json' en Drive ni en /content."
         )
 
     try:
