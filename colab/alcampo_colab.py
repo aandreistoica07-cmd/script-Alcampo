@@ -232,7 +232,7 @@ def locate_or_clone_repository(github_token=None, repo_slug=None):
 
     # 3. Clonar con GITHUB_TOKEN si está disponible
     if github_token:
-        slug = repo_slug or os.environ.get("GITHUB_REPOSITORY") or "antigravity-user/script-Alcampo"
+        slug = repo_slug or os.environ.get("GITHUB_REPOSITORY") or "aandreistoica07-cmd/script-Alcampo"
         clone_url = f"https://x-access-token:{github_token}@github.com/{slug}.git"
         print("📦 Clonando repositorio privado en /content/script-Alcampo...")
         try:
