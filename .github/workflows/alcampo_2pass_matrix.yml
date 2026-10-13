@@ -11,8 +11,6 @@ on:
         description: 'Opcional: Probar solo N cuentas (ej. 4) en cola separada (test_queue) sin tocar la cola de 512'
         required: false
         default: ''
-  schedule:
-    - cron: '0 8 * * *'
 
 concurrency:
   group: alcampo-scraper-matrix-production

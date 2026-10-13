@@ -56,10 +56,11 @@ def mask_email(email):
 
 
 def cleanup_orphan_chrome():
-    """Cleans up orphan chromedriver processes on Linux CI runners at start/end."""
-    if os.name != "nt" and os.environ.get("GITHUB_ACTIONS") == "true":
+    """Cleans up orphan chrome and chromedriver processes on Linux (CI/Colab) at start/end."""
+    if os.name != "nt":
         try:
-            subprocess.run(["pkill", "-f", "chromedriver"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+            subprocess.run(["pkill", "-9", "-f", "chromedriver"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+            subprocess.run(["pkill", "-9", "-f", "chrome"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
         except Exception:
             pass
 
@@ -952,6 +953,10 @@ def _build_chrome_options():
     chrome_options.add_argument("--window-size=1920,1080")
     if OPT_EAGER_LIGHT_CHROME:
         chrome_options.add_argument("--blink-settings=imagesEnabled=false")
+        chrome_options.add_experimental_option("prefs", {
+            "profile.managed_default_content_settings.images": 2,
+            "profile.managed_default_content_settings.fonts": 2
+        })
         chrome_options.page_load_strategy = "eager"
     else:
         chrome_options.page_load_strategy = "normal"
