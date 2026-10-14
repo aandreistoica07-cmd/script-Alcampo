@@ -1007,7 +1007,6 @@ def _check_login_outcome(driver):
         and "my.site.com" not in curr_low
         and "authorization" not in curr_low
         and "authenticationerror" not in curr_low
-        and (not OPT_DIRECT_LOYALTY_REDIRECT or "settings/loyalty" in curr_low)
     ):
         return "logged_in", ""
 
@@ -1108,7 +1107,7 @@ def _scrape_account_with_driver(driver, init_driver_fn, email, password, label_p
                 driver.get(login_url)
             except Exception:
                 pass
-            wait = WebDriverWait(driver, 15)
+            wait = WebDriverWait(driver, 20)
 
             try:
                 email_field = wait.until(EC.presence_of_element_located((By.ID, "uname1")))
@@ -1129,7 +1128,7 @@ def _scrape_account_with_driver(driver, init_driver_fn, email, password, label_p
             outcome = "pending"
             outcome_msg = ""
             poll_start = time.time()
-            while time.time() - poll_start < 14.0:
+            while time.time() - poll_start < 22.0:
                 outcome, outcome_msg = _check_login_outcome(driver)
                 if outcome in ("logged_in", "error"):
                     break
