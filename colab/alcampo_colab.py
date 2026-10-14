@@ -538,6 +538,19 @@ def run_colab_orchestrator(
         except Exception:
             pass
 
+    if modo == "continuar" and not resultados_totales:
+        try:
+            r_fb = requests.get(f"{firebase_url.strip().rstrip('/')}/results.json", timeout=10)
+            if r_fb.ok and isinstance(r_fb.json(), dict):
+                resultados_totales = list(r_fb.json().values())
+                print(f"📖 Cargados {len(resultados_totales)} resultados previos desde Firebase.")
+        except Exception as e:
+            print(f"⚠️ No se pudieron cargar resultados previos de Firebase: {e}")
+
+    # Reiniciar flags de Circuit Breaker al arrancar una sesión limpia
+    engine.circuit_breaker.triggered = False
+    engine.circuit_breaker.consecutive_server_errors = 0
+
     print(f"\n🚀 [WORKER {worker_label}] Iniciando ejecución con {num_threads} hilos dinámicos...")
     print(f"⏱️ Guardarraíl de tiempo activo: máximo {max_hours:.1f} horas.\n")
 

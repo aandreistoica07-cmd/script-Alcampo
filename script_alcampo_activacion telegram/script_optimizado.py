@@ -192,9 +192,9 @@ adaptive_pacer = AdaptivePacer()
 # --- CIRCUIT BREAKER (SERVER DOWN / CLOUDFLARE / IP BAN GUARD) ---
 class CircuitBreaker:
     """Interruptor de Seguridad: distingue 'account_error' (credenciales) y 'needs_attention'
-    (Call Center / reset password) de 'ip_error' (429, Cloudflare, captcha, timeout).
-    Solo dispara la cuarentena de la máquina ante errores reales de IP/servidor."""
-    def __init__(self, max_consecutive_failures=4, max_failure_ratio=0.45, min_processed_threshold=6):
+    (Call Center / reset password / 2FA) de 'ip_error' (429, Cloudflare, captcha, caída de red).
+    Solo dispara la cuarentena de la máquina ante errores reales de IP/servidor comprobados."""
+    def __init__(self, max_consecutive_failures=8, max_failure_ratio=0.50, min_processed_threshold=10):
         self.lock = threading.Lock()
         self.consecutive_server_errors = 0
         self.total_server_errors = 0
@@ -209,15 +209,23 @@ class CircuitBreaker:
         """Returns ('needs_attention' | 'account_error' | 'ip_error', reason_str)."""
         combined = f"{page_source} {error_msg}".lower()
 
-        # 1. Permanent account blocks requiring human / Call Center intervention (DO NOT RETRY, NOT AN IP ERROR)
-        if "call center" in combined or "tu cuenta ha sido bloqueada" in combined or "btnpwreset" in combined or "restablecer contraseña" in combined:
+        # 1. Bloqueos de cuenta y solicitud de reseteo de contraseña (Call Center / btnPwReset)
+        if any(k in combined for k in ["call center", "tu cuenta ha sido bloqueada", "cuenta bloqueada", "btnpwreset", "restablecer contraseña"]):
             return "needs_attention", "Cuenta bloqueada (Call Center / Password Reset)"
 
-        # 2. Invalid credentials (DO NOT RETRY, NOT AN IP ERROR)
-        if "credenciales incorrectas" in combined or "usuario o contraseña incorrectos" in combined:
-            return "account_error", "Credenciales incorrectas"
+        # 1.1 Verificación de identidad / 2FA / OTP por correo (No es error de IP)
+        if any(k in combined for k in ["código de verificación", "codigo de verificacion", "identity verification", "device activation", "comprueba tu correo"]):
+            return "needs_attention", "Requiere código de verificación 2FA/Email"
 
-        # 3. Server / Cloudflare / IP rate-limit / Timeout errors
+        # 2. Credenciales incorrectas o autorización denegada (No es error de IP)
+        if any(k in combined for k in [
+            "credenciales incorrectas", "usuario o contraseña incorrectos",
+            "credenciales no redirigidas", "contraseña no válida",
+            "usuario incorrecto", "datos incorrectos", "error: credenciales"
+        ]):
+            return "account_error", "Credenciales incorrectas o no autorizadas"
+
+        # 3. Errores reales de servidor / Cloudflare / WAF / HTTP 429 / 403
         if status_code and (500 <= status_code <= 599 or status_code in (403, 429, 520, 521, 522, 523, 524, 525, 526)):
             return "ip_error", f"HTTP Status {status_code}"
 
@@ -232,13 +240,12 @@ class CircuitBreaker:
                 return "ip_error", f"Firma Cloudflare/Captcha: '{sig}'"
 
         ip_block_signatures = [
-            "authenticationerror", "bloqueo/timeout",
             "too many requests", "rate limit", "429 too many requests",
             "access denied", "access forbidden", "blocked by cloudflare"
         ]
         for sig in ip_block_signatures:
             if sig in combined:
-                return "ip_error", f"IP Rate-Limit / Timeout: '{sig}'"
+                return "ip_error", f"IP Rate-Limit / WAF: '{sig}'"
 
         maint_signatures = [
             "mantenimiento", "estamos realizando tareas de mantenimiento",
@@ -248,7 +255,11 @@ class CircuitBreaker:
             if sig in combined:
                 return "ip_error", f"Banner Mantenimiento: '{sig}'"
 
-        return "ip_error", "Timeout / Red"
+        if "timeout esperando #uname1" in combined or "net::err" in combined or "dns" in combined:
+            return "ip_error", "Fallo de conexión de red"
+
+        # Si el fallo ocurrió tras cargar el formulario pero sin confirmación de login
+        return "account_error", "Fallo de autenticación o credenciales no válidas"
 
     def is_server_down_error(self, status_code=None, page_source="", error_msg=""):
         err_type, reason = self.classify_error(status_code, page_source, error_msg)
@@ -274,7 +285,7 @@ class CircuitBreaker:
 
             return self.triggered, self.trigger_reason
 
-circuit_breaker = CircuitBreaker(max_consecutive_failures=4, max_failure_ratio=0.45, min_processed_threshold=6)
+circuit_breaker = CircuitBreaker(max_consecutive_failures=8, max_failure_ratio=0.50, min_processed_threshold=10)
 
 
 def run_ip_canary(worker_label="Worker"):
@@ -979,15 +990,20 @@ def _create_chrome_driver():
 def _submit_login_form(driver):
     """Submits the Salesforce Visualforce login form by clicking #btnSubmit_login via JS,
     bypassing onkeyup='return noenter(event)' that blocks Keys.ENTER."""
-    submit_btns = driver.find_elements(
-        By.CSS_SELECTOR,
-        "#btnSubmit_login, input[id*='btnSubmit'], input[type='submit'], button[type='submit']"
-    )
+    submit_btns = driver.find_elements(By.ID, "btnSubmit_login")
+    if not submit_btns:
+        submit_btns = driver.find_elements(
+            By.CSS_SELECTOR,
+            "input[id*='btnSubmit'], button[id*='btnSubmit'], input[type='submit']"
+        )
     if submit_btns:
         driver.execute_script("arguments[0].click();", submit_btns[0])
     else:
-        pwd_el = driver.find_element(By.ID, "pwd1")
-        pwd_el.send_keys(Keys.ENTER)
+        try:
+            pwd_el = driver.find_element(By.ID, "pwd1")
+            pwd_el.send_keys(Keys.ENTER)
+        except Exception:
+            pass
 
 
 def _check_login_outcome(driver):
@@ -1021,7 +1037,12 @@ def _check_login_outcome(driver):
         pass
 
     try:
-        modals = driver.find_elements(By.CSS_SELECTOR, ".modal.show, .modal-body, #errorNotifyBlockWarning")
+        error_selectors = (
+            ".modal.show, .modal-body, #errorNotifyBlockWarning, #errorNotifyBlock, "
+            "[id*='errorNotify'], .alert-danger, .notify-block-warning, "
+            "div.message.errorM3, [id*='error'], [class*='error-message'], .alert"
+        )
+        modals = driver.find_elements(By.CSS_SELECTOR, error_selectors)
         for m in modals:
             txt = (m.text or "").strip()
             if not txt:
@@ -1029,7 +1050,9 @@ def _check_login_outcome(driver):
             txt_low = txt.lower()
             if "call center" in txt_low or "bloqueada" in txt_low:
                 return "error", "Error: Cuenta bloqueada (Call Center 913 687 857)"
-            if "incorrect" in txt_low or "credenciales" in txt_low or "contraseña" in txt_low or "usuario" in txt_low:
+            if any(k in txt_low for k in ["código de verificación", "codigo de verificacion", "identity verification", "device activation"]):
+                return "error", "Error: Requiere código de verificación 2FA/Email"
+            if any(k in txt_low for k in ["incorrect", "credenciales", "contraseña", "usuario", "clave", "no válido", "no valido"]):
                 return "error", "Error: Credenciales incorrectas"
             if "demasiados intentos" in txt_low or "too many" in txt_low:
                 return "error", "Error: 429 Too Many Requests"
@@ -1080,7 +1103,7 @@ def _scrape_account_with_driver(driver, init_driver_fn, email, password, label_p
     t_login = 0.0
     t_loyalty = 0.0
     saldo = "Error: Desconocido"
-    err_type = "ip_error"
+    err_type = "account_error"
     intentos_max = 2
 
     login_url = (
@@ -1153,14 +1176,26 @@ def _scrape_account_with_driver(driver, init_driver_fn, email, password, label_p
                     page_html = driver.page_source or ""
                 except Exception:
                     pass
+                page_html_low = page_html.lower()
+
                 if outcome_msg:
                     saldo = outcome_msg
-                elif "Tu cuenta ha sido bloqueada" in page_html or "Call Center" in page_html:
+                elif "call center" in page_html_low or "cuenta ha sido bloqueada" in page_html_low:
                     saldo = "Error: Cuenta bloqueada (Call Center 913 687 857)"
-                elif "Usuario o contraseña incorrectos" in page_html or "Credenciales incorrectas" in page_html:
+                elif any(k in page_html_low for k in ["código de verificación", "codigo de verificacion", "identity verification", "device activation"]):
+                    saldo = "Error: Requiere código de verificación 2FA/Email"
+                elif any(k in page_html_low for k in ["usuario o contraseña incorrectos", "credenciales incorrectas", "contraseña no válida", "usuario incorrecto"]):
                     saldo = "Error: Credenciales incorrectas"
                 else:
-                    saldo = "Error: Bloqueo/Timeout"
+                    curr_url_err = ""
+                    try:
+                        curr_url_err = driver.current_url.lower()
+                    except Exception:
+                        pass
+                    if "my.site.com" in curr_url_err or "authorization" in curr_url_err or "login" in curr_url_err:
+                        saldo = "Error: Credenciales no redirigidas o no válidas"
+                    else:
+                        saldo = "Error: Bloqueo/Timeout"
 
                 err_type, reason = circuit_breaker.classify_error(page_source=page_html, error_msg=saldo)
                 print(f"{label_prefix} 🔴 {mask_email(email)} → {saldo} [{err_type}] (login={t_login:.2f}s)")
