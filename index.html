@@ -843,7 +843,7 @@
                         <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); text-transform: uppercase;">Estado de Ejecuciones Recientes:</span>
                         <div style="display: flex; gap: 0.4rem;">
                             <button class="pagination-btn" onclick="fetchGitHubRuns(true)" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; color: var(--accent-blue);">🔄 Refrescar</button>
-                            <a href="https://github.com/hugh0ah/alcampo/actions" target="_blank" class="pagination-btn" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; color: var(--text-secondary); text-decoration: none;">GitHub Actions ↗</a>
+                            <a href="https://github.com/stoica25-byte/Programacion1/actions" target="_blank" class="pagination-btn" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; color: var(--text-secondary); text-decoration: none;">GitHub Actions ↗</a>
                         </div>
                     </div>
                     <div id="github-runs-list" class="github-runs-container">
@@ -1400,6 +1400,28 @@
                 return;
             }
 
+            if (data.vms && Object.keys(data.vms).length > 0) {
+                let aggProc = 0, aggBal = 0.0, aggMon = 0, aggZero = 0, aggErr = 0, aggSucc = 0;
+                for (const vk in data.vms) {
+                    const vm = data.vms[vk];
+                    aggProc += vm.processed || 0;
+                    aggBal += vm.total_balance || 0;
+                    aggMon += vm.money || 0;
+                    aggZero += vm.zero || 0;
+                    aggErr += vm.error || 0;
+                    aggSucc += vm.success || 0;
+                }
+                data.processed = aggProc;
+                data.total_balance = Math.round(aggBal * 100) / 100;
+                data.money = aggMon;
+                data.zero = aggZero;
+                data.error = aggErr;
+                data.success = aggSucc;
+                if (data.start_time) {
+                    data.elapsed = Math.max(0.1, Math.round((Date.now() / 1000) - data.start_time));
+                }
+            }
+
             const isCompleted = (data.processed >= data.total && data.total > 0) || data.is_finished === true;
             
             if (!hasAutoSwitchedToLive && !window.location.hash && data.processed > 0 && !isCompleted) {
@@ -1948,7 +1970,7 @@
                     return;
                 }
 
-                let githubRepo = localStorage.getItem('githubRepo') || 'hugh0ah/alcampo';
+                let githubRepo = localStorage.getItem('githubRepo') || 'stoica25-byte/Programacion1';
                 const existingCard = (top10Data.find(a => a.email === email) || {}).card_number || null;
 
                 try {
@@ -2895,8 +2917,8 @@
             }
 
             const workflowFile = document.getElementById('github-workflow-select').value;
-            const repoOwner = 'hugh0ah';
-            const repoName = 'alcampo';
+            const repoOwner = 'stoica25-byte';
+            const repoName = 'Programacion1';
             const ref = 'main';
 
             let inputs = {};
@@ -2977,7 +2999,7 @@
             if (token) headers['Authorization'] = `Bearer ${token}`;
 
             try {
-                const res = await fetch('https://api.github.com/repos/hugh0ah/alcampo/actions/runs?per_page=4', { headers });
+                const res = await fetch('https://api.github.com/repos/stoica25-byte/Programacion1/actions/runs?per_page=4', { headers });
                 if (!res.ok) {
                     listContainer.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding:0.75rem;">Introduce tu token para consultar el estado en vivo.</div>';
                     return;

@@ -470,26 +470,48 @@ progress_lock = threading.Lock()
 current_progress = {}
 
 
-def init_progress(total_accounts):
+def init_progress(total_accounts, worker_name="Worker"):
     global current_progress
+    now = time.time()
     current_progress = {
         "status": "running",
-        "start_time": time.time(),
+        "start_time": now,
         "total": total_accounts,
         "processed": 0,
-        "successful": 0,
-        "errors": 0,
+        "success": 0,
+        "money": 0,
+        "zero": 0,
+        "error": 0,
         "total_balance": 0.0,
-        "current_worker": "Iniciando...",
-        "current_account": "Conectando...",
-        "last_update": time.time(),
+        "current_worker": worker_name,
+        "current_account": "Iniciando...",
+        "last_update": now,
+        "elapsed": 0.0,
+        "eta": 0.0,
         "threads": {}
     }
     firebase_url = get_firebase_url()
     if firebase_url:
         try:
-            url = firebase_url.strip().rstrip('/') + "/progress.json"
-            firebase_session.put(url, json=current_progress, timeout=5)
+            fb_base = firebase_url.strip().rstrip('/')
+            vm_key = worker_name.replace(" ", "_")
+            firebase_session.put(f"{fb_base}/progress/vms/{vm_key}.json", json={
+                "processed": 0,
+                "success": 0,
+                "money": 0,
+                "zero": 0,
+                "error": 0,
+                "total_balance": 0.0,
+                "last_update": now
+            }, timeout=5)
+            # Si no es un shard individual, actualiza la cabecera global
+            if "VM_" not in worker_name:
+                firebase_session.patch(f"{fb_base}/progress.json", json={
+                    "total": total_accounts,
+                    "status": "running",
+                    "start_time": now,
+                    "is_finished": False
+                }, timeout=5)
         except Exception as e:
             print(f"Error inicializando progreso en Firebase: {e}")
 
@@ -500,33 +522,75 @@ def update_progress(thread_idx, email, status, saldo_str, worker_name="Worker"):
         if not current_progress:
             return
 
+        now = time.time()
         current_progress["processed"] = current_progress.get("processed", 0) + 1
         current_progress["current_worker"] = f"{worker_name} T{thread_idx}"
         current_progress["current_account"] = mask_email(email)
-        current_progress["last_update"] = time.time()
+        current_progress["last_update"] = now
+        start_t = current_progress.get("start_time", now)
+        elapsed = max(0.1, round(now - start_t, 1))
+        current_progress["elapsed"] = elapsed
 
         saldo_num = limpiar_saldo(saldo_str)
-        if status == "success" and saldo_num is not None:
-            current_progress["successful"] = current_progress.get("successful", 0) + 1
-            current_progress["total_balance"] = round(current_progress.get("total_balance", 0.0) + saldo_num, 2)
+        is_ok = (status == "success" and saldo_num is not None)
+        if is_ok:
+            current_progress["success"] = current_progress.get("success", 0) + 1
+            if saldo_num > 0:
+                current_progress["money"] = current_progress.get("money", 0) + 1
+                current_progress["total_balance"] = round(current_progress.get("total_balance", 0.0) + saldo_num, 2)
+            else:
+                current_progress["zero"] = current_progress.get("zero", 0) + 1
         else:
-            current_progress["errors"] = current_progress.get("errors", 0) + 1
+            current_progress["error"] = current_progress.get("error", 0) + 1
+
+        processed = current_progress["processed"]
+        total = current_progress.get("total", processed)
+        speed = processed / elapsed if elapsed > 0 else 0
+        current_progress["eta"] = round((total - processed) / speed, 1) if speed > 0 and total > processed else 0.0
+
+        thread_key = f"{worker_name}_t{thread_idx}".replace(" ", "_")
+        thread_status = "success" if is_ok else "error"
+        thread_payload = {
+            "last_account": mask_email(email),
+            "last_status": thread_status,
+            "saldo": saldo_str,
+            "timestamp": now
+        }
 
         if "threads" not in current_progress:
             current_progress["threads"] = {}
-
-        current_progress["threads"][str(thread_idx)] = {
-            "account": mask_email(email),
-            "status": status,
-            "saldo": saldo_str,
-            "time": time.time()
-        }
+        current_progress["threads"][thread_key] = thread_payload
 
         firebase_url = get_firebase_url()
         if firebase_url:
             try:
-                url = firebase_url.strip().rstrip('/') + "/progress.json"
-                firebase_session.put(url, json=current_progress, timeout=5)
+                fb_base = firebase_url.strip().rstrip('/')
+                vm_key = worker_name.replace(" ", "_")
+                # 1. Actualizar snapshot del VM individual
+                firebase_session.put(f"{fb_base}/progress/vms/{vm_key}.json", json={
+                    "processed": current_progress["processed"],
+                    "success": current_progress["success"],
+                    "money": current_progress["money"],
+                    "zero": current_progress["zero"],
+                    "error": current_progress["error"],
+                    "total_balance": current_progress["total_balance"],
+                    "last_update": now
+                }, timeout=5)
+                # 2. Actualizar el hilo en vivo en la lista de hilos
+                firebase_session.put(f"{fb_base}/progress/threads/{thread_key}.json", json=thread_payload, timeout=5)
+                # 3. Snapshot global si corre en modo único
+                if "VM_" not in worker_name:
+                    firebase_session.patch(f"{fb_base}/progress.json", json={
+                        "processed": current_progress["processed"],
+                        "success": current_progress["success"],
+                        "money": current_progress["money"],
+                        "zero": current_progress["zero"],
+                        "error": current_progress["error"],
+                        "total_balance": current_progress["total_balance"],
+                        "elapsed": elapsed,
+                        "eta": current_progress["eta"],
+                        "last_update": now
+                    }, timeout=5)
             except Exception:
                 pass
 
@@ -1134,7 +1198,7 @@ def _scrape_account_with_driver(driver, init_driver_fn, email, password, label_p
     }
 
 
-def procesar_bloque(accounts_chunk, thread_idx, job_start_time=None):
+def procesar_bloque(accounts_chunk, thread_idx, job_start_time=None, worker_name="Worker"):
     resultados = []
     driver = None
     recycle_every = getattr(current_cli_args, 'recycle_every', 12) if 'current_cli_args' in globals() and current_cli_args else 12
@@ -1144,7 +1208,7 @@ def procesar_bloque(accounts_chunk, thread_idx, job_start_time=None):
     if global_proxy_manager:
         current_proxy = global_proxy_manager.get_proxy()
         if current_proxy:
-            print(f"[Hilo {thread_idx}] 🛡️ [Anti-Ban Proxy] Asignado: {current_proxy}")
+            print(f"[{worker_name} Hilo {thread_idx}] 🛡️ [Anti-Ban Proxy] Asignado: {current_proxy}")
 
     def init_driver():
         nonlocal driver
@@ -1161,27 +1225,27 @@ def procesar_bloque(accounts_chunk, thread_idx, job_start_time=None):
     for idx, acc in enumerate(accounts_chunk):
         elapsed_min = (time.time() - job_start) / 60.0
         if elapsed_min >= MAX_EXECUTION_MINUTES:
-            print(f"[Hilo {thread_idx}] ⏱️ Guardarraíl temporal alcanzado ({elapsed_min:.2f} min).")
+            print(f"[{worker_name} Hilo {thread_idx}] ⏱️ Guardarraíl temporal alcanzado ({elapsed_min:.2f} min).")
             break
 
         if circuit_breaker.triggered:
-            print(f"[Hilo {thread_idx}] 🛑 Circuit Breaker activado. Abortando {mask_email(acc['email'])}.")
+            print(f"[{worker_name} Hilo {thread_idx}] 🛑 Circuit Breaker activado. Abortando {mask_email(acc['email'])}.")
             break
 
         # Reciclaje periódico de sesión cada N cuentas
         if idx > 0 and idx % recycle_every == 0:
-            print(f"[Hilo {thread_idx}] 🔄 Reciclando sesión de Chrome ({idx} cuentas) para limpiar huellas y memoria...")
+            print(f"[{worker_name} Hilo {thread_idx}] 🔄 Reciclando sesión de Chrome ({idx} cuentas) para limpiar huellas y memoria...")
             driver = init_driver()
 
         email = acc["email"]
         password = acc["password"]
 
         adaptive_pacer.wait()
-        driver, res = _scrape_account_with_driver(driver, init_driver, email, password, f"[Hilo {thread_idx}]")
+        driver, res = _scrape_account_with_driver(driver, init_driver, email, password, f"[{worker_name} Hilo {thread_idx}]")
         resultados.append(res)
 
         status = "error" if res["error_type"] != "ok" else "success"
-        update_progress(thread_idx, email, status, res["saldo"])
+        update_progress(thread_idx, email, status, res["saldo"], worker_name=worker_name)
 
         is_down, reason = circuit_breaker.is_server_down_error(error_msg=res["saldo"])
         triggered, trigger_reason = circuit_breaker.record_result(is_down, reason, error_type=res["error_type"])
@@ -1499,7 +1563,7 @@ def main():
         accounts = accounts[:args.limit]
         print(f"ℹ️ Modo prueba: Limitado a las primeras {args.limit} cuentas.")
 
-    init_progress(len(accounts))
+    init_progress(len(accounts), worker_name=worker_label)
 
     num_threads = min(args.threads, len(accounts)) if len(accounts) > 0 else 1
     chunks = [[] for _ in range(num_threads)]
@@ -1523,23 +1587,27 @@ def main():
     resultados = []
     start_time = time.time()
 
-    with ThreadPoolExecutor(max_workers=num_threads) as executor:
-        futures = {
-            executor.submit(procesar_bloque, chunks[i], i + 1, start_time): i
-            for i in range(num_threads)
-        }
-        for future in as_completed(futures):
-            resultados.extend(future.result())
-
-    end_time = time.time()
-    duration = end_time - start_time
-
-    import pandas as pd
     target_excel_path = Path(args.output_file) if args.output_file else EXCEL_FILE
-    df = pd.DataFrame(resultados)
-    df.to_excel(target_excel_path, index=False)
-    print(f"\n💾 Resultados guardados en: {target_excel_path}")
-    print(f"⏱️ Tiempo total de ejecución: {duration:.2f} segundos ({duration/60:.2f} minutos)")
+    import pandas as pd
+
+    try:
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            futures = {
+                executor.submit(procesar_bloque, chunks[i], i + 1, start_time, worker_label): i
+                for i in range(num_threads)
+            }
+            for future in as_completed(futures):
+                resultados.extend(future.result())
+    finally:
+        end_time = time.time()
+        duration = end_time - start_time
+        try:
+            df = pd.DataFrame(resultados)
+            df.to_excel(target_excel_path, index=False)
+            print(f"\n💾 Resultados guardados ({len(resultados)} cuentas) en: {target_excel_path}")
+            print(f"⏱️ Tiempo total de ejecución: {duration:.2f} segundos ({duration/60:.2f} minutos)")
+        except Exception as save_err:
+            print(f"Error guardando Excel: {save_err}")
 
     # Resumen
     saldo_total = 0.0

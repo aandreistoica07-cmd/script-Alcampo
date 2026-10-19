@@ -82,5 +82,29 @@ def main():
     except Exception as e:
         print(f"Error enviando notificación de inicio a Telegram: {e}")
 
+    # 3. Inicializar /progress.json global en Firebase con el total exacto
+    firebase_url = os.environ.get("FIREBASE_DB_URL") or "https://monitor-alcampo-default-rtdb.europe-west1.firebasedatabase.app/"
+    if firebase_url:
+        try:
+            fb_base = firebase_url.strip().rstrip("/")
+            init_payload = {
+                "total": total,
+                "processed": 0,
+                "success": 0,
+                "money": 0,
+                "zero": 0,
+                "error": 0,
+                "total_balance": 0.0,
+                "start_time": time.time(),
+                "status": "running",
+                "is_finished": False,
+                "vms": {},
+                "threads": {}
+            }
+            requests.put(f"{fb_base}/progress.json", json=init_payload, timeout=10)
+            print(f"[FIREBASE START] /progress.json inicializado con {total} cuentas.")
+        except Exception as fe:
+            print(f"Warning inicializando Firebase progress: {fe}")
+
 if __name__ == "__main__":
     main()

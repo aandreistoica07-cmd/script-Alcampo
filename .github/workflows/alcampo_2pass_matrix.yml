@@ -93,14 +93,13 @@ jobs:
             echo "${{ secrets.ACCOUNTS_BASE64 }}" | base64 -d > "script_alcampo_activacion telegram/accounts.json"
           fi
 
-      - name: Ejecutar Scraper con Cola Dinámica Firebase (VM ${{ matrix.shard }})
+      - name: Ejecutar Scraper en Paralelo (VM ${{ matrix.shard }})
         env:
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
           IGNORE_COOLDOWN: "true"
         run: |
           cd "script_alcampo_activacion telegram"
           python script_optimizado.py \
-            --use-queue \
             --shard-id ${{ matrix.shard }} \
             --total-shards ${{ needs.prepare.outputs.total_shards }} \
             --threads 3 \
@@ -140,9 +139,8 @@ jobs:
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
-          pattern: pass1-shard-*
-          merge-multiple: true
           path: ./pass1_artifacts
+          merge-multiple: true
 
       - name: Instalar dependencias
         run: pip install -r requirements.txt
@@ -248,9 +246,8 @@ jobs:
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
-          pattern: '*shard-*'
-          merge-multiple: true
           path: ./all_final_shards
+          merge-multiple: true
 
       - name: Instalar dependencias
         run: pip install -r requirements.txt
@@ -267,6 +264,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main || true
           git add docs/top_accounts.json docs/history.json top_accounts.json docs/account_status.json "script_alcampo_activacion telegram/account_status.json" || true
           git commit -m "chore: update top_accounts.json and history.json from final consolidation" || echo "No changes to commit"
+          git pull --rebase origin main || true
           git push origin main || echo "No changes to push"
