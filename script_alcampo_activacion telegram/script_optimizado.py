@@ -1347,7 +1347,7 @@ def parse_args():
     parser.add_argument("--no-telegram", action="store_true", help="Desactivar envío de Telegram")
     parser.add_argument("--no-server", action="store_true", help="No iniciar servidor local")
     parser.add_argument("--open-browser", action="store_true", help="Abrir navegador en el dashboard local")
-    parser.add_argument("--port", type=int, default=8000, help="Puerto del servidor local")
+    parser.add_argument("--port", type=int, default=8085, help="Puerto del servidor local (default: 8085)")
     parser.add_argument("--ignore-cooldown", action="store_true", default=os.environ.get("IGNORE_COOLDOWN", "").lower() in ("true", "1", "yes"), help="Ignorar el cooldown de 5 días y probar todas las cuentas")
     parser.add_argument("--reset-cooldown", action="store_true", help="Resetear contadores de fallo y estados de cooldown")
     parser.add_argument("--proxy", type=str, default=None, help="Proxy único para rotación")

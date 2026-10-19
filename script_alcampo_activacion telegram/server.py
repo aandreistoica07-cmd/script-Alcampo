@@ -21,7 +21,7 @@ sys.path.append(str(SCRIPT_DIR))
 ROOT_DIR = SCRIPT_DIR.parent
 os.chdir(ROOT_DIR)
 
-DEFAULT_PORT = 8000
+DEFAULT_PORT = 8085
 
 class ThreadingHTTPServer(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
@@ -153,8 +153,12 @@ def find_free_port(start_port):
             port += 1
     return port
 
-def main():
-    port = find_free_port(DEFAULT_PORT)
+def run_server(port=None, open_browser=True):
+    if port is None:
+        port = find_free_port(DEFAULT_PORT)
+    else:
+        port = find_free_port(port)
+
     server_address = ("", port)
     
     print("\n" + "="*60)
@@ -165,11 +169,11 @@ def main():
     print("Presiona Ctrl+C para detener este servidor web en cualquier momento.")
     print("="*60 + "\n")
     
-    # Open default browser to the dashboard page
-    try:
-        webbrowser.open(f"http://localhost:{port}/")
-    except Exception as e:
-        print(f"No se pudo abrir el navegador automáticamente: {e}")
+    if open_browser:
+        try:
+            webbrowser.open(f"http://localhost:{port}/")
+        except Exception as e:
+            print(f"No se pudo abrir el navegador automáticamente: {e}")
 
     try:
         with ThreadingHTTPServer(server_address, CustomHTTPRequestHandler) as httpd:
@@ -177,6 +181,15 @@ def main():
     except KeyboardInterrupt:
         print("\nServidor web detenido.")
         sys.exit(0)
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Servidor Dashboard Alcampo")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"Puerto TCP para el servidor (default: {DEFAULT_PORT})")
+    parser.add_argument("--no-browser", action="store_true", help="No abrir el navegador automáticamente")
+    args = parser.parse_args()
+    
+    run_server(port=args.port, open_browser=not args.no_browser)
 
 if __name__ == "__main__":
     main()
