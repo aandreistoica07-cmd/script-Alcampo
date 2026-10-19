@@ -1461,26 +1461,29 @@ def main():
             for future in as_completed(futures):
                 resultados.extend(future.result())
 
-        end_time = time.time()
-        duration = end_time - start_time
+        if len(resultados) == 0 and args.shard_id is not None and args.total_shards is not None and len(accounts) > 0:
+            print(f"\n⚠️ [COLA DINÁMICA] La cola de Firebase no devolvió cuentas. Activando fallback a partición Shard {args.shard_id}/{args.total_shards}...")
+        else:
+            end_time = time.time()
+            duration = end_time - start_time
 
-        target_excel_path = Path(args.output_file) if args.output_file else EXCEL_FILE
-        import pandas as pd
-        df = pd.DataFrame(resultados)
-        df.to_excel(target_excel_path, index=False)
-        print(f"\n💾 Resultados de Cola Dinámica guardados en: {target_excel_path}")
-        print(f"⏱️ Tiempo total de ejecución: {duration:.2f} segundos ({duration/60:.2f} minutos)")
+            target_excel_path = Path(args.output_file) if args.output_file else EXCEL_FILE
+            import pandas as pd
+            df = pd.DataFrame(resultados)
+            df.to_excel(target_excel_path, index=False)
+            print(f"\n💾 Resultados de Cola Dinámica guardados en: {target_excel_path}")
+            print(f"⏱️ Tiempo total de ejecución: {duration:.2f} segundos ({duration/60:.2f} minutos)")
 
-        # Actualizar cooldown
-        for r in resultados:
-            em = r.get("email", "").strip()
-            if em:
-                s_val = str(r.get("saldo", ""))
-                v_num = limpiar_saldo(s_val)
-                is_ok = (v_num is not None and "Error" not in s_val and "No encontrado" not in s_val and "Call Center" not in s_val)
-                cooldown_mgr.record_result(em, is_ok, error_msg=s_val)
-        cooldown_mgr.save()
-        sys.exit(0)
+            # Actualizar cooldown
+            for r in resultados:
+                em = r.get("email", "").strip()
+                if em:
+                    s_val = str(r.get("saldo", ""))
+                    v_num = limpiar_saldo(s_val)
+                    is_ok = (v_num is not None and "Error" not in s_val and "No encontrado" not in s_val and "Call Center" not in s_val)
+                    cooldown_mgr.record_result(em, is_ok, error_msg=s_val)
+            cooldown_mgr.save()
+            sys.exit(0)
 
     # Filtrar por Shard
     if args.shard_id is not None and args.total_shards is not None:
