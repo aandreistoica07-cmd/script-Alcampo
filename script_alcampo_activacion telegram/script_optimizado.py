@@ -30,9 +30,9 @@ except ImportError:
     webdriver = None
 
 if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 if hasattr(sys.stderr, "reconfigure"):
-    sys.stderr.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8', line_buffering=True)
 
 ROOT = Path(__file__).resolve().parent
 ACCOUNTS_FILENAME = os.environ.get("ALCAMPO_ACCOUNTS_FILE", "accounts.json")
@@ -378,10 +378,13 @@ def create_stealth_driver(proxy=None, timeout=20):
     if proxy:
         chrome_options.add_argument(f"--proxy-server={proxy}")
 
-    driver = webdriver.Chrome(
-        service=Service(ChromeDriverManager().install()),
-        options=chrome_options
-    )
+    try:
+        driver = webdriver.Chrome(options=chrome_options)
+    except Exception:
+        driver = webdriver.Chrome(
+            service=Service(ChromeDriverManager().install()),
+            options=chrome_options
+        )
     driver.set_page_load_timeout(timeout)
     driver.implicitly_wait(1)
 
