@@ -169,6 +169,9 @@ def main():
                 
         if not dfs:
             print("❌ No se encontraron archivos para consolidar.")
+            token, chat_id = get_telegram_config()
+            if token and chat_id:
+                enviar_telegram(token, chat_id, "⚠️ <b>Alerta Alcampo Scraper</b>: La consolidación final no encontró archivos Excel de los shards. Verifica los logs de la Pasada 1.", "")
             return
 
         df_all = pd.concat(dfs, ignore_index=True)
