@@ -1,0 +1,62 @@
+[
+    {
+        "email": "m2158xd@hotmail.com",
+        "password": "Azuqueca1!",
+        "balance": 5.21,
+        "card_number": "4002002347929"
+    },
+    {
+        "email": "anapilarciuri@hotmail.es",
+        "password": "Palomera2",
+        "balance": 0.44,
+        "card_number": "4002007946714"
+    },
+    {
+        "email": "loscuervastreet@yahoo.es",
+        "password": "Lv271011",
+        "balance": 3.76,
+        "card_number": null
+    },
+    {
+        "email": "samdaly1976@yahoo.es",
+        "password": "Hijodeputa1976",
+        "balance": 3.43,
+        "card_number": null
+    },
+    {
+        "email": "felipesanchezquemasda@gmail.com",
+        "password": "Mafer1977",
+        "balance": 3.22,
+        "card_number": null
+    },
+    {
+        "email": "fgvcia2@yahoo.es",
+        "password": "Ferran789",
+        "balance": 3.11,
+        "card_number": null
+    },
+    {
+        "email": "jmdm65@gmail.com",
+        "password": "humanismo1965.",
+        "balance": 3.0,
+        "card_number": null
+    },
+    {
+        "email": "marinlor@yahoo.es",
+        "password": "Boira2001",
+        "balance": 3.0,
+        "card_number": null
+    },
+    {
+        "email": "merche-1975@hotmail.es",
+        "password": "Merediz1975",
+        "balance": 2.9,
+        "card_number": null
+    },
+    {
+        "email": "patricia@maservicios.es",
+        "password": "Viladecans-1",
+        "balance": 2.74,
+        "card_number": null
+    }
+]

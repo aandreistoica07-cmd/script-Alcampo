@@ -528,10 +528,14 @@
         let consoleContentHash = '';
 
         function formatTime(seconds) {
-            if (seconds === null || seconds === undefined || isNaN(seconds)) return '--:--';
-            if (seconds < 0) return '00:00';
-            const m = Math.floor(seconds / 60);
-            const s = Math.floor(seconds % 60);
+            if (seconds === null || seconds === undefined || isNaN(seconds) || seconds < 0) return '--:--';
+            const totalSec = Math.round(seconds);
+            const hrs = Math.floor(totalSec / 3600);
+            const m = Math.floor((totalSec % 3600) / 60);
+            const s = totalSec % 60;
+            if (hrs > 0) {
+                return `${hrs}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+            }
             return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
         }
 
@@ -609,7 +613,14 @@
                 if (data.processed > 0 && data.elapsed > 0) {
                     const rate = (data.processed / data.elapsed) * 60; // accounts per minute
                     document.getElementById('speed-val').innerText = `Velocidad: ${rate.toFixed(1)} cuentas/min`;
-                    document.getElementById('eta-val').innerText = `Tiempo restante: ${formatTime(data.eta)}`;
+                    
+                    let etaSec = data.eta;
+                    if (etaSec === null || etaSec === undefined || isNaN(etaSec)) {
+                        const remaining = Math.max(0, data.total - data.processed);
+                        const speedPerSec = data.processed / data.elapsed;
+                        etaSec = speedPerSec > 0 ? (remaining / speedPerSec) : 0;
+                    }
+                    document.getElementById('eta-val').innerText = `Tiempo restante: ${formatTime(etaSec)}`;
                 } else {
                     document.getElementById('speed-val').innerText = `Velocidad: -- cuentas/min`;
                     document.getElementById('eta-val').innerText = `Tiempo restante: --:--`;

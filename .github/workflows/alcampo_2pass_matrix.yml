@@ -1,0 +1,245 @@
+name: Alcampo Scraper - Auto-Recovery 2-Pass Matrix
+
+on:
+  workflow_dispatch:
+    inputs:
+      accounts_per_vm:
+        description: 'Cuentas objetivo por VM (Golden Ratio: 75 por VM = 6.5 VMs)'
+        required: false
+        default: '75'
+  schedule:
+    # 05:30 UTC = 07:30 AM España (verano CEST, UTC+2). Finaliza a las ~07:45-07:50 AM, listo antes de las 08:00 AM
+    - cron: '30 5 * * *'
+
+jobs:
+  prepare:
+    name: 🔍 Prepare Matrix & Notify Telegram Start
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      total_shards: ${{ steps.set-matrix.outputs.total_shards }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar requests
+        run: pip install requests
+
+      - name: Calcular Shards Dinámicos y Notificar Telegram Inicial
+        id: set-matrix
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ACCOUNTS_BASE64: ${{ secrets.ACCOUNTS_BASE64 }}
+          INPUT_ACCOUNTS_PER_VM: ${{ github.event.inputs.accounts_per_vm }}
+        run: |
+          python scripts/prepare_matrix.py
+
+      - name: Inicializar Cola Dinámica en Firebase
+        env:
+          FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+          IGNORE_COOLDOWN: "true"
+        run: |
+          if [ ! -s "script_alcampo_activacion telegram/accounts.json" ] && [ -n "${{ secrets.ACCOUNTS_BASE64 }}" ]; then
+            echo "${{ secrets.ACCOUNTS_BASE64 }}" | base64 -d > "script_alcampo_activacion telegram/accounts.json"
+          fi
+          python "script_alcampo_activacion telegram/script_optimizado.py" --init-queue --ignore-cooldown
+
+  scrape-pass1:
+    name: 🚀 Pasada 1 (Matrix Shard ${{ matrix.shard }})
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+
+    steps:
+      - name: Checkout Repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Instalar Google Chrome y Dependencias
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+          pip install -r "script_alcampo_activacion telegram/requirements.txt" || pip install selenium webdriver-manager pandas openpyxl requests
+
+      - name: Decodificar Cuentas desde Secrets
+        run: |
+          if [ ! -s "script_alcampo_activacion telegram/accounts.json" ] && [ -n "${{ secrets.ACCOUNTS_BASE64 }}" ]; then
+            echo "${{ secrets.ACCOUNTS_BASE64 }}" | base64 -d > "script_alcampo_activacion telegram/accounts.json"
+          fi
+
+      - name: Ejecutar Scraper con Cola Dinámica Firebase (VM ${{ matrix.shard }})
+        env:
+          FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+          IGNORE_COOLDOWN: "true"
+        run: |
+          cd "script_alcampo_activacion telegram"
+          python script_optimizado.py \
+            --use-queue \
+            --shard-id ${{ matrix.shard }} \
+            --total-shards ${{ needs.prepare.outputs.total_shards }} \
+            --threads 3 \
+            --no-telegram \
+            --ignore-cooldown \
+            --output-file "saldos_pass1_shard_${{ matrix.shard }}.xlsx"
+
+      - name: Guardar Artefacto Shard Pasada 1
+        uses: actions/upload-artifact@v4
+        with:
+          name: pass1-shard-${{ matrix.shard }}
+          path: "script_alcampo_activacion telegram/saldos_pass1_shard_${{ matrix.shard }}.xlsx"
+          retention-days: 1
+
+  check-timeouts:
+    name: 🕵️ Detectar Timeouts para Reintento
+    needs: [scrape-pass1]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      has_timeouts: ${{ steps.check.outputs.has_timeouts }}
+      failed_count: ${{ steps.check.outputs.failed_count }}
+    steps:
+      - name: Checkout Repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Descargar Artefactos Pasada 1
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pass1-shard-*
+          merge-multiple: true
+          path: ./pass1_artifacts
+
+      - name: Instalar pandas y openpyxl
+        run: pip install pandas openpyxl requests
+
+      - name: Filtrar Cuentas Fallidas
+        id: check
+        run: |
+          python scripts/merge_and_retry.py --mode check-timeouts --input-dir ./pass1_artifacts --failed-json failed_accounts.json
+
+      - name: Subir Artefacto de Cuentas Fallidas e Inicializar Cola de Reintento
+        if: steps.check.outputs.has_timeouts == 'true'
+        env:
+          FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+        run: |
+          python "script_alcampo_activacion telegram/script_optimizado.py" --input-file failed_accounts.json --init-queue
+
+      - name: Subir Artefacto de Cuentas Fallidas
+        if: steps.check.outputs.has_timeouts == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: failed-accounts-json
+          path: failed_accounts.json
+          retention-days: 1
+
+  scrape-pass2-retry:
+    name: 🔄 Pasada 2 Auto-Curación (IP Nueva Shard ${{ matrix.shard }})
+    needs: [check-timeouts]
+    if: needs.check-timeouts.outputs.has_timeouts == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
+        total_shards: [2]
+
+    steps:
+      - name: Checkout Repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar Google Chrome y Dependencias
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+          pip install -r "script_alcampo_activacion telegram/requirements.txt" || pip install selenium webdriver-manager pandas openpyxl requests
+
+      - name: Descargar Cuentas Fallidas JSON
+        uses: actions/download-artifact@v4
+        with:
+          name: failed-accounts-json
+
+      - name: Reintentar Cuentas Fallidas con Cola Dinámica (IP Nueva Shard ${{ matrix.shard }})
+        env:
+          FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+          IGNORE_COOLDOWN: "true"
+        run: |
+          cd "script_alcampo_activacion telegram"
+          python script_optimizado.py \
+            --use-queue \
+            --shard-id ${{ matrix.shard }} \
+            --total-shards ${{ matrix.total_shards }} \
+            --threads 3 \
+            --no-telegram \
+            --ignore-cooldown \
+            --output-file "saldos_retry_shard_${{ matrix.shard }}.xlsx"
+
+      - name: Subir Artefacto Pasada 2 (Shard ${{ matrix.shard }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: pass2-retry-shard-${{ matrix.shard }}
+          path: "script_alcampo_activacion telegram/saldos_retry_shard_${{ matrix.shard }}.xlsx"
+          retention-days: 1
+
+  final-consolidate:
+    name: 📊 Consolidar y Notificar Telegram
+    needs: [scrape-pass1, check-timeouts, scrape-pass2-retry]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Descargar Todos los Artefactos (Pasada 1 y 2)
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*shard-*'
+          merge-multiple: true
+          path: ./all_final_shards
+
+      - name: Instalar dependencias
+        run: pip install pandas openpyxl requests
+
+      - name: Consolidar y Enviar Único Informe a Telegram
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+        run: |
+          python scripts/merge_and_retry.py --mode final-merge --input-dir ./all_final_shards --output-excel REPORTE_DEFINITIVO_TELEGRAM.xlsx
+
+      - name: Actualizar Archivos de Analytics y Top 10 en Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/top_accounts.json docs/history.json top_accounts.json docs/account_status.json "script_alcampo_activacion telegram/account_status.json" || true
+          git commit -m "chore: update top_accounts.json and history.json from final consolidation" || echo "No changes to commit"
+          git push origin main || echo "No changes to push"

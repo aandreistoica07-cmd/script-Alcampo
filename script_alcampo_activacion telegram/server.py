@@ -29,9 +29,23 @@ class ThreadingHTTPServer(socketserver.ThreadingTCPServer):
 class CustomHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     """Custom request handler that routes dashboard requests and implements API endpoints."""
     
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=str(ROOT_DIR), **kwargs)
+
     def log_message(self, format, *args):
         # Disable verbose console logs to keep console output clean
         pass
+
+    def end_headers(self):
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "*")
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        super().end_headers()
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.end_headers()
 
     def do_GET(self):
         parsed_url = urlparse(self.path)
@@ -57,6 +71,9 @@ class CustomHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         elif path == "/history.json":
             self.path = "/docs/history.json"
             return super().do_GET()
+        elif path == "/account_status.json":
+            self.path = "/script_alcampo_activacion telegram/account_status.json"
+            return super().do_GET()
             
         # API endpoint for checking a single account balance & card
         elif path == "/api/check_account":
@@ -74,6 +91,17 @@ class CustomHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 from script_optimizado import check_single_account
                 res = check_single_account(email, password, scrape_card=True)
+                
+                # Sync with AccountCooldownManager
+                try:
+                    from account_cooldown_manager import AccountCooldownManager
+                    cd_mgr = AccountCooldownManager()
+                    is_ok = (res.get("status") == "success" and res.get("balance") is not None)
+                    cd_res = cd_mgr.record_result(email, is_ok, error_msg=res.get("error"))
+                    cd_mgr.save()
+                    print(f"📋 [Servidor Local] Cooldown Manager actualizado: {cd_res}")
+                except Exception as c_err:
+                    print(f"Warning actualizando Cooldown Manager: {c_err}")
                 
                 # If success, update local top_accounts.json file so it persists
                 if res.get("status") == "success":
@@ -132,6 +160,7 @@ def main():
     print("\n" + "="*60)
     print(">>> SERVIDOR DASHBOARD ALCAMPO INICIADO <<<")
     print(f"Dirección local: http://localhost:{port}/")
+    print("Panel en la Nube: https://alcampo.vercel.app/")
     print("Abre la dirección anterior en tu navegador para ver el dashboard.")
     print("Presiona Ctrl+C para detener este servidor web en cualquier momento.")
     print("="*60 + "\n")

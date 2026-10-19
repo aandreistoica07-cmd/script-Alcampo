@@ -91,6 +91,23 @@ Tras una ejecución, compila las estadísticas en `docs/history.json` ejecutando
 python update_history.py --version optimizada
 ```
 
+### 6. Cola dinámica y bloqueos
+
+Cuando se usa `--use-queue`, cada cuenta se reclama mediante ETags de Firebase
+(comparación condicional). Así, dos VMs no pueden procesar la misma cuenta por
+una carrera entre lecturas y escrituras. Las cuentas cuyo trabajador deja de
+responder se recuperan después de 180 segundos:
+
+```bash
+set QUEUE_LEASE_SECONDS=180
+python script_optimizado.py --use-queue --threads 3
+```
+
+El progreso global se publica como máximo cada tres segundos, mientras que el
+resultado individual de cada cuenta se conserva inmediatamente. Esto evita
+lecturas repetitivas de toda la colección `/results` que podían saturar
+Firebase y dejar trabajadores esperando durante el análisis.
+
 ---
 
 ## 📲 Configuración de Telegram

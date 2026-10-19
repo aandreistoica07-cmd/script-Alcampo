@@ -47,10 +47,11 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+          IGNORE_COOLDOWN: "true"
         run: |
           THREADS="${{ github.event.inputs.threads || '4' }}"
           echo "Ejecutando con $THREADS hilos..."
-          python script_optimizado.py --threads $THREADS --send-telegram
+          python script_optimizado.py --threads $THREADS --send-telegram --ignore-cooldown
 
       - name: Update Global History Database
         working-directory: './script_alcampo_activacion telegram'
@@ -62,8 +63,8 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           
-          # Add history JSON only (Excel is sent via Telegram, not stored in repo)
-          git add docs/history.json
+          # Add history and account status JSONs
+          git add docs/history.json docs/account_status.json "script_alcampo_activacion telegram/account_status.json" docs/top_accounts.json || true
           
           # Check if there are changes before committing
           if git diff --staged --quiet; then

@@ -1,14 +1,24 @@
-# Ignorar archivos de resultados del scraper
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Selenium / ChromeDriver
+chromedriver
+chromedriver.exe
+
+# Temporary & Output data (do not track large runtime files if desired)
+*.log
 script_alcampo_activacion telegram/saldos_alcampo.xlsx
-script_alcampo_activacion telegram/consola.log
-script_alcampo_activacion telegram/progreso.json
-script_alcampo_activacion telegram/__pycache__/
-script_alcampo_activacion telegram/.~lock.*
 
-# IDE
-.idea/
-*.iml
-
-# OS
-Thumbs.db
+# OS / IDE
 .DS_Store
+Thumbs.db
+.idea/
+.vscode/

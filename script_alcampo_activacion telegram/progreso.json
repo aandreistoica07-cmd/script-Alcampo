@@ -1,17 +1,30 @@
 {
-    "total": 2,
-    "processed": 0,
-    "success": 0,
-    "money": 0,
-    "zero": 0,
-    "error": 0,
-    "total_balance": 0.0,
-    "start_time": 1791053691.0025783,
-    "elapsed": 0.0,
-    "eta": null,
-    "threads": {},
-    "cycle": 1,
-    "retry_total": 0,
-    "retry_processed": 0,
-    "retry_success": 0
+    "total": 495,
+    "processed": 495,
+    "success": 476,
+    "money": 259,
+    "zero": 217,
+    "error": 19,
+    "total_balance": 185.49,
+    "start_time": 1790597533.0902503,
+    "elapsed": 7156.714659452438,
+    "eta": 0.0,
+    "threads": {
+        "3": {
+            "last_account": "jjjordiii@gmail.com",
+            "last_status": "success",
+            "timestamp": 1790604653.6162164
+        },
+        "1": {
+            "last_account": "luana_86_elena@yahoo.com",
+            "last_status": "success",
+            "timestamp": 1790604689.8044927
+        },
+        "2": {
+            "last_account": "capitanpuertas@gmail.com",
+            "last_status": "success",
+            "timestamp": 1790604670.152668
+        }
+    },
+    "timestamp": 1790604675.5288455
 }
