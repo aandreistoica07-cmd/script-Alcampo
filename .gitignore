@@ -36,3 +36,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.iml
+
+top_accounts.json
+

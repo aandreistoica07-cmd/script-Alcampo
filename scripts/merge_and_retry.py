@@ -390,7 +390,9 @@ def main():
         print(f"🔎 Inspeccionando {len(files)} archivo(s)...")
 
         # Load master accounts if known to prevent dropping unreached accounts
-        master_accounts = load_master_accounts(args.accounts_file)
+        master_accounts = []
+        if files or args.accounts_file:
+            master_accounts = load_master_accounts(args.accounts_file)
         if master_accounts:
             print(f"📋 Cuentas maestras cargadas: {len(master_accounts)}")
 
