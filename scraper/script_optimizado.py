@@ -897,9 +897,9 @@ def submit_login_form(driver, timeout=6):
     return False
 
 
-def _check_login_outcome(driver):
+def _check_login_outcome(driver, allow_pwreset=True):
     """Inspects current URL and visible error modals on Salesforce authorization page.
-    Returns: ('logged_in', '') | ('error', saldo_error_msg) | ('pending', '')"""
+    Returns: ('logged_in', '') | ('error', saldo_error_msg) | ('pending', '') | ('pwreset', '')"""
     try:
         curr_url = driver.current_url
     except Exception:
@@ -923,6 +923,8 @@ def _check_login_outcome(driver):
     try:
         reset_els = driver.find_elements(By.ID, "btnPwReset")
         if any(el.is_displayed() for el in reset_els):
+            if allow_pwreset:
+                return "pwreset", "btnPwReset"
             return "error", "Error: Requiere restablecer contraseña (btnPwReset)"
     except Exception:
         pass
@@ -953,13 +955,86 @@ def _check_login_outcome(driver):
     return "pending", ""
 
 
+def _handle_pwreset_relogin(driver, email, password, timeout=6.0):
+    """Reintento en el formulario ante pantalla/botón de restablecimiento de contraseña (btnPwReset).
+    Pone foco/hace click en el formulario de reseteo, re-escribe el email y la contraseña
+    originales y envía el formulario para convalidar la sesión."""
+    print(f"🔄 [PWRESET-RETRY] Pantalla de restablecimiento detectada en {mask_email(email)}. Reintentando login con credenciales...")
+    try:
+        reset_els = driver.find_elements(By.ID, "btnPwReset")
+        for el in reset_els:
+            if el.is_displayed():
+                try:
+                    driver.execute_script("arguments[0].click();", el)
+                    time.sleep(1.0)
+                    break
+                except Exception:
+                    try:
+                        el.click()
+                        time.sleep(1.0)
+                        break
+                    except Exception:
+                        pass
+
+        wait = WebDriverWait(driver, 4.0)
+        email_field = None
+        try:
+            email_field = wait.until(EC.element_to_be_clickable((By.ID, "uname1")))
+        except Exception:
+            candidates = driver.find_elements(By.CSS_SELECTOR, "input[type='email'], input[name='username'], #uname1")
+            if candidates:
+                email_field = candidates[0]
+
+        password_field = None
+        try:
+            password_field = driver.find_element(By.ID, "pwd1")
+        except Exception:
+            candidates = driver.find_elements(By.CSS_SELECTOR, "input[type='password'], input[name='password'], #pwd1")
+            if candidates:
+                password_field = candidates[0]
+
+        if email_field and password_field:
+            email_field.clear()
+            email_field.send_keys(email)
+            password_field.clear()
+            password_field.send_keys(password)
+            submit_login_form(driver)
+
+            start_p = time.time()
+            while time.time() - start_p < timeout:
+                out, out_msg = _check_login_outcome(driver, allow_pwreset=False)
+                if out == "logged_in":
+                    print(f"✅ [PWRESET-RETRY] Sesión convalidada exitosamente para {mask_email(email)}.")
+                    return True, ""
+                elif out == "error":
+                    return False, out_msg
+                time.sleep(0.3)
+    except Exception as e:
+        print(f"⚠️ [PWRESET-RETRY] Excepción durante reintento: {e}")
+
+    return False, "Error: Requiere restablecer contraseña (btnPwReset)"
+
+
 def _extract_loyalty_balance(driver, timeout_s=10.0):
     """Waits dynamically for SPA hydration of 'Tu Saldo es X,XX €' on /settings/loyalty."""
-    if "settings/loyalty" not in driver.current_url:
+    try:
+        curr_url = driver.current_url.lower()
+    except Exception:
+        curr_url = ""
+
+    if curr_url.startswith("chrome-error://") or "error-page" in curr_url:
+        return "Error: Fallo de red del navegador"
+
+    if "settings/loyalty" not in curr_url:
         try:
             driver.get("https://www.compraonline.alcampo.es/settings/loyalty")
+            time.sleep(0.5)
+            curr_url = driver.current_url.lower()
         except Exception:
-            pass
+            return "Error: Navegación fallida a loyalty"
+
+    if "login" in curr_url or "authorization" in curr_url or "authenticationerror" in curr_url:
+        return "Error: Sesión no autenticada en loyalty"
 
     pattern = re.compile(r"Tu Saldo es\s*([\d,.]+)\s*(?:&nbsp;|\s)*€?", re.IGNORECASE)
     if OPT_DYNAMIC_WAIT:
@@ -984,13 +1059,22 @@ def _extract_loyalty_balance(driver, timeout_s=10.0):
         if m:
             return f"Tu Saldo es {m.group(1)} €"
 
+    try:
+        final_src = (driver.page_source or "").lower()
+        if "404" in final_src and "no encontrada" in final_src:
+            return "Error: 404 Página no encontrada"
+        if "500 internal server error" in final_src:
+            return "Error: 500 Servidor Alcampo"
+    except Exception:
+        pass
+
     return "No encontrado"
 
 
 def _verify_and_hydrate_session(driver, timeout_s=10.0):
     """Verificación profunda post-login: comprueba hidratación en /settings/loyalty.
-    Si detecta saldo 0,00 € sin número de tarjeta o estado 'No encontrado',
-    ejecuta driver.refresh() y re-comprobación en el home para completar el handshake OAuth."""
+    Si detecta estado 'No encontrado', ejecuta driver.refresh() y re-comprobación en el home
+    para completar el handshake OAuth (máximo 1 reintento)."""
     saldo = _extract_loyalty_balance(driver, timeout_s=timeout_s)
     try:
         card_num = extraer_tarjeta(driver.page_source)
@@ -998,13 +1082,12 @@ def _verify_and_hydrate_session(driver, timeout_s=10.0):
         card_num = None
 
     is_suspicious = (
-        ("Tu Saldo es" in saldo and limpiar_saldo(saldo) == 0.0 and not card_num)
-        or saldo == "No encontrado"
+        saldo == "No encontrado"
         or "Error" in saldo
     )
 
     if is_suspicious:
-        print("🔄 [HYDRATION] Sesión no hidratada (saldo 0 o ausente sin tarjeta). Ejecutando driver.refresh()...")
+        print("🔄 [HYDRATION] Saldo no encontrado. Ejecutando driver.refresh() (1 intento)...")
         try:
             driver.refresh()
             time.sleep(2.0)
@@ -1013,11 +1096,7 @@ def _verify_and_hydrate_session(driver, timeout_s=10.0):
         except Exception:
             pass
 
-        if (
-            ("Tu Saldo es" in saldo and limpiar_saldo(saldo) == 0.0 and not card_num)
-            or saldo == "No encontrado"
-            or "Error" in saldo
-        ):
+        if saldo == "No encontrado" or "Error" in saldo:
             print("🔄 [HYDRATION] Handshake pendiente. Navegando al home para sincronizar cookies de sesión...")
             try:
                 driver.get("https://www.compraonline.alcampo.es/")
@@ -1068,9 +1147,18 @@ def check_single_account(email, password, scrape_card=True, existing_card_number
         poll_start = time.time()
         while time.time() - poll_start < 15.0:
             outcome, outcome_msg = _check_login_outcome(driver)
-            if outcome in ("logged_in", "error"):
+            if outcome in ("logged_in", "error", "pwreset"):
                 break
             time.sleep(0.25)
+
+        if outcome == "pwreset":
+            relogin_ok, relogin_msg = _handle_pwreset_relogin(driver, email, password)
+            if relogin_ok:
+                outcome = "logged_in"
+                outcome_msg = ""
+            else:
+                outcome = "error"
+                outcome_msg = relogin_msg or "Error: Requiere restablecer contraseña (btnPwReset)"
 
         if outcome != "logged_in":
             raise Exception(outcome_msg or "Login rechazado o timeout en autorización")
@@ -1218,9 +1306,18 @@ def _scrape_account_with_driver(driver, init_driver_fn, email, password, label_p
             poll_start = time.time()
             while time.time() - poll_start < 12.0:
                 outcome, outcome_msg = _check_login_outcome(driver)
-                if outcome in ("logged_in", "error"):
+                if outcome in ("logged_in", "error", "pwreset"):
                     break
                 time.sleep(0.25)
+
+            if outcome == "pwreset":
+                relogin_ok, relogin_msg = _handle_pwreset_relogin(driver, email, password)
+                if relogin_ok:
+                    outcome = "logged_in"
+                    outcome_msg = ""
+                else:
+                    outcome = "error"
+                    outcome_msg = relogin_msg or "Error: Requiere restablecer contraseña (btnPwReset)"
 
             # Fallback if authenticationError occurred on first redirect: check if session cookies work
             if outcome == "error" and "authenticationError" in outcome_msg:
