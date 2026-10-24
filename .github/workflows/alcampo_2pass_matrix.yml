@@ -25,6 +25,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       total_shards: ${{ steps.set-matrix.outputs.total_shards }}
+      run_id: ${{ steps.set-matrix.outputs.run_id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -54,10 +55,10 @@ jobs:
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
           IGNORE_COOLDOWN: "true"
         run: |
-          if [ ! -s "script_alcampo_activacion telegram/accounts.json" ] && [ -n "${{ secrets.ACCOUNTS_BASE64 }}" ]; then
-            echo "${{ secrets.ACCOUNTS_BASE64 }}" | base64 -d > "script_alcampo_activacion telegram/accounts.json"
+          if [ ! -s "scraper/accounts.json" ] && [ -n "${{ secrets.ACCOUNTS_BASE64 }}" ]; then
+            echo "${{ secrets.ACCOUNTS_BASE64 }}" | base64 -d > "scraper/accounts.json"
           fi
-          python "script_alcampo_activacion telegram/script_optimizado.py" --init-queue --ignore-cooldown || true
+          python "scraper/script_optimizado.py" --init-queue --ignore-cooldown || true
 
   scrape-pass1:
     name: 🚀 Pasada 1 (Matrix Shard ${{ matrix.shard }})
@@ -89,19 +90,21 @@ jobs:
 
       - name: Decodificar Cuentas desde Secrets
         run: |
-          if [ ! -s "script_alcampo_activacion telegram/accounts.json" ] && [ -n "${{ secrets.ACCOUNTS_BASE64 }}" ]; then
-            echo "${{ secrets.ACCOUNTS_BASE64 }}" | base64 -d > "script_alcampo_activacion telegram/accounts.json"
+          if [ ! -s "scraper/accounts.json" ] && [ -n "${{ secrets.ACCOUNTS_BASE64 }}" ]; then
+            echo "${{ secrets.ACCOUNTS_BASE64 }}" | base64 -d > "scraper/accounts.json"
           fi
 
       - name: Ejecutar Scraper en Paralelo (VM ${{ matrix.shard }})
         env:
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
           IGNORE_COOLDOWN: "true"
+          RUN_ID: ${{ needs.prepare.outputs.run_id }}
         run: |
-          cd "script_alcampo_activacion telegram"
+          cd "scraper"
           python script_optimizado.py \
             --shard-id ${{ matrix.shard }} \
             --total-shards ${{ needs.prepare.outputs.total_shards }} \
+            --run-id "${{ needs.prepare.outputs.run_id }}" \
             --threads 3 \
             --no-telegram \
             --ignore-cooldown \
@@ -112,13 +115,14 @@ jobs:
         if: always()
         with:
           name: pass1-shard-${{ matrix.shard }}
-          path: "script_alcampo_activacion telegram/saldos_pass1_shard_${{ matrix.shard }}.xlsx"
+          path: "scraper/saldos_pass1_shard_${{ matrix.shard }}.xlsx"
           if-no-files-found: warn
           retention-days: 1
 
   check-timeouts:
     name: 🕵️ Detectar Timeouts para Reintento
     needs: [scrape-pass1]
+    if: always() && !cancelled()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -155,7 +159,7 @@ jobs:
         env:
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
         run: |
-          python "script_alcampo_activacion telegram/script_optimizado.py" --input-file failed_accounts.json --init-queue || true
+          python "scraper/script_optimizado.py" --input-file failed_accounts.json --init-queue || true
 
       - name: Subir Artefacto de Cuentas Fallidas
         if: steps.check.outputs.has_timeouts == 'true'
@@ -168,8 +172,8 @@ jobs:
 
   scrape-pass2-retry:
     name: 🔄 Pasada 2 Auto-Curación (IP Nueva Shard ${{ matrix.shard }})
-    needs: [check-timeouts]
-    if: needs.check-timeouts.outputs.has_timeouts == 'true'
+    needs: [prepare, check-timeouts]
+    if: always() && !cancelled() && needs.check-timeouts.outputs.has_timeouts == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -206,12 +210,15 @@ jobs:
         env:
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
           IGNORE_COOLDOWN: "true"
+          RUN_ID: ${{ needs.prepare.outputs.run_id }}
         run: |
-          cd "script_alcampo_activacion telegram"
+          cd "scraper"
           python script_optimizado.py \
+            --input-file ../failed_accounts.json \
             --use-queue \
             --shard-id ${{ matrix.shard }} \
             --total-shards ${{ matrix.total_shards }} \
+            --run-id "${{ needs.prepare.outputs.run_id }}" \
             --threads 3 \
             --no-telegram \
             --ignore-cooldown \
@@ -222,14 +229,14 @@ jobs:
         if: always()
         with:
           name: pass2-retry-shard-${{ matrix.shard }}
-          path: "script_alcampo_activacion telegram/saldos_retry_shard_${{ matrix.shard }}.xlsx"
+          path: "scraper/saldos_retry_shard_${{ matrix.shard }}.xlsx"
           if-no-files-found: warn
           retention-days: 1
 
   final-consolidate:
     name: 📊 Consolidar y Notificar Telegram
     needs: [scrape-pass1, check-timeouts, scrape-pass2-retry]
-    if: always()
+    if: always() && !cancelled()
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repositorio
@@ -247,6 +254,7 @@ jobs:
         continue-on-error: true
         with:
           path: ./all_final_shards
+          pattern: 'pass*'
           merge-multiple: true
 
       - name: Instalar dependencias
@@ -265,7 +273,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git pull --rebase origin main || true
-          git add docs/top_accounts.json docs/history.json top_accounts.json docs/account_status.json "script_alcampo_activacion telegram/account_status.json" || true
+          git add dashboard/top_accounts.json dashboard/history.json dashboard/account_status.json scraper/account_status.json || true
           git commit -m "chore: update top_accounts.json and history.json from final consolidation" || echo "No changes to commit"
           git pull --rebase origin main || true
           git push origin main || echo "No changes to push"

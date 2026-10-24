@@ -217,17 +217,17 @@ def mask_ip(ip_str):
 def locate_or_clone_repository(github_token=None, repo_slug=None):
     """Verifica la existencia del repositorio o lo clona en /content/script-Alcampo usando token."""
     # 1. Si ya estamos dentro del directorio del repo
-    if Path("./script_alcampo_activacion telegram").exists():
+    if Path("./scraper").exists():
         repo_dir = Path(".").resolve()
-        script_dir = repo_dir / "script_alcampo_activacion telegram"
+        script_dir = repo_dir / "scraper"
         if str(script_dir) not in sys.path:
             sys.path.insert(0, str(script_dir))
         return repo_dir
 
     # 2. Si ya está clonado en /content/script-Alcampo
     colab_repo = Path("/content/script-Alcampo")
-    if (colab_repo / "script_alcampo_activacion telegram").exists():
-        script_dir = colab_repo / "script_alcampo_activacion telegram"
+    if (colab_repo / "scraper").exists():
+        script_dir = colab_repo / "scraper"
         if str(script_dir) not in sys.path:
             sys.path.insert(0, str(script_dir))
         return colab_repo
@@ -239,7 +239,7 @@ def locate_or_clone_repository(github_token=None, repo_slug=None):
         print("📦 Clonando repositorio privado en /content/script-Alcampo...")
         try:
             subprocess.run(["git", "clone", "--depth", "1", clone_url, str(colab_repo)], check=True, timeout=45)
-            script_dir = colab_repo / "script_alcampo_activacion telegram"
+            script_dir = colab_repo / "scraper"
             if str(script_dir) not in sys.path:
                 sys.path.insert(0, str(script_dir))
             print("✔ Repositorio clonado correctamente.")

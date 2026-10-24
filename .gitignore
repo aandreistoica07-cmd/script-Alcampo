@@ -13,9 +13,16 @@ ENV/
 chromedriver
 chromedriver.exe
 
-# Temporary & Output data (do not track large runtime files if desired)
+# Temporary & Output data
 *.log
-script_alcampo_activacion telegram/saldos_alcampo.xlsx
+scraper/saldos_alcampo.xlsx
+saldos_alcampo.xlsx
+*.tmp
+test_*.xlsx
+previous_failures.json
+failed_accounts.json
+.pytest_cache/
+.agents/
 
 # OS / IDE
 .DS_Store

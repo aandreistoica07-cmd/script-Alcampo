@@ -4,8 +4,7 @@ on:
   push:
     paths:
       - 'android_app/**'
-      - 'docs/**'
-      - 'index.html'
+      - 'dashboard/**'
   workflow_dispatch:
 
 jobs:
@@ -29,7 +28,7 @@ jobs:
       - name: Sincronizar Assets Web en la App
         run: |
           mkdir -p android_app/app/src/main/assets
-          cp -r docs/* android_app/app/src/main/assets/
+          cp -r dashboard/* android_app/app/src/main/assets/
 
       - name: Dar permisos de ejecución a Gradlew
         run: |

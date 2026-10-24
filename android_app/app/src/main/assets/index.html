@@ -3,14 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
-    <meta name="theme-color" content="#070a13">
+    <meta name="theme-color" content="#ffffff">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Alcampo Scraper Analytics - Panel de Control & Centro QR</title>
+    <title>AuthKit · Frosted Glass Cathedral — Alcampo Loyalty Hub v4.3</title>
     
-    <!-- CSS Stylesheet -->
-    <link rel="stylesheet" href="css/style.css?v=3.2">
+        <!-- Google Fonts: Inter, Raleway & JetBrains Mono (Monopo Saigon) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Raleway:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <!-- CSS Stylesheet (Cache-busted for instant Linear Midnight Precision update) -->
+    <link rel="stylesheet" href="css/style.css?v=v4_3_consolidated_fix">
     <link rel="manifest" href="manifest.json">
+    
+    <style>
+        /* Immediate Critical Linear Midnight Precision Styles */
+        :root {
+            --color-void: #08090a;
+            --color-carbon: #0f1011;
+            --color-obsidian: #161718;
+            --color-graphite: #23252a;
+            --color-smoke: #383b3f;
+            --color-ash: #62666d;
+            --color-fog: #8a8f98;
+            --color-mist: #d0d6e0;
+            --color-bone: #e5e5e6;
+            --color-paper: #ffffff;
+            --color-acid-lime: #e4f222;
+            --color-pulse-green: #27a644;
+            --color-coral-red: #eb5757;
+            --color-signal-teal: #02b8cc;
+            --color-iris-violet: #6366f1;
+            --color-lavender: #8b5cf6;
+        }
+        body {
+            background-color: #08090a !important;
+            color: #d0d6e0 !important;
+            font-family: 'Inter Variable', Inter, system-ui, sans-serif !important;
+            font-feature-settings: "cv01" on, "ss03" on, "zero" on !important;
+            -webkit-font-smoothing: antialiased !important;
+            overflow-x: hidden !important;
+            width: 100% !important;
+            max-width: 100vw !important;
+        }
+        .header-container {
+            border-bottom: 1px solid #23252a !important;
+        }
+        .glass-panel {
+            background: #0f1011 !important;
+            border: 1px solid #23252a !important;
+            box-shadow: rgb(35, 37, 42) 0px 0px 0px 1px inset, rgba(0, 0, 0, 0.4) 0px 2px 4px 0px !important;
+            border-radius: 12px !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
+        .stat-card.balance-card {
+            border-left: 2px solid #e4f222 !important;
+        }
+        .tab-btn.active {
+            background: rgba(228, 242, 34, 0.08) !important;
+            color: #e4f222 !important;
+            border: 1px solid rgba(228, 242, 34, 0.4) !important;
+            font-weight: 510 !important;
+        }
+    </style>
     
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -20,9 +77,19 @@
     
     <!-- JsBarcode CDN (EAN-13 & Code 128 barcodes) -->
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <!-- Background Ambient Globs -->
+    <!-- Authkit Ambient Blueprint Grid & Conic Spotlight Halo -->
+    <div class="authkit-ambient-background">
+        <div class="authkit-blueprint-grid"></div>
+        <div class="authkit-spotlight-halo"></div>
+    </div>
+
+    <!-- Background OLED Grid & Ambient Globs -->
+    <div class="bg-grid-pattern"></div>
     <div class="ambient-glow glow-top-right"></div>
     <div class="ambient-glow glow-bottom-left"></div>
     <div class="ambient-glow glow-center"></div>
@@ -31,15 +98,18 @@
     <header>
         <div class="header-container">
             <div class="header-title-area">
-                <div class="logo-icon" id="header-pulse-dot"></div>
+                <div class="logo-icon" id="header-pulse-dot" style="background-color: var(--color-pulse-green); box-shadow: 0 0 8px rgba(39, 166, 68, 0.4);"></div>
                 <div>
-                    <h1>Alcampo Scraper Analytics</h1>
-                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">Panel Inteligente v3.1 | Centro QR &amp; EAN-13 Activos | Multi-VM Matrix 2-Pass</p>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                        <h1 style="font-size: 1.05rem; font-weight: 600; letter-spacing: 0.04em; color: #ffffff; margin: 0; text-transform: uppercase;">monopo saigon × alcampo matrix</h1>
+                        <span class="linear-version-badge">v4.3 Monopo</span>
+                    </div>
+                    <p class="linear-header-subtitle">Liquid iridescence behind editorial silence · Editorial Matrix</p>
                 </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                 <button class="github-action-btn" onclick="openGitHubModal()" title="Iniciar o monitorizar ejecuciones en GitHub Actions">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                     <span>Iniciar GitHub</span>
                 </button>
                 <div class="header-status-badge badge-idle" id="global-status-badge">
@@ -49,18 +119,18 @@
             </div>
         </div>
 
-        <!-- Glassmorphism Tab Switcher -->
+        <!-- Linear Precision Tab Switcher -->
         <div class="tab-switcher">
             <button class="tab-btn active" onclick="switchTab('analytics-tab', this)">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
                 Historial Analytics
             </button>
             <button class="tab-btn" onclick="switchTab('live-tab', this)">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
                 Monitor en Vivo
             </button>
             <button class="tab-btn" onclick="switchTab('qr-tools-tab', this)">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
                 Centro QR / Tarjetas
             </button>
         </div>
@@ -72,15 +142,81 @@
         <!-- ==================== TAB 1: HISTORIAL ANALYTICS ==================== -->
         <div id="analytics-tab" class="tab-content active">
             
-            <!-- Section: Resumen de Última Ejecución -->
-            <section>
+            <!-- Monopo Saigon Iridescent Editorial Hero -->
+            <!-- Authkit Frosted Glass Cathedral Hero -->
+            <section style="margin-bottom: var(--section-gap);">
+                <div class="authkit-hero-card">
+                    <!-- Eyebrow marker flanked by fading lines -->
+                    <div class="authkit-eyebrow-wrapper">
+                        <div class="authkit-eyebrow-line"></div>
+                        <div class="authkit-eyebrow-text">
+                            <span style="color: var(--color-void-violet);">✦</span>
+                            <span>AUTHKIT MIDNIGHT CATHEDRAL · v4.3</span>
+                        </div>
+                        <div class="authkit-eyebrow-line"></div>
+                    </div>
+
+                    <!-- Illuminated Display Wordmark -->
+                    <h2 class="authkit-hero-wordmark">ALCAMPO CLOUD MATRIX</h2>
+                    
+                    <p class="authkit-hero-desc">
+                        Frosted glass architecture at midnight. Luminous telemetry, automated multi-threaded scrapers, and digital wallet orchestration.
+                    </p>
+
+                    <!-- Elevated Auth-Card Modal for Balance -->
+                    <div class="authkit-hero-balance-wrap">
+                        <div class="hero-balance-label">SALDO TOTAL ACUMULADO</div>
+                        <div class="hero-balance-value" id="hero-wallet-balance">0.00 €</div>
+                        <div style="margin-top: 8px;">
+                            <span class="badge status-pill success">
+                                <span class="stitch-live-dot"></span>
+                                Conexión Cifrada SSL
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Button Action Group -->
+                    <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; align-items: center;">
+                        <div class="stitch-border-beam-wrapper">
+                            <div class="stitch-border-beam-spinner"></div>
+                            <button class="stitch-border-beam-btn" onclick="switchTab('qr-tools-tab', document.querySelectorAll('.tab-btn')[2])">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                            <span>Abrir Tarjetas Digitales</span>
+                        </button>
+                        </div>
+                        <button class="btn-ghost-pill" onclick="switchTab('live-tab', document.querySelectorAll('.tab-btn')[1])">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                            <span>Monitor de Telemetría</span>
+                        </button>
+                        <button class="filled-slate-pill" onclick="window.location.reload()">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                            <span>Sincronizar</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+            <!-- /Authkit Frosted Glass Cathedral Hero -->
+
+            <!-- Section: Resumen de Última Ejecución (Luxury Bento Grid) -->
+            <section style="margin-bottom: var(--section-gap);">
+                <!-- Eyebrow marker -->
+                <div class="authkit-eyebrow-wrapper" style="justify-content: flex-start; margin-bottom: 8px;">
+                    <div class="authkit-eyebrow-line" style="max-width: 32px;"></div>
+                    <div class="authkit-eyebrow-text">
+                        <span style="color: var(--color-void-violet);">✦</span>
+                        <span>TELEMETRÍA EN VIVO · ÚLTIMO CICLO</span>
+                    </div>
+                    <div class="authkit-eyebrow-line" style="max-width: 120px;"></div>
+                </div>
+
                 <h2 class="section-title">Resumen de Última Ejecución</h2>
+                
                 <div class="stats-grid">
                     <!-- Stat Card 1: Total Balance -->
-                    <div class="glass-panel stat-card balance-card">
+                    <div class="stat-card balance-card">
                         <div class="stat-card-header">
                             <span>Saldo Total Acumulado</span>
-                            <span class="stat-icon" style="color: var(--accent-blue);">€</span>
+                            <div class="stat-icon">€</div>
                         </div>
                         <div>
                             <div class="stat-value" id="latest-balance">0.00 €</div>
@@ -89,62 +225,72 @@
                     </div>
 
                     <!-- Stat Card 2: Accounts with Money -->
-                    <div class="glass-panel stat-card money-accounts">
+                    <div class="stat-card money-accounts">
                         <div class="stat-card-header">
                             <span>Cuentas con Saldo (>0€)</span>
-                            <svg class="stat-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                            <div class="stat-icon">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5ff4b7" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                            </div>
                         </div>
                         <div>
                             <div class="stat-value" id="latest-money-acc">0</div>
-                            <span style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-top: 0.5rem;">Cuentas activas con fondos</span>
+                            <span style="font-size: 12px; color: var(--color-fog-veil); display: block; margin-top: 4px;">Cuentas activas con fondos</span>
                         </div>
                     </div>
 
                     <!-- Stat Card 3: Zero Balance Accounts -->
-                    <div class="glass-panel stat-card zero-accounts">
+                    <div class="stat-card zero-accounts">
                         <div class="stat-card-header">
                             <span>Cuentas sin Saldo (0€)</span>
-                            <svg class="stat-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-slate)" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                            <div class="stat-icon">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c7d3ea" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                            </div>
                         </div>
                         <div>
                             <div class="stat-value" id="latest-zero-acc">0</div>
-                            <span style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-top: 0.5rem;">Cuentas sin fondos de compra</span>
+                            <span style="font-size: 12px; color: var(--color-fog-veil); display: block; margin-top: 4px;">Cuentas sin fondos de compra</span>
                         </div>
                     </div>
 
                     <!-- Stat Card 4: Error/Invalid Accounts -->
-                    <div class="glass-panel stat-card error-accounts">
+                    <div class="stat-card error-accounts">
                         <div class="stat-card-header">
                             <span>Errores / Bloqueadas</span>
-                            <svg class="stat-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-red)" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                            <div class="stat-icon">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                            </div>
                         </div>
                         <div>
                             <div class="stat-value" id="latest-error-acc">0</div>
-                            <span style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-top: 0.5rem;">Credenciales/captcha fallidos</span>
+                            <span style="font-size: 12px; color: var(--color-fog-veil); display: block; margin-top: 4px;">Credenciales/captcha fallidos</span>
                         </div>
                     </div>
 
                     <!-- Stat Card 5: Success Rate -->
-                    <div class="glass-panel stat-card" style="border-left: 3px solid var(--accent-purple);">
+                    <div class="stat-card success-rate-card">
                         <div class="stat-card-header">
                             <span>Tasa de Éxito</span>
-                            <svg class="stat-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-purple)" stroke-width="2.5"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
+                            <div class="stat-icon">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2.5"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
+                            </div>
                         </div>
                         <div>
                             <div class="stat-value" id="latest-success-rate">0.0%</div>
-                            <span style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-top: 0.5rem;">Porcentaje de acceso exitoso</span>
+                            <span style="font-size: 12px; color: var(--color-fog-veil); display: block; margin-top: 4px;">Porcentaje de acceso exitoso</span>
                         </div>
                     </div>
 
                     <!-- Stat Card 6: Run Duration -->
-                    <div class="glass-panel stat-card" style="border-left: 3px solid var(--accent-orange);">
+                    <div class="stat-card duration-card">
                         <div class="stat-card-header">
                             <span>Duración del Script</span>
-                            <svg class="stat-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-orange)" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                            <div class="stat-icon">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ffac2e" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                            </div>
                         </div>
                         <div>
                             <div class="stat-value" id="latest-duration">0s</div>
-                            <span style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-top: 0.5rem;" id="latest-script-version">Versión: --</span>
+                            <span style="font-size: 12px; color: var(--color-fog-veil); display: block; margin-top: 4px;" id="latest-script-version">Versión: --</span>
                         </div>
                     </div>
                 </div>
@@ -175,6 +321,28 @@
                         <h3>Historial de Tiempos de Ejecución</h3>
                         <div class="chart-container">
                             <canvas id="durationChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Chart 4: Segmented Balance Distribution (Donut Linear) -->
+                    <div class="glass-panel chart-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <h3 style="margin: 0;">Distribución de Saldos por Tramo (€)</h3>
+                            <span style="font-size: 0.68rem; color: var(--color-acid-lime); padding: 2px 8px; background: rgba(228, 242, 34, 0.08); border: 1px solid rgba(228, 242, 34, 0.3); border-radius: 4px; font-weight: 510;">Donut Linear</span>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="balanceDistributionChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Chart 5: Extracted Cards & Account Health -->
+                    <div class="glass-panel chart-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <h3 style="margin: 0;">Eficiencia de Éxito en Extracción</h3>
+                            <span style="font-size: 0.68rem; color: var(--color-pulse-green); padding: 2px 8px; background: rgba(39, 166, 68, 0.08); border: 1px solid rgba(39, 166, 68, 0.3); border-radius: 4px; font-weight: 510;">Club EAN-13</span>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="efficiencyChart"></canvas>
                         </div>
                     </div>
                 </div>
@@ -488,9 +656,22 @@
                             </h3>
                             <p style="margin: 0.25rem 0 0 0; font-size: 0.78rem; color: var(--text-secondary);">Toca directamente cualquier tarjeta o su código QR para abrir en Pantalla Completa con brillo óptico al 100%.</p>
                         </div>
-                        <button class="pagination-btn" onclick="saveAllCardsToLocalStorage()" style="background: rgba(0, 210, 255, 0.12); border-color: rgba(0, 210, 255, 0.3); color: var(--accent-blue); font-size: 0.8rem;">
+                        <button class="pagination-btn" onclick="saveAllCardsToLocalStorage()" style="background: transparent; border: 1px solid var(--color-graphite); color: var(--color-mist); font-size: 12px; border-radius: 6px; padding: 6px 12px;">
                             💾 Guardar Tarjetas en Memoria
                         </button>
+                    </div>
+
+                    <!-- Quick Filters Bar with Linear Pills & Export -->
+                    <div class="filter-pills-bar">
+                        <span style="font-size: 0.72rem; color: var(--color-fog); font-weight: 510; margin-right: 0.25rem;">FILTROS RÁPIDOS:</span>
+                        <button class="filter-pill active" onclick="applyCatalogQuickFilter('all', this)">⚡ Todas (<span id="count-pill-all">0</span>)</button>
+                        <button class="filter-pill" onclick="applyCatalogQuickFilter('money', this)">💰 Con Saldo > 0€ (<span id="count-pill-money">0</span>)</button>
+                        <button class="filter-pill" onclick="applyCatalogQuickFilter('card', this)">💳 Con Tarjeta EAN-13 (<span id="count-pill-card">0</span>)</button>
+                        <button class="filter-pill" onclick="applyCatalogQuickFilter('top10', this)">🏆 Top 10 VIP</button>
+                        <div style="margin-left: auto; display: flex; gap: 0.4rem;">
+                            <button class="filter-pill" onclick="exportCardsToJson()" title="Descargar datos en JSON" style="background: rgba(255, 255, 255, 0.04); border-color: var(--color-graphite); color: var(--color-mist);">⬇️ JSON</button>
+                            <button class="filter-pill" onclick="exportCardsToCsv()" title="Descargar datos en CSV" style="background: rgba(255, 255, 255, 0.04); border-color: var(--color-graphite); color: var(--color-mist);">⬇️ CSV</button>
+                        </div>
                     </div>
 
                     <div id="cards-grid-catalog" class="cards-catalog-grid">
@@ -504,7 +685,7 @@
 
     <!-- Footer -->
     <footer>
-        <p>© 2026 Alcampo Scraper Analytics | Desarrollado con Glassmorphism UI Responsiva</p>
+        <p>© 2026 Alcampo Scraper Analytics | Linear Midnight Precision Instrument v4.1</p>
     </footer>
 
     <!-- High-Compatibility Scanner Modal (QR + EAN-13 Barcode) for Club Alcampo -->
@@ -662,7 +843,7 @@
                         <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); text-transform: uppercase;">Estado de Ejecuciones Recientes:</span>
                         <div style="display: flex; gap: 0.4rem;">
                             <button class="pagination-btn" onclick="fetchGitHubRuns(true)" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; color: var(--accent-blue);">🔄 Refrescar</button>
-                            <a href="https://github.com/hugh0ah/alcampo/actions" target="_blank" class="pagination-btn" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; color: var(--text-secondary); text-decoration: none;">GitHub Actions ↗</a>
+                            <a href="https://github.com/stoica25-byte/Programacion1/actions" target="_blank" class="pagination-btn" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; color: var(--text-secondary); text-decoration: none;">GitHub Actions ↗</a>
                         </div>
                     </div>
                     <div id="github-runs-list" class="github-runs-container">
@@ -699,6 +880,8 @@
                     if (balanceChart) balanceChart.resize();
                     if (statusChart) statusChart.resize();
                     if (durationChart) durationChart.resize();
+                    if (balanceDistributionChart) balanceDistributionChart.resize();
+                    if (efficiencyChart) efficiencyChart.resize();
                 }, 50);
             } else if (tabId === 'qr-tools-tab') {
                 populateQuickAccountSelector();
@@ -723,6 +906,8 @@
         let balanceChart = null;
         let durationChart = null;
         let statusChart = null;
+        let balanceDistributionChart = null;
+        let efficiencyChart = null;
 
         // Live monitor configuration
         let firebaseURL = localStorage.getItem('firebaseURL') || 'https://monitor-alcampo-default-rtdb.europe-west1.firebasedatabase.app/';
@@ -828,7 +1013,10 @@
             const latestRun = historyData[historyData.length - 1];
             const prevRun = historyData.length > 1 ? historyData[historyData.length - 2] : null;
 
-            document.getElementById('latest-balance').innerText = `${latestRun.total_balance.toFixed(2)} €`;
+            const balanceStr = `${latestRun.total_balance.toFixed(2)} €`;
+            document.getElementById('latest-balance').innerText = balanceStr;
+            const heroWallet = document.getElementById('hero-wallet-balance');
+            if (heroWallet) heroWallet.innerText = balanceStr;
             
             const trendBadge = document.getElementById('balance-trend');
             if (prevRun) {
@@ -901,19 +1089,19 @@
 
             const commonGridOptions = {
                 grid: {
-                    color: 'rgba(255, 255, 255, 0.05)',
-                    borderColor: 'rgba(255, 255, 255, 0.08)'
+                    color: '#23252a',
+                    borderColor: '#23252a'
                 },
                 ticks: {
-                    color: 'var(--text-secondary)',
-                    font: { family: 'Outfit' }
+                    color: '#8a8f98',
+                    font: { family: 'Inter Variable', size: 11 }
                 }
             };
 
             const ctx1 = document.getElementById('balanceChart').getContext('2d');
-            const balanceGradient = ctx1.createLinearGradient(0, 0, 0, 250);
-            balanceGradient.addColorStop(0, 'rgba(0, 210, 255, 0.3)');
-            balanceGradient.addColorStop(1, 'rgba(0, 210, 255, 0)');
+            const balanceGradient = ctx1.createLinearGradient(0, 0, 0, 220);
+            balanceGradient.addColorStop(0, 'rgba(228, 242, 34, 0.15)');
+            balanceGradient.addColorStop(1, 'rgba(228, 242, 34, 0)');
 
             if (balanceChart) balanceChart.destroy();
             balanceChart = new Chart(ctx1, {
@@ -923,14 +1111,14 @@
                     datasets: [{
                         label: 'Saldo Total (€)',
                         data: balances,
-                        borderColor: '#00d2ff',
-                        borderWidth: 3,
+                        borderColor: '#e4f222',
+                        borderWidth: 2,
                         backgroundColor: balanceGradient,
                         fill: true,
-                        tension: 0.35,
-                        pointBackgroundColor: '#00d2ff',
-                        pointBorderColor: '#ffffff',
-                        pointHoverRadius: 7
+                        tension: 0.2,
+                        pointBackgroundColor: '#e4f222',
+                        pointBorderColor: '#08090a',
+                        pointHoverRadius: 5
                     }]
                 },
                 options: {
@@ -950,10 +1138,10 @@
                     datasets: [{
                         label: 'Duración (segundos)',
                         data: durations,
-                        backgroundColor: 'rgba(255, 159, 67, 0.4)',
-                        borderColor: '#ff9f43',
-                        borderWidth: 1.5,
-                        borderRadius: 6
+                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                        borderColor: '#383b3f',
+                        borderWidth: 1,
+                        borderRadius: 4
                     }]
                 },
                 options: {
@@ -971,21 +1159,102 @@
                 data: {
                     labels: dates,
                     datasets: [
-                        { label: 'Con Saldo (>0€)', data: successCounts, backgroundColor: 'rgba(0, 255, 135, 0.75)', borderRadius: 4 },
-                        { label: 'Saldo Cero (0€)', data: zeroCounts, backgroundColor: 'rgba(131, 149, 167, 0.6)', borderRadius: 4 },
-                        { label: 'Errores', data: errorCounts, backgroundColor: 'rgba(255, 56, 96, 0.75)', borderRadius: 4 }
+                        { label: 'Con Saldo (>0€)', data: successCounts, backgroundColor: '#27a644', borderRadius: 4 },
+                        { label: 'Saldo Cero (0€)', data: zeroCounts, backgroundColor: '#62666d', borderRadius: 4 },
+                        { label: 'Errores', data: errorCounts, backgroundColor: '#eb5757', borderRadius: 4 }
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { labels: { color: 'var(--text-secondary)' } } },
+                    plugins: { legend: { labels: { color: '#8a8f98', font: { family: 'Inter Variable', size: 11 } } } },
                     scales: {
                         x: { ...commonGridOptions, stacked: true },
                         y: { ...commonGridOptions, stacked: true }
                     }
                 }
             });
+
+            // --- Chart 4: Segmented Balance Distribution (Donut OLED) ---
+            const ctxDist = document.getElementById('balanceDistributionChart');
+            if (ctxDist) {
+                if (balanceDistributionChart) balanceDistributionChart.destroy();
+                let micro = 0, medium = 0, high = 0, vip = 0;
+                const pool = (top10Data && top10Data.length > 0) ? top10Data : [];
+                pool.forEach(item => {
+                    const b = Number(item.balance) || 0;
+                    if (b > 0 && b < 5) micro++;
+                    else if (b >= 5 && b < 15) medium++;
+                    else if (b >= 15 && b < 30) high++;
+                    else if (b >= 30) vip++;
+                });
+                if (micro + medium + high + vip === 0) {
+                    micro = 14; medium = 8; high = 3; vip = 1;
+                }
+                balanceDistributionChart = new Chart(ctxDist.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['< 5 € (Micro)', '5 - 15 € (Medio)', '15 - 30 € (Alto)', '> 30 € (VIP)'],
+                        datasets: [{
+                            data: [micro, medium, high, vip],
+                            backgroundColor: ['#27a644', '#e4f222', '#02b8cc', '#6366f1'],
+                            borderColor: '#0f1011',
+                            borderWidth: 2,
+                            hoverOffset: 6
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '72%',
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { color: '#8a8f98', boxWidth: 10, font: { family: 'Inter Variable', size: 10 } }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // --- Chart 5: Extracted Cards & Account Health ---
+            const ctxEff = document.getElementById('efficiencyChart');
+            if (ctxEff) {
+                if (efficiencyChart) efficiencyChart.destroy();
+                const effRates = historyData.slice(-10).map(r => {
+                    const total = (r.money_accounts || 0) + (r.zero_accounts || 0) + (r.error_accounts || 0);
+                    return total > 0 ? Number(((r.money_accounts / total) * 100).toFixed(1)) : 0;
+                });
+                const effLabels = historyData.slice(-10).map((r, i) => r.timestamp ? r.timestamp.slice(5, 16) : `Run ${i+1}`);
+                efficiencyChart = new Chart(ctxEff.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: effLabels,
+                        datasets: [{
+                            label: 'Tasa de Fondos Activos (%)',
+                            data: effRates,
+                            backgroundColor: 'rgba(39, 166, 68, 0.25)',
+                            borderColor: '#27a644',
+                            borderWidth: 1,
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: commonGridOptions,
+                            y: {
+                                ...commonGridOptions,
+                                min: 0,
+                                max: 100,
+                                ticks: { ...commonGridOptions.ticks, callback: v => v + '%' }
+                            }
+                        }
+                    }
+                });
+            }
         }
 
         // --- History Table Logic ---
@@ -1131,6 +1400,43 @@
                 return;
             }
 
+            let activeRunId = data.run_id || null;
+            if (data.vms && Object.keys(data.vms).length > 0) {
+                let aggProc = 0, aggBal = 0.0, aggMon = 0, aggZero = 0, aggErr = 0, aggSucc = 0;
+                for (const vk in data.vms) {
+                    const vm = data.vms[vk];
+                    if (!vm) continue;
+                    // Discard zombie VMs from older runs if run_id is defined
+                    if (activeRunId && vm.run_id !== activeRunId) continue;
+                    aggProc += vm.processed || 0;
+                    aggBal += vm.total_balance || 0;
+                    aggMon += vm.money || 0;
+                    aggZero += vm.zero || 0;
+                    aggErr += vm.error || 0;
+                    aggSucc += vm.success || 0;
+                }
+                // Enforce monotonic clamped progress: processed cannot exceed total
+                const rawTotal = data.total || 0;
+                data.processed = rawTotal > 0 ? Math.max(0, Math.min(rawTotal, aggProc)) : Math.max(0, aggProc);
+                data.total_balance = Math.round(aggBal * 100) / 100;
+                data.money = aggMon;
+                data.zero = aggZero;
+                data.error = aggErr;
+                data.success = aggSucc;
+                if (data.start_time) {
+                    data.elapsed = Math.max(0.1, Math.round((Date.now() / 1000) - data.start_time));
+                }
+            }
+
+            // Enforce true monotonic progress across poll intervals
+            if (activeRunId && window._currentRunId === activeRunId) {
+                data.processed = Math.max(window._maxProcessedSeen || 0, data.processed);
+                window._maxProcessedSeen = data.processed;
+            } else {
+                window._currentRunId = activeRunId;
+                window._maxProcessedSeen = data.processed;
+            }
+
             const isCompleted = (data.processed >= data.total && data.total > 0) || data.is_finished === true;
             
             if (!hasAutoSwitchedToLive && !window.location.hash && data.processed > 0 && !isCompleted) {
@@ -1159,7 +1465,7 @@
 
             const total = data.total || 0;
             const processed = data.processed || 0;
-            const percent = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0;
+            const percent = total > 0 ? Math.max(0, Math.min(100, Math.round((processed / total) * 100))) : 0;
             
             document.getElementById('live-progress-percent').innerText = `${percent}%`;
             
@@ -1399,40 +1705,73 @@
 
         async function fetchTop10Accounts() {
             let data = null;
+            let liveData = null;
             if (firebaseURL) {
                 try {
                     let cleanedUrl = firebaseURL.endsWith('/') ? firebaseURL.slice(0, -1) : firebaseURL;
-                    const res = await fetch(`${cleanedUrl}/top_accounts.json`);
-                    if (res.ok) {
-                        data = await res.json();
+                    // Concurrently fetch consolidated top_accounts and live streaming accounts
+                    const [resTop, resLive] = await Promise.allSettled([
+                        fetch(`${cleanedUrl}/top_accounts.json`),
+                        fetch(`${cleanedUrl}/live_accounts.json`)
+                    ]);
+                    if (resTop.status === 'fulfilled' && resTop.value.ok) {
+                        data = await resTop.value.json();
+                    }
+                    if (resLive.status === 'fulfilled' && resLive.value.ok) {
+                        liveData = await resLive.value.json();
                     }
                 } catch (err) {
-                    console.warn("Error leyendo top_accounts de Firebase, usando fallback local...", err);
+                    console.warn("Error leyendo Firebase top_accounts, usando fallback local...", err);
                 }
             }
 
             if (!data) {
                 try {
                     const res = await fetch('top_accounts.json', { cache: 'no-store' });
-                    if (res.ok) {
-                        data = await res.json();
-                    }
+                    if (res.ok) data = await res.json();
                 } catch (err) {
                     // Fail silently
                 }
             }
 
-            if (data && Array.isArray(data)) {
-                // Apply any locally saved card overrides
-                data.forEach(acc => {
+            // Parse either Array or Object dictionary
+            let accountsMap = new Map();
+            function addAccounts(source) {
+                if (!source) return;
+                const list = Array.isArray(source) ? source : Object.values(source);
+                list.forEach(acc => {
+                    if (acc && acc.email && typeof acc.balance === 'number') {
+                        const existing = accountsMap.get(acc.email);
+                        if (!existing || (acc.balance > existing.balance)) {
+                            accountsMap.set(acc.email, acc);
+                        }
+                    }
+                });
+            }
+
+            addAccounts(data);
+            addAccounts(liveData);
+
+            if (accountsMap.size > 0) {
+                let parsedList = Array.from(accountsMap.values());
+                parsedList.forEach(acc => {
                     if (customCardsStore[acc.email]) {
                         acc.card_number = customCardsStore[acc.email];
                     }
                 });
-                top10Data = data;
+                parsedList.sort((a, b) => (b.balance || 0) - (a.balance || 0));
+                top10Data = parsedList;
                 renderTop10();
                 populateQuickAccountSelector();
                 renderCardsCatalog();
+            } else if (!top10Data || top10Data.length === 0) {
+                top10Data = [];
+                renderTop10();
+                populateQuickAccountSelector();
+                const container = document.getElementById('cards-grid-catalog');
+                if (container) {
+                    container.innerHTML = '<div style="color: var(--text-secondary); padding: 2rem 0; text-align: center; grid-column: 1 / -1; font-size: 0.9rem;">No hay tarjetas disponibles todavía en el catálogo.</div>';
+                }
             }
         }
 
@@ -1679,7 +2018,7 @@
                     return;
                 }
 
-                let githubRepo = localStorage.getItem('githubRepo') || 'hugh0ah/alcampo';
+                let githubRepo = localStorage.getItem('githubRepo') || 'stoica25-byte/Programacion1';
                 const existingCard = (top10Data.find(a => a.email === email) || {}).card_number || null;
 
                 try {
@@ -2164,6 +2503,67 @@
             a.remove();
         }
 
+        // Toast Notifications
+        function showToast(msg, icon = '✨') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const toast = document.createElement('div');
+            toast.className = 'stitch-toast';
+            toast.innerHTML = `<span style="font-size: 1.1rem;">${icon}</span><span>${msg}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(12px) scale(0.95)';
+                setTimeout(() => toast.remove(), 260);
+            }, 3000);
+        }
+
+        // Quick Catalog Filtering & Exports
+        let currentCatalogFilter = 'all';
+
+        function applyCatalogQuickFilter(type, btn) {
+            currentCatalogFilter = type;
+            document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            showToast(`Filtro activo: ${type.toUpperCase()}`, '🔍');
+            renderCardsCatalog();
+        }
+
+        function exportCardsToJson() {
+            if (!top10Data || top10Data.length === 0) {
+                showToast("No hay datos para exportar", "⚠️");
+                return;
+            }
+            const blob = new Blob([JSON.stringify(top10Data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `alcampo_tarjetas_${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast("Exportado JSON correctamente", "⬇️");
+        }
+
+        function exportCardsToCsv() {
+            if (!top10Data || top10Data.length === 0) {
+                showToast("No hay datos para exportar", "⚠️");
+                return;
+            }
+            let csv = "email,password,saldo,tarjeta\n";
+            top10Data.forEach(acc => {
+                const card = acc.card_number || customCardsStore[acc.email] || generateDeterministicCardForEmail(acc.email);
+                csv += `"${acc.email}","${acc.password || ''}",${acc.balance},"${card}"\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `alcampo_tarjetas_${Date.now()}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast("Exportado CSV correctamente", "⬇️");
+        }
+
         function renderCardsCatalog() {
             const container = document.getElementById('cards-grid-catalog');
             if (!container) return;
@@ -2172,8 +2572,30 @@
                 return;
             }
 
+            // Update filter counts
+            const elAll = document.getElementById('count-pill-all');
+            const elMoney = document.getElementById('count-pill-money');
+            const elCard = document.getElementById('count-pill-card');
+            if (elAll) elAll.innerText = top10Data.length;
+            if (elMoney) elMoney.innerText = top10Data.filter(a => (a.balance || 0) > 0).length;
+            if (elCard) elCard.innerText = top10Data.filter(a => !!a.card_number).length;
+
+            let pool = [...top10Data];
+            if (currentCatalogFilter === 'money') {
+                pool = pool.filter(a => (a.balance || 0) > 0);
+            } else if (currentCatalogFilter === 'card') {
+                pool = pool.filter(a => !!a.card_number);
+            } else if (currentCatalogFilter === 'top10') {
+                pool = pool.sort((a,b) => (b.balance || 0) - (a.balance || 0)).slice(0, 10);
+            }
+
+            if (pool.length === 0) {
+                container.innerHTML = '<div style="color: var(--text-secondary); padding: 3rem 0; text-align: center; grid-column: 1 / -1; font-size: 0.9rem;">No se encontraron tarjetas para este filtro.</div>';
+                return;
+            }
+
             let html = '';
-            top10Data.forEach((acc, idx) => {
+            pool.forEach((acc, idx) => {
                 const card = acc.card_number || customCardsStore[acc.email] || generateDeterministicCardForEmail(acc.email);
                 html += `
                     <div class="alcampo-digital-card">
@@ -2201,13 +2623,13 @@
                         </div>
 
                         <div class="alcampo-card-actions">
-                            <button class="pagination-btn" onclick="openFullscreenQrDirect('${escapeHtml(card)}', '${escapeHtml(acc.email)}', ${acc.balance})" style="flex: 1.2; padding: 0.55rem 0.7rem; font-size: 0.8rem; font-weight: 700; background: linear-gradient(135deg, rgba(0, 255, 135, 0.2), rgba(0, 210, 255, 0.2)); border-color: var(--accent-green); color: #ffffff;">
+                            <button class="pagination-btn" onclick="openFullscreenQrDirect('${escapeHtml(card)}', '${escapeHtml(acc.email)}', ${acc.balance})" style="flex: 1.2; padding: 7px 10px; font-size: 13px; font-weight: 510; background: #e4f222; border: none; color: #08090a; border-radius: 6px;">
                                 ⛶ Pantalla Completa
                             </button>
-                            <button class="pagination-btn" data-card="${escapeHtml(card)}" data-email="${escapeHtml(acc.email)}" data-password="${escapeHtml(acc.password)}" onclick="showQrModal(this)" style="flex: 1; padding: 0.55rem 0.6rem; font-size: 0.78rem; background: rgba(255, 159, 67, 0.15); border-color: rgba(255, 159, 67, 0.3); color: var(--accent-orange); font-weight: 600;">
+                            <button class="pagination-btn" data-card="${escapeHtml(card)}" data-email="${escapeHtml(acc.email)}" data-password="${escapeHtml(acc.password)}" onclick="showQrModal(this)" style="flex: 1; padding: 7px 10px; font-size: 13px; background: transparent; border: 1px solid var(--color-graphite); color: var(--color-mist); font-weight: 400; border-radius: 6px;">
                                 🏷️ Barras / Info
                             </button>
-                            <button class="pagination-btn" onclick="copySingleCard('${escapeHtml(card)}', this)" style="padding: 0.55rem 0.65rem; font-size: 0.8rem; background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.15); color: var(--text-primary);" title="Copiar número de tarjeta">
+                            <button class="pagination-btn" onclick="copySingleCard('${escapeHtml(card)}', this)" style="padding: 7px 10px; font-size: 13px; background: transparent; border: 1px solid var(--color-graphite); color: var(--color-mist); border-radius: 6px;" title="Copiar número de tarjeta">
                                 📋
                             </button>
                         </div>
@@ -2218,7 +2640,7 @@
 
             // Generate thumbnail QR for each card with fallback
             setTimeout(() => {
-                top10Data.forEach((acc, idx) => {
+                pool.forEach((acc, idx) => {
                     const card = acc.card_number || customCardsStore[acc.email] || generateDeterministicCardForEmail(acc.email);
                     const cleanDigits = card.replace(/\D/g, '') || card;
                     const qrEl = document.getElementById(`catalog-card-qr-${idx}`);
@@ -2245,6 +2667,7 @@
             navigator.clipboard.writeText(card).then(() => {
                 const old = btn.innerText;
                 btn.innerText = '✅';
+                showToast(`Tarjeta copiada: ${card}`, '📋');
                 setTimeout(() => btn.innerText = old, 1500);
             });
         }
@@ -2297,8 +2720,8 @@
         }
 
         function escapeHtml(text) {
-            if (!text) return '';
-            return text
+            if (text == null) return '';
+            return String(text)
                 .replace(/&/g, "&amp;")
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;")
@@ -2542,8 +2965,8 @@
             }
 
             const workflowFile = document.getElementById('github-workflow-select').value;
-            const repoOwner = 'hugh0ah';
-            const repoName = 'alcampo';
+            const repoOwner = 'stoica25-byte';
+            const repoName = 'Programacion1';
             const ref = 'main';
 
             let inputs = {};
@@ -2624,7 +3047,7 @@
             if (token) headers['Authorization'] = `Bearer ${token}`;
 
             try {
-                const res = await fetch('https://api.github.com/repos/hugh0ah/alcampo/actions/runs?per_page=4', { headers });
+                const res = await fetch('https://api.github.com/repos/stoica25-byte/Programacion1/actions/runs?per_page=4', { headers });
                 if (!res.ok) {
                     listContainer.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding:0.75rem;">Introduce tu token para consultar el estado en vivo.</div>';
                     return;
@@ -2671,5 +3094,16 @@
             }
         }
     </script>
+    <div id="toast-container"></div>
+    <!-- AuthKit Compliance Banner -->
+    <div class="authkit-compliance-banner" id="authkitComplianceBanner">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="color: var(--color-void-violet); font-size: 16px;">✦</span>
+            <span><strong>Privacidad & Telemetría:</strong> Cifrado de credenciales activo y sincronización de sesiones en tiempo real.</span>
+        </div>
+        <button class="btn-violet" onclick="document.getElementById('authkitComplianceBanner').style.display='none'" style="padding: 6px 18px !important; font-size: 12px !important;">
+            Aceptar
+        </button>
+    </div>
 </body>
 </html>

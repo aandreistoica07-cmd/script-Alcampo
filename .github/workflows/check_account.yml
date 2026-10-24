@@ -42,4 +42,4 @@ jobs:
           CHECK_ID: ${{ github.event.inputs.check_id }}
           EXISTING_CARD_NUMBER: ${{ github.event.inputs.card_number }}
         run: |
-          python "script_alcampo_activacion telegram/script_optimizado.py" --check-single "${{ github.event.inputs.email }}" "${{ github.event.inputs.password }}"
+          python "scraper/script_optimizado.py" --check-single "${{ github.event.inputs.email }}" "${{ github.event.inputs.password }}"

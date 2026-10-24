@@ -53,15 +53,18 @@ def main():
     
     # Paths
     script_dir = Path(__file__).resolve().parent
-    excel_path = script_dir / "saldos_alcampo.xlsx"
-    progreso_path = script_dir / "progreso.json"
+    root_dir = script_dir.parent
+    excel_path = root_dir / "scraper" / "saldos_alcampo.xlsx"
+    if not excel_path.exists():
+        excel_path = root_dir / "saldos_alcampo.xlsx"
+    progreso_path = root_dir / "dashboard" / "progreso.json"
     
-    # Path to docs/history.json relative to this script
-    docs_dir = script_dir.parent / "docs"
-    history_path = docs_dir / "history.json"
+    # Path to dashboard/history.json relative to this script
+    dashboard_dir = root_dir / "dashboard"
+    history_path = dashboard_dir / "history.json"
     
-    # Ensure docs directory exists
-    docs_dir.mkdir(exist_ok=True)
+    # Ensure dashboard directory exists
+    dashboard_dir.mkdir(exist_ok=True)
     
     print(f"📊 Compilando estadísticas de ejecución...")
     

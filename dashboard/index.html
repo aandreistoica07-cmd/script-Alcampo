@@ -14,7 +14,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Raleway:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 
     <!-- CSS Stylesheet (Cache-busted for instant Linear Midnight Precision update) -->
-    <link rel="stylesheet" href="css/style.css?v=monopo_saigon_v4_2_editorial_light">
+    <link rel="stylesheet" href="css/style.css?v=v4_3_consolidated_fix">
     <link rel="manifest" href="manifest.json">
     
     <style>
@@ -101,7 +101,7 @@
                 <div class="logo-icon" id="header-pulse-dot" style="background-color: var(--color-pulse-green); box-shadow: 0 0 8px rgba(39, 166, 68, 0.4);"></div>
                 <div>
                     <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                        <h1 style="font-size: 1.05rem; font-weight: 500; letter-spacing: 0.04em; color: var(--color-obsidian); margin: 0; text-transform: uppercase;">monopo saigon × alcampo matrix</h1>
+                        <h1 style="font-size: 1.05rem; font-weight: 600; letter-spacing: 0.04em; color: #ffffff; margin: 0; text-transform: uppercase;">monopo saigon × alcampo matrix</h1>
                         <span class="linear-version-badge">v4.3 Monopo</span>
                     </div>
                     <p class="linear-header-subtitle">Liquid iridescence behind editorial silence · Editorial Matrix</p>
@@ -1400,10 +1400,14 @@
                 return;
             }
 
+            let activeRunId = data.run_id || null;
             if (data.vms && Object.keys(data.vms).length > 0) {
                 let aggProc = 0, aggBal = 0.0, aggMon = 0, aggZero = 0, aggErr = 0, aggSucc = 0;
                 for (const vk in data.vms) {
                     const vm = data.vms[vk];
+                    if (!vm) continue;
+                    // Discard zombie VMs from older runs if run_id is defined
+                    if (activeRunId && vm.run_id !== activeRunId) continue;
                     aggProc += vm.processed || 0;
                     aggBal += vm.total_balance || 0;
                     aggMon += vm.money || 0;
@@ -1411,7 +1415,9 @@
                     aggErr += vm.error || 0;
                     aggSucc += vm.success || 0;
                 }
-                data.processed = aggProc;
+                // Enforce monotonic clamped progress: processed cannot exceed total
+                const rawTotal = data.total || 0;
+                data.processed = rawTotal > 0 ? Math.max(0, Math.min(rawTotal, aggProc)) : Math.max(0, aggProc);
                 data.total_balance = Math.round(aggBal * 100) / 100;
                 data.money = aggMon;
                 data.zero = aggZero;
@@ -1420,6 +1426,15 @@
                 if (data.start_time) {
                     data.elapsed = Math.max(0.1, Math.round((Date.now() / 1000) - data.start_time));
                 }
+            }
+
+            // Enforce true monotonic progress across poll intervals
+            if (activeRunId && window._currentRunId === activeRunId) {
+                data.processed = Math.max(window._maxProcessedSeen || 0, data.processed);
+                window._maxProcessedSeen = data.processed;
+            } else {
+                window._currentRunId = activeRunId;
+                window._maxProcessedSeen = data.processed;
             }
 
             const isCompleted = (data.processed >= data.total && data.total > 0) || data.is_finished === true;
@@ -1450,7 +1465,7 @@
 
             const total = data.total || 0;
             const processed = data.processed || 0;
-            const percent = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0;
+            const percent = total > 0 ? Math.max(0, Math.min(100, Math.round((processed / total) * 100))) : 0;
             
             document.getElementById('live-progress-percent').innerText = `${percent}%`;
             
@@ -1690,40 +1705,73 @@
 
         async function fetchTop10Accounts() {
             let data = null;
+            let liveData = null;
             if (firebaseURL) {
                 try {
                     let cleanedUrl = firebaseURL.endsWith('/') ? firebaseURL.slice(0, -1) : firebaseURL;
-                    const res = await fetch(`${cleanedUrl}/top_accounts.json`);
-                    if (res.ok) {
-                        data = await res.json();
+                    // Concurrently fetch consolidated top_accounts and live streaming accounts
+                    const [resTop, resLive] = await Promise.allSettled([
+                        fetch(`${cleanedUrl}/top_accounts.json`),
+                        fetch(`${cleanedUrl}/live_accounts.json`)
+                    ]);
+                    if (resTop.status === 'fulfilled' && resTop.value.ok) {
+                        data = await resTop.value.json();
+                    }
+                    if (resLive.status === 'fulfilled' && resLive.value.ok) {
+                        liveData = await resLive.value.json();
                     }
                 } catch (err) {
-                    console.warn("Error leyendo top_accounts de Firebase, usando fallback local...", err);
+                    console.warn("Error leyendo Firebase top_accounts, usando fallback local...", err);
                 }
             }
 
             if (!data) {
                 try {
                     const res = await fetch('top_accounts.json', { cache: 'no-store' });
-                    if (res.ok) {
-                        data = await res.json();
-                    }
+                    if (res.ok) data = await res.json();
                 } catch (err) {
                     // Fail silently
                 }
             }
 
-            if (data && Array.isArray(data)) {
-                // Apply any locally saved card overrides
-                data.forEach(acc => {
+            // Parse either Array or Object dictionary
+            let accountsMap = new Map();
+            function addAccounts(source) {
+                if (!source) return;
+                const list = Array.isArray(source) ? source : Object.values(source);
+                list.forEach(acc => {
+                    if (acc && acc.email && typeof acc.balance === 'number') {
+                        const existing = accountsMap.get(acc.email);
+                        if (!existing || (acc.balance > existing.balance)) {
+                            accountsMap.set(acc.email, acc);
+                        }
+                    }
+                });
+            }
+
+            addAccounts(data);
+            addAccounts(liveData);
+
+            if (accountsMap.size > 0) {
+                let parsedList = Array.from(accountsMap.values());
+                parsedList.forEach(acc => {
                     if (customCardsStore[acc.email]) {
                         acc.card_number = customCardsStore[acc.email];
                     }
                 });
-                top10Data = data;
+                parsedList.sort((a, b) => (b.balance || 0) - (a.balance || 0));
+                top10Data = parsedList;
                 renderTop10();
                 populateQuickAccountSelector();
                 renderCardsCatalog();
+            } else if (!top10Data || top10Data.length === 0) {
+                top10Data = [];
+                renderTop10();
+                populateQuickAccountSelector();
+                const container = document.getElementById('cards-grid-catalog');
+                if (container) {
+                    container.innerHTML = '<div style="color: var(--text-secondary); padding: 2rem 0; text-align: center; grid-column: 1 / -1; font-size: 0.9rem;">No hay tarjetas disponibles todavía en el catálogo.</div>';
+                }
             }
         }
 
@@ -2672,8 +2720,8 @@
         }
 
         function escapeHtml(text) {
-            if (!text) return '';
-            return text
+            if (text == null) return '';
+            return String(text)
                 .replace(/&/g, "&amp;")
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;")

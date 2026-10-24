@@ -16,7 +16,7 @@ sys.stderr.reconfigure(encoding='utf-8')
 try:
     from script_optimizado import main as run_optimizado
 except ImportError:
-    from script_alcampo_activacion_telegram.script_optimizado import main as run_optimizado
+    from scraper.script_optimizado import main as run_optimizado
 
 if __name__ == "__main__":
     # Si se pasa la ruta de un Excel o JSON directamente (ej: python script.py mi_excel.xlsx)

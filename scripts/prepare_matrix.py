@@ -4,6 +4,8 @@ import math
 import os
 import base64
 import re
+import time
+import uuid
 import requests
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -13,7 +15,7 @@ if hasattr(sys.stderr, "reconfigure"):
 
 def main():
     # 1. Accounts parsing (prioritize repository accounts.json)
-    accounts_file = os.path.join("script_alcampo_activacion telegram", "accounts.json")
+    accounts_file = os.path.join("scraper", "accounts.json")
     accounts = []
     if os.path.exists(accounts_file) and os.path.getsize(accounts_file) > 10:
         try:
@@ -39,13 +41,15 @@ def main():
 
     shards = math.ceil(total / per_vm) if total > 0 else 1
     matrix_data = {"shard": list(range(shards))}
-    print(f"Total cuentas: {total}, Shards generados: {shards}")
+    run_id = f"run_{int(time.time())}_{uuid.uuid4().hex[:6]}"
+    print(f"Total cuentas: {total}, Shards generados: {shards}, Run ID: {run_id}")
 
     github_output = os.environ.get("GITHUB_OUTPUT")
     if github_output:
         with open(github_output, "a", encoding="utf-8") as f:
             f.write(f"matrix={json.dumps(matrix_data)}\n")
             f.write(f"total_shards={shards}\n")
+            f.write(f"run_id={run_id}\n")
 
     # 2. Telegram initial notification with solid fallbacks
     token = (os.environ.get("TELEGRAM_TOKEN") or "").strip()
@@ -88,6 +92,7 @@ def main():
         try:
             fb_base = firebase_url.strip().rstrip("/")
             init_payload = {
+                "run_id": run_id,
                 "total": total,
                 "processed": 0,
                 "success": 0,
@@ -102,7 +107,8 @@ def main():
                 "threads": {}
             }
             requests.put(f"{fb_base}/progress.json", json=init_payload, timeout=10)
-            print(f"[FIREBASE START] /progress.json inicializado con {total} cuentas.")
+            requests.put(f"{fb_base}/live_accounts.json", json={}, timeout=10)
+            print(f"[FIREBASE START] /progress.json inicializado con {total} cuentas (run_id={run_id}).")
         except Exception as fe:
             print(f"Warning inicializando Firebase progress: {fe}")
 

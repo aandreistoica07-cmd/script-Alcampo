@@ -1,12 +1,32 @@
 import os
+import sys
 import glob
 import json
 import re
+import html
+import base64
 import argparse
 import time
 from datetime import datetime, timezone
 import pandas as pd
 import requests
+
+# Force UTF-8 on Windows consoles to prevent UnicodeEncodeError with emojis
+if sys.platform.startswith("win"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
+
+# Dynamic scraper directory resolution
+scraper_dir = os.path.join(os.path.dirname(__file__), "..", "scraper")
+if not os.path.exists(scraper_dir):
+    scraper_dir = os.path.join(os.path.dirname(__file__), "..", "script_alcampo_activacion telegram")
+scraper_dir = os.path.abspath(scraper_dir)
+if os.path.exists(scraper_dir) and scraper_dir not in sys.path:
+    sys.path.append(scraper_dir)
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Merge and Retry Helper for Alcampo GitHub Actions Pipeline")
@@ -15,6 +35,7 @@ def parse_args():
     parser.add_argument("--single-file", default=None, help="Inspect a specific single Excel file instead of a directory")
     parser.add_argument("--failed-json", default="failed_accounts.json", help="Path to write failed accounts JSON")
     parser.add_argument("--output-excel", default="REPORTE_DEFINITIVO_TELEGRAM.xlsx", help="Final output Excel path")
+    parser.add_argument("--accounts-file", default=None, help="Path to master accounts JSON file")
     return parser.parse_args()
 
 def limpiar_saldo(saldo_str):
@@ -24,6 +45,129 @@ def limpiar_saldo(saldo_str):
     if match:
         return float(match.group(0).replace(',', '.'))
     return None
+
+def compute_priority(filename, saldo_str):
+    """Calculates row priority matching multi-pass merge rules."""
+    base_prio = 10
+    fn = os.path.basename(str(filename)).lower()
+    if "cycle_" in fn:
+        try:
+            c_num = int(fn.split("cycle_")[1].split(".")[0].split("_")[0])
+            base_prio = 100 + c_num * 10
+        except Exception:
+            base_prio = 100
+    elif "retry" in fn or "pass2" in fn:
+        base_prio = 100
+
+    if "Tu Saldo es" in str(saldo_str):
+        return base_prio + 1000
+    return base_prio
+
+def is_definitive_success(saldo_str):
+    if not saldo_str or pd.isna(saldo_str):
+        return False
+    return "Tu Saldo es" in str(saldo_str)
+
+def is_definitive_error(saldo_str, causa_str="", err_type=""):
+    """
+    Returns True if an account failure is permanent at the account level (credentials, call center, 2FA)
+    and should not be retried in Pass 2.
+    """
+    combined = f"{saldo_str} {causa_str} {err_type}".lower()
+    
+    # 1. Call Center, 2FA, Blocked Account
+    if any(k in combined for k in [
+        "call center", "cuenta ha sido bloqueada", "cuenta bloqueada", 
+        "btnpwreset", "restablecer contraseña", "restablecer contrasena", 
+        "código de verificación", "codigo de verificacion", "2fa",
+        "identity verification", "device activation", "needs_attention"
+    ]):
+        return True
+
+    # 2. Permanent Account Credentials Error
+    if any(k in combined for k in [
+        "credenciales incorrectas", "usuario o contraseña incorrectos", 
+        "usuario o contrasena incorrectos", "contraseña no válida", 
+        "contrasena no valida", "usuario incorrecto", 
+        "credenciales no redirigidas", "authenticationerror", 
+        "account_error"
+    ]) and not any(k in combined for k in ["timeout", "bloqueo/timeout", "waf", "ip_error"]):
+        return True
+
+    return False
+
+def is_retryable_failure(saldo_str, causa_str="", err_type=""):
+    """
+    Returns True if failure is due to timeout, session delay, WAF, IP ban, or incomplete execution.
+    """
+    if is_definitive_success(saldo_str):
+        return False
+    if is_definitive_error(saldo_str, causa_str, err_type):
+        return False
+    return True
+
+def load_master_accounts(accounts_file_arg=None):
+    """
+    Loads the master accounts dataset to detect and recover any unreached/crashed accounts.
+    """
+    candidates = []
+    if accounts_file_arg:
+        candidates.append(accounts_file_arg)
+    candidates.append(os.path.join(os.path.dirname(__file__), "..", "scraper", "accounts.json"))
+    candidates.append(os.path.join(os.path.dirname(__file__), "..", "accounts.json"))
+    candidates.append("accounts.json")
+
+    for cand in candidates:
+        if cand and os.path.exists(cand) and os.path.getsize(cand) > 10:
+            try:
+                with open(cand, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list) and len(data) > 0:
+                        return data
+            except Exception as e:
+                print(f"Warning loading master accounts from {cand}: {e}")
+
+    # Fallback to ACCOUNTS_BASE64 env var
+    b64_val = os.environ.get("ACCOUNTS_BASE64", "")
+    if b64_val and len(b64_val.strip()) > 10:
+        try:
+            decoded = json.loads(base64.b64decode(b64_val.strip()).decode("utf-8"))
+            if isinstance(decoded, list):
+                return decoded
+        except Exception as be:
+            print(f"Warning decoding ACCOUNTS_BASE64: {be}")
+
+    return []
+
+def format_telegram_summary(total, saldo_total, cuentas_dinero, cuentas_cero, cuentas_error, top_10, error_summary=None):
+    """
+    Formats the final Telegram summary message with 100% strict HTML escaping
+    on all dynamic and external fields (emails, error descriptions).
+    """
+    top_10_lines = []
+    if top_10:
+        for i, item in enumerate(top_10):
+            clean_email = html.escape(str(item[1]))
+            top_10_lines.append(f"   {i+1}. {clean_email} ({item[0]:.2f} €)")
+    top_10_str = "\n".join(top_10_lines) if top_10_lines else "   N/A"
+
+    msg = (
+        f"📊 <b>RESUMEN CONSOLIDADO FINAL (2 PASADAS MATRIZ)</b>\n\n"
+        f"✅ Cuentas totales: {total}\n"
+        f"💰 <b>Saldo Total Extraído:</b> {saldo_total:.2f} €\n"
+        f"💎 Cuentas con dinero: {cuentas_dinero}\n"
+        f"💤 Cuentas con saldo 0: {cuentas_cero}\n"
+        f"⚠️ Cuentas con error / Call Center: {cuentas_error}\n\n"
+        f"🏆 <b>Top 10 Cuentas con Mayor Saldo:</b>\n{top_10_str}\n\n"
+        f"👀 <b>Ver Dashboard y Centro QR:</b>\n"
+        f"https://alcampo.vercel.app/"
+    )
+    if error_summary:
+        clean_summary = html.escape(str(error_summary))
+        msg += f"\n\nℹ️ <b>Diagnóstico:</b> {clean_summary}"
+    if len(msg) > 4000:
+        msg = msg[:3980] + "\n... [truncado]"
+    return msg
 
 def get_telegram_config():
     token = (os.environ.get("TELEGRAM_TOKEN") or "").strip()
@@ -40,7 +184,7 @@ def get_telegram_config():
             pass
             
     if not is_valid_token or not is_valid_chat:
-        return "8041531688:AAHif8qa9wMZ1EAxU3MrftR-tCrEkQ2dfPU", -5049278431
+        return None, None
         
     return token, int(chat_id)
 
@@ -59,6 +203,172 @@ def enviar_telegram(token, chat_id, texto, excel_path):
     except Exception as e:
         print(f"⚠️ Error enviando a Telegram: {e}")
 
+def collect_failed_accounts(files, master_accounts=None):
+    """
+    Scans shard Excel files and cross-references against master_accounts (if provided)
+    to collect accounts needing retry in Pass 2:
+    1. Accounts present in shards that failed with retryable errors (timeouts, session errors, IP/WAF 429).
+    2. Master accounts that were omitted / never reached due to shard crashes or premature timeouts.
+    Excludes definitive successes ("Tu Saldo es...") and permanent errors (bad credentials, call center, 2FA).
+
+    Returns:
+        List of dicts: [{'email': ..., 'password': ...}]
+    """
+    if master_accounts is None:
+        master_accounts = []
+
+    scraped_by_email = {}
+    for f in files:
+        if not f or not os.path.exists(f):
+            continue
+        try:
+            df = pd.read_excel(f)
+            for _, row in df.iterrows():
+                em = str(row.get("email", "")).strip()
+                if not em or em.lower() in ("none", "nan", ""):
+                    continue
+                scraped_by_email[em] = {
+                    "email": em,
+                    "password": str(row.get("password", "")).strip(),
+                    "saldo": str(row.get("saldo", "")).strip(),
+                    "causa_error": str(row.get("causa_error", "")).strip(),
+                    "error_type": str(row.get("error_type", "")).strip(),
+                }
+        except Exception as e:
+            print(f"Error leyendo {f}: {e}")
+
+    failed_accounts = []
+    seen_emails = set()
+
+    # 1. Accounts in scraped Excel with retryable errors
+    for em, data in scraped_by_email.items():
+        if is_retryable_failure(data["saldo"], data["causa_error"], data["error_type"]):
+            if em not in seen_emails:
+                failed_accounts.append({
+                    "email": em,
+                    "password": data["password"]
+                })
+                seen_emails.add(em)
+
+    # 2. Master accounts that were NEVER reached by shards or not definitive
+    for acc in master_accounts:
+        em = str(acc.get("email", "")).strip()
+        if not em:
+            continue
+        if em not in scraped_by_email:
+            # Incomplete shard! Account was omitted from shard output
+            if em not in seen_emails:
+                failed_accounts.append({
+                    "email": em,
+                    "password": str(acc.get("password", "")).strip()
+                })
+                seen_emails.add(em)
+        else:
+            data = scraped_by_email[em]
+            if is_retryable_failure(data["saldo"], data["causa_error"], data["error_type"]):
+                if em not in seen_emails:
+                    failed_accounts.append({
+                        "email": em,
+                        "password": str(acc.get("password", "")).strip() or data["password"]
+                    })
+                    seen_emails.add(em)
+
+    return failed_accounts
+
+
+def generate_consolidated_excel(df_all, output_excel_path=None):
+    """
+    Partitions df_all into 6 mutually exclusive categorization sheets:
+    1. 'Todas las Cuentas': Master consolidated dataset
+    2. 'Exitosas con Saldo': Positive balance (> 0,00 €)
+    3. 'Saldo Cero Verificado': Confirmed 0,00 € balance
+    4. 'Bloqueadas Call Center': Call center, 2FA, password reset
+    5. 'Error Credenciales': Invalid user or password
+    6. 'Error IP y Timeouts': Session timeouts, 429 WAF, network blocks
+
+    Strips all temporary evaluation columns before saving.
+    If output_excel_path is provided, writes the workbook using openpyxl.
+
+    Returns:
+        dict: Mapping of sheet names to clean DataFrames.
+    """
+    df_working = df_all.copy()
+    for col in ["email", "saldo", "card_number", "password", "_priority", "causa_error", "error_type"]:
+        if col not in df_working.columns:
+            df_working[col] = ""
+
+    saldo_vals = []
+    is_successes = []
+    is_callcenters = []
+    is_credenciales_list = []
+
+    for _, row in df_working.iterrows():
+        s_str = str(row.get("saldo", "")).strip()
+        c_str = str(row.get("causa_error", "")).strip()
+        e_str = str(row.get("error_type", "")).strip()
+        combined = f"{s_str} {c_str} {e_str}".lower()
+
+        val = limpiar_saldo(s_str)
+        succ = ("Tu Saldo es" in s_str) and (val is not None)
+
+        cc = any(k in combined for k in [
+            "call center", "cuenta ha sido bloqueada", "cuenta bloqueada",
+            "btnpwreset", "restablecer contraseña", "restablecer contrasena",
+            "código de verificación", "codigo de verificacion", "2fa",
+            "identity verification", "device activation", "needs_attention"
+        ])
+
+        cred = any(k in combined for k in [
+            "credenciales incorrectas", "usuario o contraseña incorrectos",
+            "usuario o contrasena incorrectos", "contraseña no válida",
+            "contrasena no valida", "usuario incorrecto",
+            "credenciales no redirigidas", "authenticationerror",
+            "account_error"
+        ]) and not cc
+
+        saldo_vals.append(val)
+        is_successes.append(succ)
+        is_callcenters.append(cc)
+        is_credenciales_list.append(cred)
+
+    df_working["_saldo_val"] = saldo_vals
+    df_working["_is_success"] = is_successes
+    df_working["_is_callcenter"] = is_callcenters
+    df_working["_is_credenciales"] = is_credenciales_list
+
+    df_con_saldo = df_working[df_working["_is_success"] & (df_working["_saldo_val"] > 0)].copy()
+    df_saldo_cero = df_working[df_working["_is_success"] & (df_working["_saldo_val"] == 0)].copy()
+    df_callcenter = df_working[~df_working["_is_success"] & df_working["_is_callcenter"]].copy()
+    df_credenciales = df_working[~df_working["_is_success"] & ~df_working["_is_callcenter"] & df_working["_is_credenciales"]].copy()
+    df_ip_timeouts = df_working[~df_working["_is_success"] & ~df_working["_is_callcenter"] & ~df_working["_is_credenciales"]].copy()
+
+    temp_cols = ["_priority", "_saldo_val", "_is_success", "_is_callcenter", "_is_credenciales"]
+
+    def clean_sheet_df(df_target):
+        clean_df = df_target.copy()
+        clean_df.drop(columns=[c for c in temp_cols if c in clean_df.columns], errors="ignore", inplace=True)
+        return clean_df
+
+    sheets = {
+        "Todas las Cuentas": clean_sheet_df(df_working),
+        "Exitosas con Saldo": clean_sheet_df(df_con_saldo),
+        "Saldo Cero Verificado": clean_sheet_df(df_saldo_cero),
+        "Bloqueadas Call Center": clean_sheet_df(df_callcenter),
+        "Error Credenciales": clean_sheet_df(df_credenciales),
+        "Error IP y Timeouts": clean_sheet_df(df_ip_timeouts),
+    }
+
+    if output_excel_path:
+        out_dir = os.path.dirname(output_excel_path)
+        if out_dir and not os.path.exists(out_dir):
+            os.makedirs(out_dir, exist_ok=True)
+        with pd.ExcelWriter(output_excel_path, engine="openpyxl") as writer:
+            for sname, sdf in sheets.items():
+                sdf.to_excel(writer, sheet_name=sname, index=False)
+
+    return sheets
+
+
 def main():
     args = parse_args()
     
@@ -66,26 +376,26 @@ def main():
         if args.single_file and os.path.exists(args.single_file):
             files = [args.single_file]
         else:
-            files = glob.glob(os.path.join(args.input_dir, "**", "*.xlsx"), recursive=True)
+            raw_files = []
+            if args.input_dir and os.path.exists(args.input_dir):
+                for ext in ["*.xlsx", "*.XLSX"]:
+                    raw_files.extend(glob.glob(os.path.join(args.input_dir, "**", ext), recursive=True))
+            if not raw_files and os.path.exists("./pass1_artifacts"):
+                for ext in ["*.xlsx", "*.XLSX"]:
+                    raw_files.extend(glob.glob(os.path.join("./pass1_artifacts", "**", ext), recursive=True))
+
+            shard_pattern = re.compile(r"(pass|shard|retry|cycle)", re.IGNORECASE)
+            files = [f for f in raw_files if shard_pattern.search(os.path.basename(f))]
+
         print(f"🔎 Inspeccionando {len(files)} archivo(s)...")
-        
-        failed_accounts = []
-        for f in files:
-            try:
-                df = pd.read_excel(f)
-                for _, row in df.iterrows():
-                    saldo = str(row.get("saldo", ""))
-                    causa = str(row.get("causa_error", ""))
-                    # Exclude authenticationError, Credenciales, and Call Center from retries
-                    if ("Bloqueo/Timeout" in saldo or "Timeout" in causa) and ("authenticationError" not in saldo and "Credenciales" not in saldo and "bloqueada" not in saldo and "Call Center" not in saldo):
-                        failed_accounts.append({
-                            "email": str(row["email"]).strip(),
-                            "password": str(row["password"]).strip()
-                        })
-            except Exception as e:
-                print(f"Error leyendo {f}: {e}")
-                
-        print(f"🔴 Cuentas con timeout detectadas para reintento: {len(failed_accounts)}")
+
+        # Load master accounts if known to prevent dropping unreached accounts
+        master_accounts = load_master_accounts(args.accounts_file)
+        if master_accounts:
+            print(f"📋 Cuentas maestras cargadas: {len(master_accounts)}")
+
+        failed_accounts = collect_failed_accounts(files, master_accounts)
+        print(f"🔴 Cuentas con timeout o pendientes detectadas para reintento: {len(failed_accounts)}")
 
         # Check for stagnation / lack of progress in retries (Early Exit Guard)
         prev_history_file = "previous_failures.json"
@@ -137,36 +447,48 @@ def main():
                 f.write(f"failed_count={len(failed_accounts)}\n")
 
     elif args.mode == "final-merge":
-        files = glob.glob(os.path.join(args.input_dir, "**", "*.xlsx"), recursive=True)
+        # Search ONLY explicit input_dir first; fall back ONLY to artifacts folders if empty
+        raw_files = []
+        if args.single_file and os.path.exists(args.single_file):
+            raw_files = [args.single_file]
+        else:
+            if args.input_dir and os.path.exists(args.input_dir):
+                for ext in ["*.xlsx", "*.XLSX"]:
+                    raw_files.extend(glob.glob(os.path.join(args.input_dir, "**", ext), recursive=True))
+
+            # Strict fallback ONLY if input_dir yielded no files.
+            # STRICTLY PROHIBITED from searching '.' or 'scraper' to prevent absorbing historical artifacts!
+            if not raw_files:
+                for fallback_dir in ["./all_final_shards", "./pass1_artifacts"]:
+                    if os.path.exists(fallback_dir):
+                        for ext in ["*.xlsx", "*.XLSX"]:
+                            raw_files.extend(glob.glob(os.path.join(fallback_dir, "**", ext), recursive=True))
+                        if raw_files:
+                            break
+
+        # Filter strictly: prohibit output_excel and require shard filename pattern
+        shard_pattern = re.compile(r"(pass|shard|retry|cycle)", re.IGNORECASE)
+        files = []
+        for f in raw_files:
+            if os.path.abspath(f) == os.path.abspath(args.output_excel):
+                continue
+            fname = os.path.basename(f)
+            if args.single_file or shard_pattern.search(fname):
+                if f not in files:
+                    files.append(f)
+
         print(f"📂 Archivos acumulados para consolidación final: {len(files)}")
-        
+
         dfs = []
         for f in files:
             try:
                 df = pd.read_excel(f)
-                filename = os.path.basename(f).lower()
-                base_prio = 10
-                if "cycle_" in filename:
-                    try:
-                        c_num = int(filename.split("cycle_")[1].split(".")[0].split("_")[0])
-                        base_prio = 100 + c_num * 10
-                    except Exception:
-                        base_prio = 100
-                elif "retry" in filename:
-                    base_prio = 100
-
-                prios = []
-                for _, row in df.iterrows():
-                    row_s = str(row.get("saldo", ""))
-                    if "Tu Saldo es" in row_s:
-                        prios.append(base_prio + 1000)
-                    else:
-                        prios.append(base_prio)
-                df["_priority"] = prios
+                filename = os.path.basename(f)
+                df["_priority"] = [compute_priority(filename, r.get("saldo", "")) for _, r in df.iterrows()]
                 dfs.append(df)
             except Exception as e:
                 print(f"Error leyendo {f}: {e}")
-                
+
         if not dfs:
             print("❌ No se encontraron archivos para consolidar.")
             token, chat_id = get_telegram_config()
@@ -180,48 +502,37 @@ def main():
                 df_all[col] = ""
         df_all.sort_values(by=["_priority"], inplace=True)
         df_all.drop_duplicates(subset=["email"], keep="last", inplace=True)
-        df_all.drop(columns=["_priority"], errors="ignore", inplace=True)
-        
-        # Build multi-sheet master excel
-        df_success = df_all[df_all["saldo"].astype(str).str.contains("Tu Saldo es", na=False)].copy()
-        df_callcenter = df_all[df_all["saldo"].astype(str).str.contains("Call Center|bloqueada", na=False, regex=True)].copy()
-        df_errors = df_all[~df_all["email"].isin(df_success["email"]) & ~df_all["email"].isin(df_callcenter["email"])].copy()
 
-        with pd.ExcelWriter(args.output_excel, engine="openpyxl") as writer:
-            df_all.to_excel(writer, sheet_name="Todas las Cuentas", index=False)
-            df_success.to_excel(writer, sheet_name="Exitosas con Saldo", index=False)
-            df_callcenter.to_excel(writer, sheet_name="Bloqueadas Call Center", index=False)
-            df_errors.to_excel(writer, sheet_name="Error Credenciales y Autenticacion", index=False)
+        sheets = generate_consolidated_excel(df_all, args.output_excel)
+        df_con_saldo = sheets["Exitosas con Saldo"]
+        df_saldo_cero = sheets["Saldo Cero Verificado"]
+        df_callcenter = sheets["Bloqueadas Call Center"]
+        df_credenciales = sheets["Error Credenciales"]
+        df_ip_timeouts = sheets["Error IP y Timeouts"]
 
-        print(f"💾 Reporte consolidado final guardado en {args.output_excel}")
+        print(f"💾 Reporte consolidado final guardado en {args.output_excel} (6 hojas)")
         
         # Calculate summary metrics
         total = len(df_all)
         saldo_total = 0.0
-        cuentas_dinero = 0
-        cuentas_cero = 0
-        cuentas_error = len(df_errors) + len(df_callcenter)
+        cuentas_dinero = len(df_con_saldo)
+        cuentas_cero = len(df_saldo_cero)
+        cuentas_error = len(df_callcenter) + len(df_credenciales) + len(df_ip_timeouts)
         ranked = []
         top_10_json = []
 
-        for _, row in df_success.iterrows():
+        for _, row in df_con_saldo.iterrows():
             val = limpiar_saldo(row.get("saldo"))
-            if val is not None:
+            if val is not None and val > 0:
                 saldo_total += val
                 email = str(row.get("email", "")).strip()
                 password = str(row.get("password", "")).strip()
                 card_num = row.get("card_number") if "card_number" in row else row.get("tarjeta") if "tarjeta" in row else None
                 card_str = str(card_num).strip() if (card_num and not pd.isna(card_num)) else None
-                
-                if val > 0:
-                    cuentas_dinero += 1
-                    ranked.append((val, email, password, card_str))
-                else:
-                    cuentas_cero += 1
+                ranked.append((val, email, password, card_str))
 
         ranked.sort(key=lambda x: x[0], reverse=True)
         top_10 = ranked[:10]
-        top_10_str = "\n".join([f"   {i+1}. {item[1]} ({item[0]:.2f} €)" for i, item in enumerate(top_10)]) if top_10 else "   N/A"
 
         for val, email, password, card_str in top_10:
             top_10_json.append({
@@ -231,19 +542,18 @@ def main():
                 "card_number": card_str
             })
 
-        # Save top_accounts.json locally and in docs/
+        # Save top_accounts.json locally and in dashboard/
         with open("top_accounts.json", "w", encoding="utf-8") as tf:
             json.dump(top_10_json, tf, ensure_ascii=False, indent=2)
 
-        docs_dir = os.path.join(os.path.dirname(__file__), "..", "docs")
-        docs_dir = os.path.abspath(docs_dir)
-        if os.path.exists(docs_dir):
-            with open(os.path.join(docs_dir, "top_accounts.json"), "w", encoding="utf-8") as tf:
+        dashboard_dir = os.path.join(os.path.dirname(__file__), "..", "dashboard")
+        dashboard_dir = os.path.abspath(dashboard_dir)
+        if os.path.exists(dashboard_dir):
+            with open(os.path.join(dashboard_dir, "top_accounts.json"), "w", encoding="utf-8") as tf:
                 json.dump(top_10_json, tf, ensure_ascii=False, indent=2)
 
         # Update account_status.json with final consolidated results
         try:
-            sys.path.append(os.path.join(os.path.dirname(__file__), "..", "script_alcampo_activacion telegram"))
             from account_cooldown_manager import AccountCooldownManager
             cd_mgr = AccountCooldownManager()
             for _, row in df_all.iterrows():
@@ -259,8 +569,8 @@ def main():
         except Exception as c_ex:
             print(f"Warning actualizando account_status.json: {c_ex}")
 
-        # Update docs/history.json
-        history_path = os.path.join(docs_dir, "history.json") if os.path.exists(docs_dir) else "history.json"
+        # Update dashboard/history.json
+        history_path = os.path.join(dashboard_dir, "history.json") if os.path.exists(dashboard_dir) else "history.json"
         history_data = []
         if os.path.exists(history_path):
             try:
@@ -319,16 +629,13 @@ def main():
             except Exception as fe:
                 print(f"⚠️ Error al sincronizar con Firebase: {fe}")
 
-        msg = (
-            f"📊 <b>RESUMEN CONSOLIDADO FINAL (2 PASADAS MATRIZ)</b>\n\n"
-            f"✅ Cuentas totales: {total}\n"
-            f"💰 <b>Saldo Total Extraído:</b> {saldo_total:.2f} €\n"
-            f"💎 Cuentas con dinero: {cuentas_dinero}\n"
-            f"💤 Cuentas con saldo 0: {cuentas_cero}\n"
-            f"⚠️ Cuentas con error / Call Center: {cuentas_error}\n\n"
-            f"🏆 <b>Top 10 Cuentas con Mayor Saldo:</b>\n{top_10_str}\n\n"
-            f"👀 <b>Ver Dashboard y Centro QR:</b>\n"
-            f"https://alcampo.vercel.app/"
+        msg = format_telegram_summary(
+            total=total,
+            saldo_total=saldo_total,
+            cuentas_dinero=cuentas_dinero,
+            cuentas_cero=cuentas_cero,
+            cuentas_error=cuentas_error,
+            top_10=top_10
         )
 
         token, chat_id = get_telegram_config()

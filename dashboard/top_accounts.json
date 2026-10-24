@@ -1,0 +1,8 @@
+[
+  {
+    "email": "valid@test.com",
+    "password": "",
+    "balance": 10.0,
+    "card_number": null
+  }
+]

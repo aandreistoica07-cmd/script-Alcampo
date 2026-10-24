@@ -33,16 +33,13 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        working-directory: './script_alcampo_activacion telegram'
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install selenium webdriver-manager requests pandas openpyxl
 
-
-
       - name: Run Optimized Scraper
-        working-directory: './script_alcampo_activacion telegram'
+        working-directory: './scraper'
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -54,9 +51,8 @@ jobs:
           python script_optimizado.py --threads $THREADS --send-telegram --ignore-cooldown
 
       - name: Update Global History Database
-        working-directory: './script_alcampo_activacion telegram'
         run: |
-          python update_history.py --version optimizada
+          python scripts/update_history.py --version optimizada
 
       - name: Commit and Push results
         run: |
@@ -64,7 +60,7 @@ jobs:
           git config --local user.name "GitHub Action"
           
           # Add history and account status JSONs
-          git add docs/history.json docs/account_status.json "script_alcampo_activacion telegram/account_status.json" docs/top_accounts.json || true
+          git add dashboard/history.json dashboard/account_status.json scraper/account_status.json dashboard/top_accounts.json || true
           
           # Check if there are changes before committing
           if git diff --staged --quiet; then

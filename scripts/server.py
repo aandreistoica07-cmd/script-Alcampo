@@ -21,6 +21,9 @@ sys.path.append(str(SCRIPT_DIR))
 ROOT_DIR = SCRIPT_DIR.parent
 os.chdir(ROOT_DIR)
 
+# Add scraper directory to sys.path
+sys.path.append(str(ROOT_DIR / "scraper"))
+
 DEFAULT_PORT = 8085
 
 class ThreadingHTTPServer(socketserver.ThreadingTCPServer):
@@ -54,25 +57,28 @@ class CustomHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         
         # Route mapping
         if path == "/" or path == "/index.html":
-            self.path = "/docs/index.html"
+            self.path = "/dashboard/index.html"
             return super().do_GET()
         elif path in ("/css/style.css", "/css/styles.css"):
-            self.path = "/docs/css/style.css"
+            self.path = "/dashboard/css/style.css"
             return super().do_GET()
         elif path == "/progreso.json":
-            self.path = "/script_alcampo_activacion telegram/progreso.json"
+            self.path = "/dashboard/progreso.json"
             return super().do_GET()
         elif path == "/consola.log":
-            self.path = "/script_alcampo_activacion telegram/consola.log"
+            self.path = "/scraper/consola.log"
             return super().do_GET()
         elif path == "/top_accounts.json":
-            self.path = "/docs/top_accounts.json"
+            self.path = "/dashboard/top_accounts.json"
             return super().do_GET()
         elif path == "/history.json":
-            self.path = "/docs/history.json"
+            self.path = "/dashboard/history.json"
             return super().do_GET()
         elif path == "/account_status.json":
-            self.path = "/script_alcampo_activacion telegram/account_status.json"
+            self.path = "/dashboard/account_status.json"
+            return super().do_GET()
+        elif path == "/manifest.json":
+            self.path = "/dashboard/manifest.json"
             return super().do_GET()
             
         # API endpoint for checking a single account balance & card
@@ -106,7 +112,7 @@ class CustomHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 # If success, update local top_accounts.json file so it persists
                 if res.get("status") == "success":
                     try:
-                        top_local_path = ROOT_DIR / "docs" / "top_accounts.json"
+                        top_local_path = ROOT_DIR / "dashboard" / "top_accounts.json"
                         if top_local_path.exists():
                             with open(top_local_path, "r", encoding="utf-8") as f:
                                 top_accounts = json.load(f)

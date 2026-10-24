@@ -19,13 +19,13 @@ class AccountCooldownManager:
     """
 
     def __init__(self, status_file_path=None):
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         if status_file_path:
             self.status_file = Path(status_file_path)
         else:
             self.status_file = Path(__file__).resolve().parent / "account_status.json"
         
-        self.docs_status_file = self.status_file.parent.parent / "docs" / "account_status.json"
+        self.dashboard_status_file = self.status_file.parent.parent / "dashboard" / "account_status.json"
         self.data = self._load()
 
     def _get_today_str(self):
@@ -79,13 +79,13 @@ class AccountCooldownManager:
             except Exception as e:
                 print(f"❌ [CooldownManager] Error guardando {self.status_file}: {e}")
 
-            # Guardar también en docs/ si la carpeta existe para el Dashboard
+            # Guardar también en dashboard/ si la carpeta existe para el Dashboard
             try:
-                if self.docs_status_file.parent.exists():
-                    tmp_docs = self.docs_status_file.with_suffix(".tmp")
-                    with open(tmp_docs, "w", encoding="utf-8") as f:
+                if self.dashboard_status_file.parent.exists():
+                    tmp_dash = self.dashboard_status_file.with_suffix(".tmp")
+                    with open(tmp_dash, "w", encoding="utf-8") as f:
                         json.dump(self.data, f, ensure_ascii=False, indent=2)
-                    tmp_docs.replace(self.docs_status_file)
+                    tmp_dash.replace(self.dashboard_status_file)
             except Exception as e:
                 pass
 

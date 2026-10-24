@@ -10,30 +10,32 @@ Sistema optimizado de scraping multihilo con Selenium en headless mode para cons
 Programacion1/
 ├── .github/
 │   └── workflows/
-│       ├── alcampo_optimized_workflow.yml  # Daily cron (04:36 UTC) & manual trigger
-│       └── check_account.yml               # Manual trigger for single-account verification
-├── docs/                                   # Frontend del Dashboard
+│       ├── alcampo_2pass_matrix.yml        # Multi-VM matrix pipeline
+│       ├── alcampo_optimized_workflow.yml  # Daily cron & manual trigger
+│       ├── check_account.yml               # Manual trigger for single-account verification
+│       └── build_apk.yml                   # Android APK build
+├── dashboard/                              # Frontend del Dashboard
 │   ├── index.html                          # Dashboard web UI
 │   ├── css/style.css                       # Hojas de estilo
 │   ├── history.json                        # Base de datos histórica
-│   ├── progreso.json                       # Estado en vivo del scraping
-│   └── consola.log                         # Registro de salida en tiempo real
-├── script_alcampo_activacion telegram/     # Motor Principal Python
+│   ├── top_accounts.json                   # Ranking Top 10
+│   ├── account_status.json                 # Estado y cooldown
+│   └── progreso.json                       # Estado en vivo del scraping
+├── scraper/                                # Motor Principal Python
+│   ├── __init__.py                         # Package marker
 │   ├── README.md                           # Documentación técnica
 │   ├── accounts.json                       # Base de datos de credenciales
-│   ├── requirements.txt                    # Dependencias necesarias
-│   ├── script_optimizado.py               # SCRIPT PRINCIPAL ACTIVO
-│   ├── server.py                      # Servidor HTTP local para Dashboard y API
-│   ├── update_history.py                  # Generador de métricas e historial
-│   ├── Alcampo_Scraper_Colab.ipynb        # Versión ejecutable en Google Colab
-│   └── legacy/                            # Versiones legadas y borradores de pruebas
-│       ├── script.py
-│       ├── script_v2.py
-│       ├── script_mejorado.py
-│       ├── ultima_version_beta.py
-│       ├── test_direct.py
-│       └── test_beta_subset.py
-└── ultimo_reporte.xlsx                     # Reporte general acumulado
+│   ├── script_optimizado.py                # SCRIPT PRINCIPAL ACTIVO
+│   ├── account_cooldown_manager.py         # Cooldown manager
+│   ├── Alcampo_Scraper_Colab.ipynb         # Versión en Google Colab
+│   └── legacy/                             # Versiones legadas y pruebas
+├── scripts/                                # Scripts de soporte
+│   ├── local_test.py                       # CLI de pruebas local
+│   ├── prepare_matrix.py                   # Matriz CI/CD
+│   ├── merge_and_retry.py                  # Consolidación final
+│   ├── server.py                           # Servidor HTTP local
+│   └── update_history.py                   # Compilador de historial
+└── tests/                                  # Suite de tests unitarios
 ```
 
 ---
