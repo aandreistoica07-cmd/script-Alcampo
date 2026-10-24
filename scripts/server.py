@@ -170,7 +170,7 @@ def run_server(port=None, open_browser=True):
     print("\n" + "="*60)
     print(">>> SERVIDOR DASHBOARD ALCAMPO INICIADO <<<")
     print(f"Dirección local: http://localhost:{port}/")
-    print("Panel en la Nube: https://alcampo.vercel.app/")
+    print("Panel en la Nube: https://script-alcampo.vercel.app/")
     print("Abre la dirección anterior en tu navegador para ver el dashboard.")
     print("Presiona Ctrl+C para detener este servidor web en cualquier momento.")
     print("="*60 + "\n")

@@ -160,7 +160,7 @@ def format_telegram_summary(total, saldo_total, cuentas_dinero, cuentas_cero, cu
         f"⚠️ Cuentas con error / Call Center: {cuentas_error}\n\n"
         f"🏆 <b>Top 10 Cuentas con Mayor Saldo:</b>\n{top_10_str}\n\n"
         f"👀 <b>Ver Dashboard y Centro QR:</b>\n"
-        f"https://alcampo.vercel.app/"
+        f"https://script-alcampo.vercel.app/"
     )
     if error_summary:
         clean_summary = html.escape(str(error_summary))

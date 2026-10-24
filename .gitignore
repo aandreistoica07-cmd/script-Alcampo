@@ -13,6 +13,12 @@ ENV/
 chromedriver
 chromedriver.exe
 
+# Credenciales sensibles y datos de cuentas
+scraper/accounts.json
+accounts.json
+credenciales_limpias.xlsx
+scraper/credenciales_limpias.xlsx
+
 # Temporary & Output data
 *.log
 scraper/saldos_alcampo.xlsx
@@ -29,3 +35,4 @@ failed_accounts.json
 Thumbs.db
 .idea/
 .vscode/
+*.iml

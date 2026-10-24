@@ -1,6 +1,0 @@
-<resources>
-    <string name="app_name">Alcampo Scanner</string>
-    <string name="title_github_actions">Iniciar GitHub</string>
-    <string name="title_refresh">Recargar</string>
-    <string name="title_qr_center">Centro QR</string>
-</resources>

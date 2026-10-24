@@ -65,26 +65,29 @@ def main():
             pass
 
     if not is_valid_token or not is_valid_chat:
-        token = "8041531688:AAHif8qa9wMZ1EAxU3MrftR-tCrEkQ2dfPU"
-        chat_id = -5049278431
+        token = None
+        chat_id = None
 
     msg = (
         f"🚀 <b>Iniciando verificación Alcampo Multi-VM</b>\n\n"
         f"📋 Cuentas a procesar: {total}\n"
         f"⚙️ Matriz: {shards} VMs en paralelo (Cola Dinámica Firebase)\n\n"
         f"👀 <b>Ver Monitor en Vivo en tiempo real:</b>\n"
-        f"https://alcampo.vercel.app/#live"
+        f"https://script-alcampo.vercel.app/#live"
     )
 
-    try:
-        r = requests.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            data={"chat_id": chat_id, "text": msg, "parse_mode": "HTML"},
-            timeout=15
-        )
-        print(f"[TELEGRAM START] Notificación enviada. Status: {r.status_code}")
-    except Exception as e:
-        print(f"Error enviando notificación de inicio a Telegram: {e}")
+    if token and chat_id:
+        try:
+            r = requests.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                data={"chat_id": chat_id, "text": msg, "parse_mode": "HTML"},
+                timeout=15
+            )
+            print(f"[TELEGRAM START] Notificación enviada. Status: {r.status_code}")
+        except Exception as e:
+            print(f"Error enviando notificación de inicio a Telegram: {e}")
+    else:
+        print("[TELEGRAM START] Token o Chat ID omitidos. Saltando envío de inicio.")
 
     # 3. Inicializar /progress.json global en Firebase con el total exacto
     firebase_url = os.environ.get("FIREBASE_DB_URL") or "https://monitor-alcampo-default-rtdb.europe-west1.firebasedatabase.app/"

@@ -371,8 +371,10 @@ class TestDashboardLiveProgressAndTop10Adversarial:
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         targets = [
             os.path.join(project_root, "dashboard", "index.html"),
-            os.path.join(project_root, "android_app", "app", "src", "main", "assets", "index.html"),
         ]
+        android_target = os.path.join(project_root, "android_app", "app", "src", "main", "assets", "index.html")
+        if os.path.exists(android_target):
+            targets.append(android_target)
 
         for path in targets:
             assert os.path.isfile(path), f"File not found: {path}"

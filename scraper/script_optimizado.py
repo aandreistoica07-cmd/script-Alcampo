@@ -1722,7 +1722,7 @@ def main():
                 f"📋 Cuentas a procesar: {len(accounts)}\n"
                 f"⚙️ Hilos: {num_threads}\n\n"
                 f"👀 <b>Ver en tiempo real:</b>\n"
-                f"https://alcampo.vercel.app/#live"
+                f"https://script-alcampo.vercel.app/#live"
             )
         except Exception as e:
             print(f"Error enviando mensaje inicial a Telegram: {e}")

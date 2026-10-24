@@ -546,7 +546,7 @@ class TestAdversarialMultiShardMergerDataLossAndRaceConditions:
         """
         # When a long message is formatted, it is truncated at 3980
         # If an & character occurs at the 3980 boundary:
-        err = "A" * 3635 + "&test" + "B" * 500
+        err = "A" * 3628 + "&test" + "B" * 500
         msg = format_telegram_summary(10, 0.0, 0, 10, 0, [], error_summary=err)
         assert len(msg) == 3995
         assert "... [truncado]" in msg
