@@ -528,40 +528,7 @@
                     </div>
                 </div>
 
-                <!-- Right Grid: Logs Console Terminal -->
-                <div class="glass-panel live-card" style="padding: 0;">
-                    <div class="console-panel">
-                        <div class="console-header">
-                            <div class="console-dots">
-                                <div class="console-dot" style="background-color: var(--accent-red);" title="Terminal Scraper"></div>
-                                <div class="console-dot" style="background-color: var(--accent-orange);" title="Cola Firebase"></div>
-                                <div class="console-dot" id="console-live-dot" style="background-color: var(--accent-green); box-shadow: 0 0 6px var(--accent-green);" title="En Vivo"></div>
-                            </div>
-                            <div class="console-title" style="display: flex; align-items: center; gap: 0.5rem;">
-                                <span>alcampo_scraper_console.log</span>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
-                                <div class="search-container" style="max-width: 140px;">
-                                    <input type="text" id="console-search-input" class="search-input" style="padding: 0.2rem 0.5rem 0.2rem 1.6rem; font-size: 0.72rem; height: 26px; border-radius: 6px;" placeholder="🔍 Filtrar..." oninput="filterConsoleLogs()">
-                                </div>
-                                <button class="console-collapsible-btn" id="autoscroll-btn" onclick="toggleAutoScroll()" title="Conmutar Auto-Scroll">
-                                    📌 Scroll: ON
-                                </button>
-                                <button class="console-collapsible-btn" id="copy-console-btn" onclick="copyConsoleLogs()" title="Copiar consola al portapapeles">
-                                    📋 Copiar
-                                </button>
-                                <button class="console-collapsible-btn" onclick="clearLiveLogs()" title="Limpiar pantalla">
-                                    🗑️ Limpiar
-                                </button>
-                            </div>
-                        </div>
-                        <div class="console-body" id="live-console-body">
-                            [SISTEMA] Iniciando visor de consola... Conectando con la fuente de datos...
-                        </div>
-                    </div>
-                </div>
-
-            </div>
+                
 
         </div>
 
@@ -1831,9 +1798,9 @@
                 return;
             }
             
-            const list = topAccountsFilterTerm ? 
+            const list = (topAccountsFilterTerm ? 
                 top10Data.filter(a => a.email.toLowerCase().includes(topAccountsFilterTerm)) : 
-                top10Data;
+                top10Data).slice(0, 10);
 
             if (list.length === 0) {
                 container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 1rem 0;">No hay cuentas que coincidan con la búsqueda.</div>';
@@ -1850,26 +1817,26 @@
                     'background: rgba(0, 210, 255, 0.12); border-color: rgba(0, 210, 255, 0.3); color: var(--accent-blue);';
 
                 html += `
-                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.65rem 0.85rem; margin-bottom: 0.45rem; background: rgba(255,255,255,0.03); border-radius: 10px; border: 1px solid rgba(255,255,255,0.07); flex-wrap: wrap; gap: 0.5rem; transition: transform 0.2s ease;">
-                        <div style="display: flex; align-items: center; gap: 0.6rem; min-width: 260px; flex: 1;">
-                            <span style="font-size: 1.1rem; min-width: 26px; text-align: center;">${medal}</span>
-                            <div style="display: flex; flex-direction: column;">
-                                <code class="selectable-text" style="color: var(--text-primary); word-break: break-all; cursor: text; user-select: text !important; font-weight: 600;">${escapeHtml(acc.email)}:${escapeHtml(acc.password)}</code>
-                                ${hasCard ? `<span onclick="openFullscreenQrDirect('${escapeHtml(acc.card_number || '')}', '${escapeHtml(acc.email)}', ${acc.balance})" style="cursor: pointer; font-size: 0.74rem; color: var(--accent-orange); font-family: 'JetBrains Mono', monospace; margin-top: 2px; font-weight: 700;" title="Toca para Pantalla Completa">💳 Tarjeta: ${formatCardSpaced(acc.card_number)} <span style="color: var(--accent-green); font-size: 0.68rem; background: rgba(0,255,135,0.15); padding: 0.1rem 0.35rem; border-radius: 4px;">⛶ CAJA</span></span>` : `<span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">💳 Tarjeta auto-generable en 1-clic</span>`}
+                    <div class="top10-account-card">
+                        <div class="top10-account-info-box">
+                            <span class="top10-account-medal">${medal}</span>
+                            <div class="top10-account-text-col">
+                                <code class="selectable-text top10-account-credentials">${escapeHtml(acc.email)}:${escapeHtml(acc.password)}</code>
+                                ${hasCard ? `<span onclick="openFullscreenQrDirect('${escapeHtml(acc.card_number || '')}', '${escapeHtml(acc.email)}', ${acc.balance})" class="top10-card-number-badge" title="Toca para Pantalla Completa">💳 Tarjeta: ${formatCardSpaced(acc.card_number)} <span class="caja-tag">⛶ CAJA</span></span>` : `<span class="top10-no-card-badge">💳 Tarjeta auto-generable en 1-clic</span>`}
                             </div>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap;">
-                            <button class="pagination-btn" data-email="${escapeHtml(acc.email)}" data-password="${escapeHtml(acc.password)}" onclick="copySingleAccount(this)" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: var(--text-primary);" title="Copiar credenciales">
-                                📋
+                        <div class="top10-account-actions-box">
+                            <button class="pagination-btn top10-action-btn" data-email="${escapeHtml(acc.email)}" data-password="${escapeHtml(acc.password)}" onclick="copySingleAccount(this)" title="Copiar credenciales">
+                                📋 Copiar
                             </button>
                             ${getCheckButtonHTML(acc.email, acc.password)}
-                            <button class="pagination-btn" data-card="${escapeHtml(acc.card_number || '')}" data-email="${escapeHtml(acc.email)}" data-password="${escapeHtml(acc.password)}" onclick="showQrModal(this)" style="padding: 0.25rem 0.65rem; font-size: 0.75rem; font-weight: 700; ${cardStyle}" title="Abrir Tarjeta QR y Código de Barras">
+                            <button class="pagination-btn top10-action-btn" data-card="${escapeHtml(acc.card_number || '')}" data-email="${escapeHtml(acc.email)}" data-password="${escapeHtml(acc.password)}" onclick="showQrModal(this)" style="${cardStyle}" title="Abrir Tarjeta QR y Código de Barras">
                                 ${cardLabel}
                             </button>
-                            <button class="pagination-btn" onclick="openFullscreenQrDirect('${escapeHtml(acc.card_number || '')}', '${escapeHtml(acc.email)}', ${acc.balance})" style="padding: 0.25rem 0.65rem; font-size: 0.75rem; font-weight: 700; background: linear-gradient(135deg, rgba(0, 255, 135, 0.2), rgba(0, 210, 255, 0.2)); border-color: var(--accent-green); color: #ffffff;" title="Pantalla Completa Instantánea (Modo Caja)">
+                            <button class="pagination-btn top10-action-btn caja-action-btn" onclick="openFullscreenQrDirect('${escapeHtml(acc.card_number || '')}', '${escapeHtml(acc.email)}', ${acc.balance})" title="Pantalla Completa Instantánea (Modo Caja)">
                                 ⛶ Caja
                             </button>
-                            <span style="color: var(--accent-green); font-weight: 800; font-size: 1rem; white-space: nowrap; margin-left: 0.5rem; min-width: 75px; text-align: right;">
+                            <span class="top10-account-balance-text">
                                 ${acc.balance.toFixed(2)} €
                             </span>
                         </div>

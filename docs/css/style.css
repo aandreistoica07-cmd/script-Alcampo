@@ -1597,3 +1597,164 @@ body.fullscreen-active {
         max-height: min(92vw, 75vh, 380px) !important;
     }
 }
+
+
+/* --- Top 10 Account Row Modern & Mobile --- */
+.top10-account-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 0.9rem;
+    margin-bottom: 0.5rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    gap: 0.75rem;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.top10-account-card:hover {
+    border-color: rgba(0, 210, 255, 0.25);
+    background: rgba(255, 255, 255, 0.045);
+}
+
+.top10-account-info-box {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 240px;
+    flex: 1;
+}
+
+.top10-account-medal {
+    font-size: 1.15rem;
+    min-width: 28px;
+    text-align: center;
+    font-weight: 700;
+}
+
+.top10-account-text-col {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.top10-account-credentials {
+    color: var(--text-primary);
+    word-break: break-all;
+    cursor: text;
+    user-select: text !important;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.top10-card-number-badge {
+    cursor: pointer;
+    font-size: 0.74rem;
+    color: var(--accent-orange);
+    font-family: 'JetBrains Mono', monospace;
+    margin-top: 3px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.caja-tag {
+    color: var(--accent-green);
+    font-size: 0.68rem;
+    background: rgba(0, 255, 135, 0.15);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+}
+
+.top10-no-card-badge {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 3px;
+}
+
+.top10-account-actions-box {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+.top10-action-btn {
+    padding: 0.3rem 0.65rem;
+    font-size: 0.75rem;
+    border-radius: 6px;
+    white-space: nowrap;
+}
+
+.caja-action-btn {
+    font-weight: 700;
+    background: linear-gradient(135deg, rgba(0, 255, 135, 0.2), rgba(0, 210, 255, 0.2));
+    border-color: var(--accent-green);
+    color: #ffffff;
+}
+
+.top10-account-balance-text {
+    color: var(--accent-green);
+    font-weight: 800;
+    font-size: 1.05rem;
+    white-space: nowrap;
+    margin-left: 0.5rem;
+    min-width: 75px;
+    text-align: right;
+}
+
+/* Mobile Top 10 Card Adaptation */
+@media (max-width: 680px) {
+    .top10-account-card {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        padding: 0.85rem !important;
+        gap: 0.65rem !important;
+    }
+
+    .top10-account-info-box {
+        justify-content: space-between !important;
+        width: 100% !important;
+    }
+
+    .top10-account-actions-box {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 0.45rem !important;
+        width: 100% !important;
+    }
+
+    .top10-action-btn {
+        width: 100% !important;
+        text-align: center !important;
+        justify-content: center !important;
+        padding: 0.5rem 0.4rem !important;
+        font-size: 0.78rem !important;
+    }
+
+    .top10-account-balance-text {
+        grid-column: span 2 !important;
+        text-align: center !important;
+        margin: 0.35rem 0 0 0 !important;
+        font-size: 1.25rem !important;
+        padding: 0.4rem !important;
+        background: rgba(0, 255, 135, 0.08) !important;
+        border-radius: 8px !important;
+        border: 1px solid rgba(0, 255, 135, 0.2) !important;
+    }
+
+    .tab-switcher {
+        overflow-x: auto !important;
+        flex-wrap: nowrap !important;
+        white-space: nowrap !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+
+    .tab-btn {
+        flex: 0 0 auto !important;
+        white-space: nowrap !important;
+    }
+}

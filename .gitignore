@@ -37,5 +37,5 @@ Thumbs.db
 .vscode/
 *.iml
 
-top_accounts.json
+/top_accounts.json
 

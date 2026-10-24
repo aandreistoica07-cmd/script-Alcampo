@@ -1279,7 +1279,7 @@ def _scrape_account_with_driver(driver, init_driver_fn, email, password, label_p
             t_loyalty += time.time() - t_loy0
 
             val_num = limpiar_saldo(saldo)
-            if "Tu Saldo es" in saldo and (val_num is not None and (val_num > 0 or card_number)):
+            if "Tu Saldo es" in saldo and val_num is not None:
                 err_type = "ok"
                 total_s = time.time() - t_account_start
                 print(
