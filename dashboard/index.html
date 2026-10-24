@@ -816,7 +816,7 @@
                     <label>Seleccionar Workflow a Ejecutar:</label>
                     <select id="github-workflow-select" class="search-input" style="background: rgba(5, 10, 20, 0.8); cursor: pointer;" onchange="updateWorkflowOptions()">
                         <option value="alcampo_2pass_matrix.yml">Alcampo Scraper - Auto-Recovery 2-Pass Matrix (Multi-VM)</option>
-                        <option value="alcampo_optimized_workflow.yml">Alcampo Script Automation Optimized (Monolítico)</option>
+                        <option value="check_account.yml">Comprobar Cuenta Individual (check_account.yml)</option>
                     </select>
                 </div>
 
@@ -843,7 +843,7 @@
                         <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); text-transform: uppercase;">Estado de Ejecuciones Recientes:</span>
                         <div style="display: flex; gap: 0.4rem;">
                             <button class="pagination-btn" onclick="fetchGitHubRuns(true)" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; color: var(--accent-blue);">🔄 Refrescar</button>
-                            <a href="https://github.com/stoica25-byte/Programacion1/actions" target="_blank" class="pagination-btn" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; color: var(--text-secondary); text-decoration: none;">GitHub Actions ↗</a>
+                            <a href="https://github.com/aandreistoica07-cmd/script-Alcampo/actions" target="_blank" class="pagination-btn" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; color: var(--text-secondary); text-decoration: none;">GitHub Actions ↗</a>
                         </div>
                     </div>
                     <div id="github-runs-list" class="github-runs-container">
@@ -2018,7 +2018,7 @@
                     return;
                 }
 
-                let githubRepo = localStorage.getItem('githubRepo') || 'stoica25-byte/Programacion1';
+                let githubRepo = localStorage.getItem('githubRepo') || 'aandreistoica07-cmd/script-Alcampo';
                 const existingCard = (top10Data.find(a => a.email === email) || {}).card_number || null;
 
                 try {
@@ -2965,8 +2965,8 @@
             }
 
             const workflowFile = document.getElementById('github-workflow-select').value;
-            const repoOwner = 'stoica25-byte';
-            const repoName = 'Programacion1';
+            const repoOwner = 'aandreistoica07-cmd';
+            const repoName = 'script-Alcampo';
             const ref = 'main';
 
             let inputs = {};
@@ -3047,7 +3047,7 @@
             if (token) headers['Authorization'] = `Bearer ${token}`;
 
             try {
-                const res = await fetch('https://api.github.com/repos/stoica25-byte/Programacion1/actions/runs?per_page=4', { headers });
+                const res = await fetch('https://api.github.com/repos/aandreistoica07-cmd/script-Alcampo/actions/runs?per_page=4', { headers });
                 if (!res.ok) {
                     listContainer.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding:0.75rem;">Introduce tu token para consultar el estado en vivo.</div>';
                     return;
