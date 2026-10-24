@@ -131,7 +131,11 @@ def load_master_accounts(accounts_file_arg=None):
     b64_val = os.environ.get("ACCOUNTS_BASE64", "")
     if b64_val and len(b64_val.strip()) > 10:
         try:
-            decoded = json.loads(base64.b64decode(b64_val.strip()).decode("utf-8"))
+            raw_b = base64.b64decode(b64_val.strip())
+            if len(raw_b) >= 2 and raw_b[0] == 0x1F and raw_b[1] == 0x8B:
+                import gzip
+                raw_b = gzip.decompress(raw_b)
+            decoded = json.loads(raw_b.decode("utf-8"))
             if isinstance(decoded, list):
                 return decoded
         except Exception as be:

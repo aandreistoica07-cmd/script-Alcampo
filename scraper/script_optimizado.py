@@ -1599,8 +1599,11 @@ def main():
         print(f"❌ Error: No se encuentra {target_accounts_path}")
         sys.exit(1)
 
-    with open(target_accounts_path, "r", encoding="utf-8") as f:
-        accounts = json.load(f)
+    raw_bytes = target_accounts_path.read_bytes()
+    if len(raw_bytes) >= 2 and raw_bytes[0] == 0x1F and raw_bytes[1] == 0x8B:
+        import gzip
+        raw_bytes = gzip.decompress(raw_bytes)
+    accounts = json.loads(raw_bytes.decode("utf-8"))
 
     # Cooldown Manager
     cooldown_mgr = AccountCooldownManager()

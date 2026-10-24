@@ -56,7 +56,7 @@ jobs:
           IGNORE_COOLDOWN: "true"
         run: |
           if [ ! -s "scraper/accounts.json" ] && [ -n "${{ secrets.ACCOUNTS_BASE64 }}" ]; then
-            echo "${{ secrets.ACCOUNTS_BASE64 }}" | base64 -d > "scraper/accounts.json"
+            echo "${{ secrets.ACCOUNTS_BASE64 }}" | base64 -d | (gzip -dc 2>/dev/null || cat) > "scraper/accounts.json"
           fi
           python "scraper/script_optimizado.py" --init-queue --ignore-cooldown || true
 
@@ -91,7 +91,7 @@ jobs:
       - name: Decodificar Cuentas desde Secrets
         run: |
           if [ ! -s "scraper/accounts.json" ] && [ -n "${{ secrets.ACCOUNTS_BASE64 }}" ]; then
-            echo "${{ secrets.ACCOUNTS_BASE64 }}" | base64 -d > "scraper/accounts.json"
+            echo "${{ secrets.ACCOUNTS_BASE64 }}" | base64 -d | (gzip -dc 2>/dev/null || cat) > "scraper/accounts.json"
           fi
 
       - name: Ejecutar Scraper en Paralelo (VM ${{ matrix.shard }})

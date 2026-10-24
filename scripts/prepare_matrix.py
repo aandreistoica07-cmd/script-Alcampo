@@ -28,7 +28,11 @@ def main():
         accounts_b64 = os.environ.get("ACCOUNTS_BASE64", "")
         if accounts_b64 and len(accounts_b64.strip()) > 10:
             try:
-                accounts = json.loads(base64.b64decode(accounts_b64).decode("utf-8"))
+                raw_b = base64.b64decode(accounts_b64.strip())
+                if len(raw_b) >= 2 and raw_b[0] == 0x1F and raw_b[1] == 0x8B:
+                    import gzip
+                    raw_b = gzip.decompress(raw_b)
+                accounts = json.loads(raw_b.decode("utf-8"))
             except Exception as e:
                 print(f"Warning decoding ACCOUNTS_BASE64: {e}")
 
