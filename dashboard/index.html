@@ -889,14 +889,6 @@
         let activeCheckingProgress = {};
         let top10Data = [];
         let customCardsStore = JSON.parse(localStorage.getItem('alcampo_custom_cards') || '{}');
-        if (customCardsStore['valid@test.com']) {
-            delete customCardsStore['valid@test.com'];
-            try { localStorage.setItem('alcampo_custom_cards', JSON.stringify(customCardsStore)); } catch(e){}
-        }
-        if (customCardsStore['valid@test.com']) {
-            delete customCardsStore['valid@test.com'];
-            try { localStorage.setItem('alcampo_custom_cards', JSON.stringify(customCardsStore)); } catch(e){}
-        }
 
         // Modal Active Item State
         let currentModalEmail = '';
@@ -1716,7 +1708,6 @@
                 const list = Array.isArray(source) ? source : Object.values(source);
                 list.forEach(acc => {
                     if (acc && acc.email && typeof acc.balance === 'number') {
-                        if (acc.email.includes('test.com') || acc.email.toLowerCase() === 'valid@test.com') return;
                         const existing = accountsMap.get(acc.email);
                         if (!existing || (acc.balance > existing.balance)) {
                             accountsMap.set(acc.email, acc);
