@@ -28,14 +28,47 @@ scraper_dir = os.path.abspath(scraper_dir)
 if os.path.exists(scraper_dir) and scraper_dir not in sys.path:
     sys.path.append(scraper_dir)
 
+# @section: MergeAndRetry-Helpers
+
+_UNSET_CARD = object()
+
+
+def atomic_write_json(file_path, data, indent=2):
+    """
+    Writes data to file_path atomically using a PID/timestamp-stamped temporary file
+    and os.replace to prevent partial writes and concurrent read corruption.
+    """
+    abs_path = os.path.abspath(file_path)
+    parent_dir = os.path.dirname(abs_path)
+    if parent_dir and not os.path.exists(parent_dir):
+        os.makedirs(parent_dir, exist_ok=True)
+
+    tmp_path = f"{abs_path}.{os.getpid()}_{int(time.time()*1000)}.tmp"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=indent)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, abs_path)
+    except Exception as e:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+        raise e
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Merge and Retry Helper for Alcampo GitHub Actions Pipeline")
-    parser.add_argument("--mode", choices=["check-timeouts", "final-merge"], required=True)
+    parser.add_argument("--mode", choices=["check-timeouts", "filter-retries", "final-merge"], required=True)
     parser.add_argument("--input-dir", default="./all_shards", help="Directory containing shard Excel files")
     parser.add_argument("--single-file", default=None, help="Inspect a specific single Excel file instead of a directory")
     parser.add_argument("--failed-json", default="failed_accounts.json", help="Path to write failed accounts JSON")
     parser.add_argument("--output-excel", default="REPORTE_DEFINITIVO_TELEGRAM.xlsx", help="Final output Excel path")
     parser.add_argument("--accounts-file", default=None, help="Path to master accounts JSON file")
+    parser.add_argument("--dashboard-dir", default=None, help="Directory for dashboard assets")
+    parser.add_argument("--docs-dir", default=None, help="Directory for docs/GitHub Pages assets")
     return parser.parse_args()
 
 def limpiar_saldo(saldo_str):
@@ -63,10 +96,37 @@ def compute_priority(filename, saldo_str):
         return base_prio + 1000
     return base_prio
 
-def is_definitive_success(saldo_str):
+def is_definitive_success(saldo_str, tarjeta_str=_UNSET_CARD):
+    r"""
+    Evaluates whether an account extraction represents a definitive success.
+    - If saldo > 0.0: definitive success (True).
+    - If saldo == 0.0:
+      - If called with 1 argument (tarjeta_str is _UNSET_CARD): returns True for backward compatibility.
+      - If called with 2 arguments: returns True ONLY IF tarjeta_str is a verified 13-digit card
+        matching ^(400\d{10}|280\d{10})$. If tarjeta_str is None, empty, or invalid, returns False.
+    - Otherwise returns False.
+    """
     if not saldo_str or pd.isna(saldo_str):
         return False
-    return "Tu Saldo es" in str(saldo_str)
+    if "Tu Saldo es" not in str(saldo_str):
+        return False
+    val = limpiar_saldo(saldo_str)
+    if val is None:
+        return False
+    if val > 0.0:
+        return True
+    if val == 0.0:
+        if tarjeta_str is _UNSET_CARD:
+            return True
+        if tarjeta_str is None or pd.isna(tarjeta_str):
+            return False
+        t_clean = str(tarjeta_str).strip()
+        if t_clean.endswith(".0"):
+            t_clean = t_clean[:-2].strip()
+        if re.match(r"^(400\d{10}|280\d{10})$", t_clean):
+            return True
+        return False
+    return False
 
 def is_definitive_error(saldo_str, causa_str="", err_type=""):
     """
@@ -96,11 +156,26 @@ def is_definitive_error(saldo_str, causa_str="", err_type=""):
 
     return False
 
-def is_retryable_failure(saldo_str, causa_str="", err_type=""):
+def is_retryable_failure(saldo_str, causa_str="", err_type="", tarjeta_str=_UNSET_CARD):
     """
     Returns True if failure is due to timeout, session delay, WAF, IP ban, or incomplete execution.
+    Supports tarjeta_str as 4th positional / keyword parameter. Also auto-detects if a 13-digit card
+    was passed in position 2.
     """
-    if is_definitive_success(saldo_str):
+    if tarjeta_str is _UNSET_CARD:
+        if isinstance(causa_str, str):
+            c_clean = causa_str.strip()
+            if c_clean.endswith(".0"):
+                c_clean = c_clean[:-2].strip()
+            if re.match(r"^(400\d{10}|280\d{10})$", c_clean):
+                tarjeta_str = c_clean
+                causa_str = ""
+        elif causa_str is None or (isinstance(causa_str, float) and pd.isna(causa_str)):
+            if not err_type:
+                tarjeta_str = None
+                causa_str = ""
+
+    if is_definitive_success(saldo_str, tarjeta_str):
         return False
     if is_definitive_error(saldo_str, causa_str, err_type):
         return False
@@ -143,16 +218,92 @@ def load_master_accounts(accounts_file_arg=None):
 
     return []
 
+def smart_truncate_telegram_html(msg, max_len=3980):
+    """
+    Truncates a Telegram HTML message strictly below max_len while preventing:
+    1. Broken HTML entities (e.g. &amp; cut as &a).
+    2. Broken tags (e.g. <b cut as <).
+    3. Unclosed tags (e.g. <b> without </b>), by tracking open tags and closing them.
+    """
+    if len(msg) <= max_len:
+        return msg
+
+    suffix = "\n... [truncado]"
+    cut_budget = max_len - len(suffix) - 50
+    candidate = msg[:max(cut_budget, 100)]
+
+    # Backtrack if candidate ends within an HTML entity (&...;)
+    amp_idx = candidate.rfind("&")
+    semi_idx = candidate.rfind(";")
+    if amp_idx != -1 and amp_idx > semi_idx:
+        candidate = candidate[:amp_idx]
+
+    # Backtrack if candidate ends inside an HTML tag (<...>)
+    open_angle = candidate.rfind("<")
+    close_angle = candidate.rfind(">")
+    if open_angle != -1 and open_angle > close_angle:
+        candidate = candidate[:open_angle]
+
+    # Balance unclosed HTML tags
+    tag_pattern = re.compile(r"<\s*(/?)\s*([a-zA-Z0-9]+)[^>]*>")
+    stack = []
+    for match in tag_pattern.finditer(candidate):
+        is_closing, tag_name = match.group(1), match.group(2).lower()
+        if tag_name in ("br", "hr", "img"):
+            continue
+        if is_closing == "/":
+            if stack and stack[-1] == tag_name:
+                stack.pop()
+        else:
+            stack.append(tag_name)
+
+    closing_tags = "".join(f"</{t}>" for t in reversed(stack))
+    result = candidate + closing_tags + suffix
+
+    while len(result) > max_len and len(candidate) > 50:
+        candidate = candidate[:-20]
+        amp_idx = candidate.rfind("&")
+        semi_idx = candidate.rfind(";")
+        if amp_idx != -1 and amp_idx > semi_idx:
+            candidate = candidate[:amp_idx]
+        open_angle = candidate.rfind("<")
+        close_angle = candidate.rfind(">")
+        if open_angle != -1 and open_angle > close_angle:
+            candidate = candidate[:open_angle]
+        stack = []
+        for match in tag_pattern.finditer(candidate):
+            is_closing, tag_name = match.group(1), match.group(2).lower()
+            if tag_name in ("br", "hr", "img"):
+                continue
+            if is_closing == "/":
+                if stack and stack[-1] == tag_name:
+                    stack.pop()
+            else:
+                stack.append(tag_name)
+        closing_tags = "".join(f"</{t}>" for t in reversed(stack))
+        result = candidate + closing_tags + suffix
+
+    return result
+
 def format_telegram_summary(total, saldo_total, cuentas_dinero, cuentas_cero, cuentas_error, top_10, error_summary=None):
     """
     Formats the final Telegram summary message with 100% strict HTML escaping
-    on all dynamic and external fields (emails, error descriptions).
+    on all dynamic and external fields (emails, error descriptions) and smart truncation.
     """
     top_10_lines = []
     if top_10:
         for i, item in enumerate(top_10):
-            clean_email = html.escape(str(item[1]))
-            top_10_lines.append(f"   {i+1}. {clean_email} ({item[0]:.2f} €)")
+            if isinstance(item, (list, tuple)):
+                val = float(item[0])
+                email_str = str(item[1])
+            elif isinstance(item, dict):
+                val = float(item.get("balance", item.get("saldo", 0.0)))
+                email_str = str(item.get("email", ""))
+            else:
+                val = 0.0
+                email_str = str(item)
+            clean_email = html.escape(email_str)
+            top_10_lines.append(f"   {i+1}. {clean_email} ({val:.2f} €)")
     top_10_str = "\n".join(top_10_lines) if top_10_lines else "   N/A"
 
     msg = (
@@ -169,6 +320,7 @@ def format_telegram_summary(total, saldo_total, cuentas_dinero, cuentas_cero, cu
     if error_summary:
         clean_summary = html.escape(str(error_summary))
         msg += f"\n\nℹ️ <b>Diagnóstico:</b> {clean_summary}"
+
     if len(msg) > 4000:
         msg = msg[:3980] + "\n... [truncado]"
     return msg
@@ -212,8 +364,10 @@ def collect_failed_accounts(files, master_accounts=None):
     Scans shard Excel files and cross-references against master_accounts (if provided)
     to collect accounts needing retry in Pass 2:
     1. Accounts present in shards that failed with retryable errors (timeouts, session errors, IP/WAF 429).
-    2. Master accounts that were omitted / never reached due to shard crashes or premature timeouts.
-    Excludes definitive successes ("Tu Saldo es...") and permanent errors (bad credentials, call center, 2FA).
+    2. Degraded 0,00 € accounts without a verified 13-digit card.
+    3. Master accounts that were omitted / never reached due to shard crashes or premature timeouts.
+    Excludes definitive successes ("Tu Saldo es..." with valid card or balance > 0)
+    and permanent errors (bad credentials, call center, 2FA).
 
     Returns:
         List of dicts: [{'email': ..., 'password': ...}]
@@ -227,16 +381,30 @@ def collect_failed_accounts(files, master_accounts=None):
             continue
         try:
             df = pd.read_excel(f)
+            has_card_col = "card_number" in df.columns or "tarjeta" in df.columns
             for _, row in df.iterrows():
                 em = str(row.get("email", "")).strip()
                 if not em or em.lower() in ("none", "nan", ""):
                     continue
+                if has_card_col:
+                    raw_card = row.get("card_number") if "card_number" in row else row.get("tarjeta") if "tarjeta" in row else None
+                    card_str = ""
+                    if raw_card is not None and not pd.isna(raw_card):
+                        card_str = str(raw_card).strip()
+                        if card_str.endswith(".0"):
+                            card_str = card_str[:-2].strip()
+                        if card_str.lower() in ("none", "nan"):
+                            card_str = ""
+                else:
+                    card_str = _UNSET_CARD
+
                 scraped_by_email[em] = {
                     "email": em,
                     "password": str(row.get("password", "")).strip(),
                     "saldo": str(row.get("saldo", "")).strip(),
                     "causa_error": str(row.get("causa_error", "")).strip(),
                     "error_type": str(row.get("error_type", "")).strip(),
+                    "card_number": card_str,
                 }
         except Exception as e:
             print(f"Error leyendo {f}: {e}")
@@ -246,7 +414,7 @@ def collect_failed_accounts(files, master_accounts=None):
 
     # 1. Accounts in scraped Excel with retryable errors
     for em, data in scraped_by_email.items():
-        if is_retryable_failure(data["saldo"], data["causa_error"], data["error_type"]):
+        if is_retryable_failure(data["saldo"], data["causa_error"], data["error_type"], tarjeta_str=data.get("card_number")):
             if em not in seen_emails:
                 failed_accounts.append({
                     "email": em,
@@ -269,7 +437,7 @@ def collect_failed_accounts(files, master_accounts=None):
                 seen_emails.add(em)
         else:
             data = scraped_by_email[em]
-            if is_retryable_failure(data["saldo"], data["causa_error"], data["error_type"]):
+            if is_retryable_failure(data["saldo"], data["causa_error"], data["error_type"], tarjeta_str=data.get("card_number")):
                 if em not in seen_emails:
                     failed_accounts.append({
                         "email": em,
@@ -279,6 +447,9 @@ def collect_failed_accounts(files, master_accounts=None):
 
     return failed_accounts
 
+# @end: MergeAndRetry-Helpers
+
+# @section: MergeAndRetry-ConsolidationAndExcel
 
 def generate_consolidated_excel(df_all, output_excel_path=None):
     """
@@ -372,11 +543,14 @@ def generate_consolidated_excel(df_all, output_excel_path=None):
 
     return sheets
 
+# @end: MergeAndRetry-ConsolidationAndExcel
+
+# @section: MergeAndRetry-Main
 
 def main():
     args = parse_args()
     
-    if args.mode == "check-timeouts":
+    if args.mode in ("check-timeouts", "filter-retries"):
         if args.single_file and os.path.exists(args.single_file):
             files = [args.single_file]
         else:
@@ -535,6 +709,10 @@ def main():
                 password = str(row.get("password", "")).strip()
                 card_num = row.get("card_number") if "card_number" in row else row.get("tarjeta") if "tarjeta" in row else None
                 card_str = str(card_num).strip() if (card_num and not pd.isna(card_num)) else None
+                if card_str and card_str.endswith(".0"):
+                    card_str = card_str[:-2].strip()
+                if card_str and card_str.lower() in ("none", "nan", ""):
+                    card_str = None
                 ranked.append((val, email, password, card_str))
 
         ranked.sort(key=lambda x: x[0], reverse=True)
@@ -548,27 +726,26 @@ def main():
                 "card_number": card_str
             })
 
-        # Always define dashboard_dir cleanly
-        dashboard_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "dashboard"))
+        # Resolve dashboard and docs directories
+        dashboard_dir = os.path.abspath(args.dashboard_dir) if args.dashboard_dir else os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "dashboard"))
+        docs_dir = os.path.abspath(args.docs_dir) if args.docs_dir else os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "docs"))
 
-        # Save top_accounts.json locally and in dashboard/
-        raw_fb = os.environ.get("FIREBASE_DB_URL")
-        if raw_fb is not None and (raw_fb.strip() == "" or raw_fb.strip().lower() in ("none", "disable", "false", "0")):
-            firebase_url = None
-        else:
-            firebase_url = raw_fb or "https://monitor-alcampo-default-rtdb.europe-west1.firebasedatabase.app/"
-
-        with open("top_accounts.json", "w", encoding="utf-8") as tf:
-            json.dump(top_10_json, tf, ensure_ascii=False, indent=2)
-
-        if os.path.exists(dashboard_dir):
-            with open(os.path.join(dashboard_dir, "top_accounts.json"), "w", encoding="utf-8") as tf:
-                json.dump(top_10_json, tf, ensure_ascii=False, indent=2)
+        # Save top_accounts.json locally, in dashboard/, and in docs/
+        atomic_write_json("top_accounts.json", top_10_json, indent=2)
+        try:
+            atomic_write_json(os.path.join(dashboard_dir, "top_accounts.json"), top_10_json, indent=2)
+        except Exception as e:
+            print(f"Warning writing top_accounts.json to dashboard: {e}")
+        try:
+            atomic_write_json(os.path.join(docs_dir, "top_accounts.json"), top_10_json, indent=2)
+        except Exception as e:
+            print(f"Warning writing top_accounts.json to docs: {e}")
 
         # Update account_status.json with final consolidated results
         try:
             from account_cooldown_manager import AccountCooldownManager
-            cd_mgr = AccountCooldownManager()
+            status_target = os.path.join(dashboard_dir, "account_status.json") if dashboard_dir != "dashboard" else None
+            cd_mgr = AccountCooldownManager(status_file_path=status_target)
             for _, row in df_all.iterrows():
                 em = str(row.get("email", "")).strip()
                 if not em:
@@ -582,17 +759,22 @@ def main():
         except Exception as c_ex:
             print(f"Warning actualizando account_status.json: {c_ex}")
 
-        # Update dashboard/history.json
-        history_path = os.path.join(dashboard_dir, "history.json") if os.path.exists(dashboard_dir) else "history.json"
+        # Update history.json (check dashboard, docs, and root for prior history)
+        history_candidates = [
+            os.path.join(dashboard_dir, "history.json"),
+            os.path.join(docs_dir, "history.json"),
+            "history.json"
+        ]
         history_data = []
-        if os.path.exists(history_path):
-            try:
-                with open(history_path, "r", encoding="utf-8") as hf:
-                    history_data = json.load(hf)
-                    if not isinstance(history_data, list):
-                        history_data = []
-            except Exception:
-                history_data = []
+        for h_cand in history_candidates:
+            if os.path.exists(h_cand):
+                try:
+                    with open(h_cand, "r", encoding="utf-8") as hf:
+                        cand_data = json.load(hf)
+                        if isinstance(cand_data, list) and len(cand_data) > len(history_data):
+                            history_data = cand_data
+                except Exception:
+                    pass
 
         next_id = 1
         if history_data:
@@ -615,8 +797,37 @@ def main():
         }
         history_data.append(new_history_entry)
 
-        with open(history_path, "w", encoding="utf-8") as hf:
-            json.dump(history_data, hf, ensure_ascii=False, indent=4)
+        atomic_write_json("history.json", history_data, indent=4)
+        try:
+            atomic_write_json(os.path.join(dashboard_dir, "history.json"), history_data, indent=4)
+        except Exception as e:
+            print(f"Warning writing history.json to dashboard: {e}")
+        try:
+            atomic_write_json(os.path.join(docs_dir, "history.json"), history_data, indent=4)
+        except Exception as e:
+            print(f"Warning writing history.json to docs: {e}")
+
+        # Local snapshot of progreso.json for offline / GitHub Pages / Vercel dashboard monitoring
+        prog_snap = {
+            "total": total,
+            "processed": total,
+            "success": successes,
+            "money": cuentas_dinero,
+            "zero": cuentas_cero,
+            "error": cuentas_error,
+            "total_balance": round(saldo_total, 2),
+            "is_finished": True,
+            "timestamp": time.time()
+        }
+        atomic_write_json("progreso.json", prog_snap, indent=2)
+        try:
+            atomic_write_json(os.path.join(dashboard_dir, "progreso.json"), prog_snap, indent=2)
+        except Exception as e:
+            print(f"Warning writing progreso.json to dashboard: {e}")
+        try:
+            atomic_write_json(os.path.join(docs_dir, "progreso.json"), prog_snap, indent=2)
+        except Exception as e:
+            print(f"Warning writing progreso.json to docs: {e}")
 
         # Push to Firebase Realtime DB
         raw_fb = os.environ.get("FIREBASE_DB_URL")
@@ -629,18 +840,6 @@ def main():
                 fb_base = firebase_url.strip().rstrip("/")
                 requests.put(f"{fb_base}/top_accounts.json", json=top_10_json, timeout=10)
                 requests.put(f"{fb_base}/history.json", json=history_data, timeout=10)
-                
-                prog_snap = {
-                    "total": total,
-                    "processed": total,
-                    "success": successes,
-                    "money": cuentas_dinero,
-                    "zero": cuentas_cero,
-                    "error": cuentas_error,
-                    "total_balance": round(saldo_total, 2),
-                    "is_finished": True,
-                    "timestamp": time.time()
-                }
                 requests.put(f"{fb_base}/progress.json", json=prog_snap, timeout=10)
                 print("✔ [FIREBASE] Sincronización exitosa de /top_accounts.json, /history.json y /progress.json")
             except Exception as fe:
@@ -658,6 +857,8 @@ def main():
         token, chat_id = get_telegram_config()
         if token and chat_id:
             enviar_telegram(token, chat_id, msg, args.output_excel)
+
+# @end: MergeAndRetry-Main
 
 if __name__ == "__main__":
     main()

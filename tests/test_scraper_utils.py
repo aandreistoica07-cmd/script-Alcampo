@@ -73,6 +73,23 @@ class TestExtraerTarjeta:
         html = '<div><script>{"barcode": "4002009999999"}</script></div>'
         assert extraer_tarjeta(html) == "4002009999999"
 
+    def test_extract_from_400300_active_prefix(self):
+        html = '<span class="sana-sans-alt"> 4003009301402 </span>'
+        assert extraer_tarjeta(html) == "4003009301402"
+
+    def test_extract_from_clif_canvas_query_param(self):
+        html = '<div value="?clif=4003009301402"><canvas height="150" width="150"></canvas></div>'
+        assert extraer_tarjeta(html) == "4003009301402"
+
+    def test_extract_from_280_prefix(self):
+        html = '<span class="s1-subtitle"> 2801234567890 </span>'
+        assert extraer_tarjeta(html) == "2801234567890"
+
+    def test_reject_non_alcampo_and_invalid_barcodes(self):
+        assert extraer_tarjeta('<div>123456789012</div>') is None
+        assert extraer_tarjeta('<div>8410000000000</div>') is None
+        assert extraer_tarjeta('<div>40020012345678</div>') is None
+
     def test_no_card_found(self):
         assert extraer_tarjeta("<html><body>No loyalty card here</body></html>") is None
         assert extraer_tarjeta("") is None
@@ -235,6 +252,18 @@ class TestVerifyAndHydrateSessionAndCLIFlags:
         assert driver.refresh_count == 1
         assert "https://www.compraonline.alcampo.es/" in driver.navigated_urls
         assert "https://www.compraonline.alcampo.es/settings/loyalty" in driver.navigated_urls
+
+    def test_hydrate_dual_layer_capa2_fallback_when_capa1_degraded(self):
+        # Capa 1: degraded microservice with 0,00 € and loyalty-manage-button
+        # Capa 2: miportal with Saldo disponible and card
+        p1 = '<div><p>Tu Saldo es 0,00 €</p><a data-test="loyalty-manage-button" href="https://www.miportal.alcampo.es/es/cuenta/fidelidad">Club</a></div>'
+        p2 = '<div><span class="s1-subtitle">Saldo disponible</span><span class="h4-headline"><span>3,00 €</span></span><div value="?clif=4003009301402"></div></div>'
+        driver = MockHydrationDriver(pages=[p1, p2])
+
+        saldo, card = _verify_and_hydrate_session(driver, timeout_s=0.5)
+        assert saldo == "Tu Saldo es 3,00 €"
+        assert card == "4003009301402"
+        assert "https://www.miportal.alcampo.es/es/cuenta/fidelidad" in driver.navigated_urls
 
     def test_cli_flags_headless_default_and_headful_variants(self):
         with mock.patch.object(sys, "argv", ["script_optimizado.py"]):

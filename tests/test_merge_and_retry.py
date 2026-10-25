@@ -22,6 +22,8 @@ from scripts.merge_and_retry import (
     limpiar_saldo,
     generate_consolidated_excel,
     collect_failed_accounts,
+    atomic_write_json,
+    smart_truncate_telegram_html,
 )
 
 
@@ -180,9 +182,21 @@ class TestIncompleteShardAccountRecovery:
     """Test suite for recovering missing accounts when shards crash or time out early."""
 
     def test_definitive_and_retryable_classification_helpers(self):
+        # 1-argument backward compatibility
         assert is_definitive_success("Tu Saldo es 10,00 €") is True
         assert is_definitive_success("Tu Saldo es 0,00 €") is True
         assert is_definitive_success("Error: Timeout") is False
+
+        # 2-argument card validation (Milestone M4)
+        assert is_definitive_success("Tu Saldo es 10,00 €", "4003009301402") is True
+        assert is_definitive_success("Tu Saldo es 10,00 €", None) is True
+        assert is_definitive_success("Tu Saldo es 0,00 €", "4003009301402") is True
+        assert is_definitive_success("Tu Saldo es 0,00 €", "4002001111111") is True
+        assert is_definitive_success("Tu Saldo es 0,00 €", "2801234567890") is True
+        assert is_definitive_success("Tu Saldo es 0,00 €", 4003009301402.0) is True
+        assert is_definitive_success("Tu Saldo es 0,00 €", None) is False
+        assert is_definitive_success("Tu Saldo es 0,00 €", "") is False
+        assert is_definitive_success("Tu Saldo es 0,00 €", "invalid_card") is False
 
         assert is_definitive_error("Error: Credenciales incorrectas") is True
         assert is_definitive_error("Error: Cuenta bloqueada (Call Center)") is True
@@ -190,12 +204,19 @@ class TestIncompleteShardAccountRecovery:
         assert is_definitive_error("Error: Bloqueo/Timeout") is False
         assert is_definitive_error("Error: HTTP Status 429") is False
 
+        # Retryable classification with and without card awareness
         assert is_retryable_failure("Error: Bloqueo/Timeout") is True
         assert is_retryable_failure("Error: Saldo no hidratado en DOM") is True
         assert is_retryable_failure("Error: HTTP Status 429", err_type="ip_error") is True
         assert is_retryable_failure("Tu Saldo es 10,00 €") is False
         assert is_retryable_failure("Error: Credenciales incorrectas") is False
         assert is_retryable_failure("Error: Cuenta bloqueada (Call Center)") is False
+        # Degraded zero without card is retryable in Pass 2
+        assert is_retryable_failure("Tu Saldo es 0,00 €", tarjeta_str=None) is True
+        assert is_retryable_failure("Tu Saldo es 0,00 €", tarjeta_str="") is True
+        # Verified zero with card is definitive success, thus not retryable
+        assert is_retryable_failure("Tu Saldo es 0,00 €", tarjeta_str="4003009301402") is False
+        assert is_retryable_failure("Tu Saldo es 0,00 €", "4003009301402") is False
 
     def test_incomplete_shard_rescues_missing_accounts(self, tmp_path):
         # Setup master accounts: 5 accounts
@@ -236,6 +257,36 @@ class TestIncompleteShardAccountRecovery:
         # Must NOT include definitive accounts
         assert "ok@alcampo.es" not in failed_emails
         assert "cred_err@alcampo.es" not in failed_emails
+
+    def test_collect_failed_accounts_enqueues_degraded_zero_without_card(self, tmp_path):
+        """
+        Confirms that degraded 0,00 € accounts without a verified 13-digit card
+        are enqueued into failed_accounts for Pass 2 retry, while genuine 0,00 € accounts
+        with a valid card (400300... / 400200... / 280...) are treated as definitive successes.
+        """
+        shard_dir = tmp_path / "shards"
+        shard_dir.mkdir()
+
+        shard_data = [
+            # Degraded 0,00 € without card (like witness account Noelia in Pass 1) -> MUST RETRY
+            {"email": "degraded_zero@alcampo.es", "password": "p1", "saldo": "Tu Saldo es 0,00 €", "causa_error": "", "error_type": "ok", "card_number": None},
+            # Degraded 0,00 € with empty string card -> MUST RETRY
+            {"email": "degraded_empty@alcampo.es", "password": "p2", "saldo": "Tu Saldo es 0,00 €", "causa_error": "", "error_type": "ok", "card_number": ""},
+            # Verified genuine 0,00 € with valid 13-digit card -> DEFINITIVE SUCCESS (DO NOT RETRY)
+            {"email": "verified_zero@alcampo.es", "password": "p3", "saldo": "Tu Saldo es 0,00 €", "causa_error": "", "error_type": "ok", "card_number": "4003009301402"},
+            # Verified positive balance without card -> DEFINITIVE SUCCESS (DO NOT RETRY)
+            {"email": "positive_balance@alcampo.es", "password": "p4", "saldo": "Tu Saldo es 3,00 €", "causa_error": "", "error_type": "ok", "card_number": None},
+        ]
+        shard_file = shard_dir / "pass1_shard_0.xlsx"
+        pd.DataFrame(shard_data).to_excel(shard_file, index=False)
+
+        failed_accounts = collect_failed_accounts([shard_file])
+        failed_emails = {a["email"] for a in failed_accounts}
+
+        assert "degraded_zero@alcampo.es" in failed_emails, "Degraded 0,00 € without card must be enqueued for Pass 2 retry"
+        assert "degraded_empty@alcampo.es" in failed_emails, "Degraded 0,00 € with empty card must be enqueued for Pass 2 retry"
+        assert "verified_zero@alcampo.es" not in failed_emails, "Verified 0,00 € with valid card must NOT be retried"
+        assert "positive_balance@alcampo.es" not in failed_emails, "Positive balance account must NOT be retried"
 
 
 class TestConsolidatedExcelStructureAndRouting:
@@ -368,7 +419,9 @@ class TestDirectoryIsolationAndNegativeArtifactHandling:
             os.path.join(repo_root, "scripts", "merge_and_retry.py"),
             "--mode", "final-merge",
             "--input-dir", str(shards_dir),
-            "--output-excel", str(out_excel)
+            "--output-excel", str(out_excel),
+            "--dashboard-dir", str(tmp_path / "dashboard"),
+            "--docs-dir", str(tmp_path / "docs")
         ]
         res = subprocess.run(cmd, env=env, capture_output=True, text=True, cwd=repo_root, encoding="utf-8", errors="replace")
         assert res.returncode == 0
@@ -403,3 +456,120 @@ class TestDirectoryIsolationAndNegativeArtifactHandling:
         res = subprocess.run(cmd, env=env, capture_output=True, text=True, cwd=repo_root, encoding="utf-8", errors="replace")
         assert res.returncode == 0
         assert "Inspeccionando 0 archivo(s)" in res.stdout
+
+
+class TestDualDashboardAndSmartTruncation:
+    """Test suite for Milestone M4 dual dashboard sync and smart Telegram HTML truncation."""
+
+    def test_atomic_write_json_creates_atomic_file(self, tmp_path):
+        target_file = tmp_path / "nested" / "test_data.json"
+        sample_data = {"key": "value", "list": [1, 2, 3], "nested": {"a": "b"}}
+
+        atomic_write_json(str(target_file), sample_data, indent=2)
+
+        assert target_file.exists()
+        with open(target_file, "r", encoding="utf-8") as f:
+            loaded = json.load(f)
+        assert loaded == sample_data
+
+    def test_smart_truncate_telegram_html_entity_and_tag_safety(self):
+        # 1. Under max_len returns unchanged
+        short_msg = "<b>Title</b>\nBody text with &amp; entity."
+        assert smart_truncate_telegram_html(short_msg, max_len=3980) == short_msg
+
+        # 2. Huge message with opened tags and entities truncates strictly <= 3980
+        massive_body = "<b>Important</b> <code>" + ("&amp; " * 800) + "</code>"
+        truncated = smart_truncate_telegram_html(massive_body, max_len=3980)
+
+        assert len(truncated) <= 3980
+        assert truncated.endswith("\n... [truncado]")
+        # Check no raw unescaped '&'
+        # An unescaped ampersand would be '&' followed by non-entity chars or at the end
+        import re
+        assert not re.search(r"&(?![a-zA-Z0-9#]+;)", truncated.replace("... [truncado]", "")), "No split or raw ampersands"
+        # Check that open tags are balanced
+        open_b = truncated.count("<b>")
+        close_b = truncated.count("</b>")
+        assert open_b == close_b, f"Tags <b> must balance: {open_b} open vs {close_b} closed"
+        open_code = truncated.count("<code>")
+        close_code = truncated.count("</code>")
+        assert open_code == close_code, f"Tags <code> must balance: {open_code} open vs {close_code} closed"
+
+    def test_filter_retries_cli_mode_accepted(self, tmp_path):
+        """CLI mode 'filter-retries' must be supported without argparse error."""
+        import subprocess
+        import sys
+        fake_empty_dir = tmp_path / "empty_filter_dir"
+        fake_empty_dir.mkdir()
+        failed_json = tmp_path / "failed_filter.json"
+
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+
+        cmd = [
+            sys.executable,
+            os.path.join(repo_root, "scripts", "merge_and_retry.py"),
+            "--mode", "filter-retries",
+            "--input-dir", str(fake_empty_dir),
+            "--failed-json", str(failed_json)
+        ]
+        res = subprocess.run(cmd, env=env, capture_output=True, text=True, cwd=repo_root, encoding="utf-8", errors="replace")
+        assert res.returncode == 0
+        assert "Inspeccionando 0 archivo(s)" in res.stdout
+
+    def test_final_merge_dual_dashboard_and_docs_sync(self, tmp_path):
+        """
+        Verifies that final-merge writes top_accounts.json, history.json, and progreso.json
+        to both --dashboard-dir and --docs-dir atomically.
+        """
+        import subprocess
+        import sys
+        shards_dir = tmp_path / "shards"
+        shards_dir.mkdir()
+        dashboard_dir = tmp_path / "dashboard"
+        docs_dir = tmp_path / "docs"
+        out_excel = tmp_path / "REPORTE_TEST.xlsx"
+
+        # Create mock shard with positive account and card
+        shard_df = pd.DataFrame([
+            {"email": "top1@test.com", "password": "p1", "saldo": "Tu Saldo es 15,50 €", "card_number": "4003009301402", "causa_error": "", "error_type": "ok"},
+            {"email": "zero@test.com", "password": "p2", "saldo": "Tu Saldo es 0,00 €", "card_number": "4002001111111", "causa_error": "", "error_type": "ok"},
+        ])
+        shard_df.to_excel(shards_dir / "saldos_pass1_shard_0.xlsx", index=False)
+
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        env = os.environ.copy()
+        env["TELEGRAM_TOKEN"] = "none"
+        env["FIREBASE_DB_URL"] = ""
+        env["PYTHONIOENCODING"] = "utf-8"
+
+        cmd = [
+            sys.executable,
+            os.path.join(repo_root, "scripts", "merge_and_retry.py"),
+            "--mode", "final-merge",
+            "--input-dir", str(shards_dir),
+            "--output-excel", str(out_excel),
+            "--dashboard-dir", str(dashboard_dir),
+            "--docs-dir", str(docs_dir)
+        ]
+        res = subprocess.run(cmd, env=env, capture_output=True, text=True, cwd=repo_root, encoding="utf-8", errors="replace")
+        assert res.returncode == 0
+
+        # Verify dual synchronization in dashboard/
+        assert (dashboard_dir / "top_accounts.json").exists()
+        assert (dashboard_dir / "history.json").exists()
+        assert (dashboard_dir / "progreso.json").exists()
+
+        # Verify dual synchronization in docs/
+        assert (docs_dir / "top_accounts.json").exists()
+        assert (docs_dir / "history.json").exists()
+        assert (docs_dir / "progreso.json").exists()
+
+        # Check content in docs/top_accounts.json
+        with open(docs_dir / "top_accounts.json", "r", encoding="utf-8") as f:
+            top_data = json.load(f)
+        assert len(top_data) == 1
+        assert top_data[0]["email"] == "top1@test.com"
+        assert top_data[0]["balance"] == 15.50
+        assert top_data[0]["card_number"] == "4003009301402"

