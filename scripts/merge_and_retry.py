@@ -548,22 +548,22 @@ def main():
                 "card_number": card_str
             })
 
-        # Save top_accounts.json locally and in dashboard/ only when not running in isolated test mode
+        # Always define dashboard_dir cleanly
+        dashboard_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "dashboard"))
+
+        # Save top_accounts.json locally and in dashboard/
         raw_fb = os.environ.get("FIREBASE_DB_URL")
         if raw_fb is not None and (raw_fb.strip() == "" or raw_fb.strip().lower() in ("none", "disable", "false", "0")):
             firebase_url = None
         else:
             firebase_url = raw_fb or "https://monitor-alcampo-default-rtdb.europe-west1.firebasedatabase.app/"
 
-        if firebase_url is not None:
-            with open("top_accounts.json", "w", encoding="utf-8") as tf:
-                json.dump(top_10_json, tf, ensure_ascii=False, indent=2)
+        with open("top_accounts.json", "w", encoding="utf-8") as tf:
+            json.dump(top_10_json, tf, ensure_ascii=False, indent=2)
 
-            dashboard_dir = os.path.join(os.path.dirname(__file__), "..", "dashboard")
-            dashboard_dir = os.path.abspath(dashboard_dir)
-            if os.path.exists(dashboard_dir):
-                with open(os.path.join(dashboard_dir, "top_accounts.json"), "w", encoding="utf-8") as tf:
-                    json.dump(top_10_json, tf, ensure_ascii=False, indent=2)
+        if os.path.exists(dashboard_dir):
+            with open(os.path.join(dashboard_dir, "top_accounts.json"), "w", encoding="utf-8") as tf:
+                json.dump(top_10_json, tf, ensure_ascii=False, indent=2)
 
         # Update account_status.json with final consolidated results
         try:

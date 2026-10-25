@@ -1440,10 +1440,12 @@
             const cycleBadge = document.getElementById('live-cycle-badge');
             
             if (data.cycle === 2 || (data.retry_total > 0 && !data.is_finished)) {
-                ratioLabel = `${processed} / ${total} Cuentas`;
+                if (data.retry_total > 0 && processed > total) {
+                    ratioLabel = `${processed} / ${Math.max(total, processed)} Cuentas`;
+                }
                 if (cycleBadge) {
                     cycleBadge.style.display = "inline-block";
-                    cycleBadge.innerText = "Ciclo 2: Auto-Curación";
+                    cycleBadge.innerText = `Ciclo 2: Auto-Curación (${data.retry_total || 0} en cola)`;
                 }
             } else if (cycleBadge) {
                 cycleBadge.style.display = "none";
@@ -1453,13 +1455,13 @@
             document.getElementById('live-progress-fill').style.width = `${percent}%`;
 
             if (processed > 0 && data.elapsed > 0) {
-                const rate = (processed / data.elapsed) * 60;
+                const rate = Math.min((processed / data.elapsed) * 60, 240.0);
                 document.getElementById('live-speed').innerText = `Velocidad: ${rate.toFixed(1)} cuentas/min`;
                 
                 let etaSeconds = data.eta;
-                if (etaSeconds === null || etaSeconds === undefined || isNaN(etaSeconds)) {
+                if (etaSeconds === null || etaSeconds === undefined || isNaN(etaSeconds) || etaSeconds <= 0) {
                     const remaining = Math.max(0, total - processed);
-                    const speedPerSec = processed / data.elapsed;
+                    const speedPerSec = rate / 60;
                     etaSeconds = speedPerSec > 0 ? (remaining / speedPerSec) : 0;
                 }
                 document.getElementById('live-eta').innerText = `Tiempo restante: ${formatTime(etaSeconds)}`;

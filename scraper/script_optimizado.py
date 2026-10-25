@@ -573,8 +573,9 @@ def init_progress(total_accounts, worker_name="Worker"):
             if current_run_id:
                 init_vm_data["run_id"] = current_run_id
             firebase_session.put(f"{fb_base}/progress/vms/{vm_key}.json", json=init_vm_data, timeout=5)
-            # Si no es un shard individual, actualiza la cabecera global
-            if "VM_" not in worker_name:
+            # Si no es un shard individual ni corre bajo matriz CI/CD, actualiza la cabecera global
+            is_matrix_shard = ("VM_" in worker_name) or bool(os.environ.get("RUN_ID")) or (current_cli_args and hasattr(current_cli_args, 'shard_id') and current_cli_args.shard_id is not None)
+            if not is_matrix_shard:
                 firebase_session.patch(f"{fb_base}/progress.json", json={
                     "total": total_accounts,
                     "status": "running",
@@ -1017,6 +1018,10 @@ def _handle_pwreset_relogin(driver, email, password, timeout=6.0):
 
 def _extract_loyalty_balance(driver, timeout_s=10.0):
     """Waits dynamically for SPA hydration of 'Tu Saldo es X,XX €' on /settings/loyalty."""
+    pattern = re.compile(r"Tu Saldo es\s*([\d,.]+)\s*(?:&nbsp;|\s)*€?", re.IGNORECASE)
+    start_w = time.time()
+
+    # Si no estamos en loyalty, navegar una vez
     try:
         curr_url = driver.current_url.lower()
     except Exception:
@@ -1028,38 +1033,33 @@ def _extract_loyalty_balance(driver, timeout_s=10.0):
     if "settings/loyalty" not in curr_url:
         try:
             driver.get("https://www.compraonline.alcampo.es/settings/loyalty")
-            time.sleep(0.5)
-            curr_url = driver.current_url.lower()
         except Exception:
-            return "Error: Navegación fallida a loyalty"
+            pass
 
-    if "login" in curr_url or "authorization" in curr_url or "authenticationerror" in curr_url:
-        return "Error: Sesión no autenticada en loyalty"
+    # Polling dinámico esperando renderizado de la SPA de loyalty
+    while time.time() - start_w < timeout_s:
+        try:
+            curr_url = driver.current_url.lower()
+            if curr_url.startswith("chrome-error://"):
+                return "Error: Fallo de red del navegador"
 
-    pattern = re.compile(r"Tu Saldo es\s*([\d,.]+)\s*(?:&nbsp;|\s)*€?", re.IGNORECASE)
-    if OPT_DYNAMIC_WAIT:
-        start_w = time.time()
-        while time.time() - start_w < timeout_s:
-            try:
-                html_src = driver.page_source
-                m = pattern.search(html_src)
-                if m:
-                    return f"Tu Saldo es {m.group(1)} €"
-                cleaned = " ".join(re.sub(r"<[^>]+>", " ", html_src).split())
-                m2 = pattern.search(cleaned)
-                if m2:
-                    return f"Tu Saldo es {m2.group(1)} €"
-            except Exception:
-                pass
-            time.sleep(0.25)
-    else:
-        time.sleep(3.5)
-        html_src = driver.page_source
-        m = pattern.search(html_src)
-        if m:
-            return f"Tu Saldo es {m.group(1)} €"
+            html_src = driver.page_source or ""
+            m = pattern.search(html_src)
+            if m:
+                return f"Tu Saldo es {m.group(1)} €"
+            cleaned = " ".join(re.sub(r"<[^>]+>", " ", html_src).split())
+            m2 = pattern.search(cleaned)
+            if m2:
+                return f"Tu Saldo es {m2.group(1)} €"
+        except Exception:
+            pass
+        time.sleep(0.3)
 
+    # Si se agotó el timeout sin encontrar el saldo, comprobar estado final de URL
     try:
+        curr_url = driver.current_url.lower()
+        if "login" in curr_url or "authorization" in curr_url or "authenticationerror" in curr_url:
+            return "Error: Sesión no autenticada en loyalty"
         final_src = (driver.page_source or "").lower()
         if "404" in final_src and "no encontrada" in final_src:
             return "Error: 404 Página no encontrada"
@@ -1758,7 +1758,7 @@ def main():
     # Modo Cola Dinámica
     if args.use_queue:
         print(f"🚀 [COLA DINÁMICA FIREBASE] {worker_label} arrancando {args.threads} hilos dinámicos...")
-        init_progress(len(accounts))
+        init_progress(len(accounts), worker_name=worker_label)
         num_threads = max(1, args.threads)
         resultados = []
         start_time = time.time()
