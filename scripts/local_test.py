@@ -51,6 +51,8 @@ from scraper.script_optimizado import (
     limpiar_saldo,
     extraer_tarjeta,
     CircuitBreaker,
+    _verify_and_hydrate_session,
+    _extract_loyalty_balance,
 )
 
 
@@ -288,34 +290,18 @@ def test_single_account(driver, email, password, timeout=25, slowmo=0.0):
 
         # Paso 6: Extracción de saldo y tarjeta en /settings/loyalty
         print(f" [Paso 6/6] Validando sesión y extrayendo saldo / tarjeta Alcampo...")
-        curr_url = driver.current_url or ""
-        if "/settings/loyalty" not in curr_url:
-            print(f"            Navegando directamente a {LOYALTY_SETTINGS_URL} para hidratar saldo...")
-            driver.get(LOYALTY_SETTINGS_URL)
-            if slowmo > 0:
-                time.sleep(slowmo)
-
-        # Esperar hidratación de SPA
-        time.sleep(2.0)
-        html_page = driver.page_source or ""
-
-        # Intentar extraer saldo
-        val_saldo = limpiar_saldo(html_page)
-        card_num = extraer_tarjeta(html_page)
-
-        # Si no se extrae inmediatamente, dar un refresco o breve espera
-        if val_saldo is None:
-            time.sleep(2.5)
-            html_page = driver.page_source or ""
-            val_saldo = limpiar_saldo(html_page)
-            if not card_num:
-                card_num = extraer_tarjeta(html_page)
+        saldo_raw, card_num = _verify_and_hydrate_session(driver, timeout_s=12.0)
+        val_saldo = limpiar_saldo(saldo_raw)
 
         result["balance"] = val_saldo
-        result["balance_str"] = f"{val_saldo:.2f} €" if val_saldo is not None else "0.00 € (o no detectado)"
+        result["balance_str"] = f"{val_saldo:.2f} €" if val_saldo is not None else (saldo_raw if saldo_raw else "0.00 € (o no detectado)")
         result["card_number"] = card_num or "No detectada"
-        result["status"] = "success" if val_saldo is not None else "no_balance"
-        result["error_type"] = "none"
+        result["status"] = "success" if val_saldo is not None else ("no_balance" if saldo_raw == "No encontrado" else "failed")
+        if result["status"] == "failed":
+            result["error_type"] = "session_or_hydration_error"
+            result["error_reason"] = saldo_raw
+        else:
+            result["error_type"] = "none"
 
         print(f"            ✔ Saldo extraído:  {result['balance_str']}")
         print(f"            ✔ Tarjeta Alcampo: {result['card_number']}")
