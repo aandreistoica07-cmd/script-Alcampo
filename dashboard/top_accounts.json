@@ -33,13 +33,13 @@
     "email": "aliciavallssalas@yahoo.es",
     "password": "Cacadevaca21",
     "balance": 3.0,
-    "card_number": null
+    "card_number": "4003001954484"
   },
   {
     "email": "susamayor@gmail.com",
     "password": "Cuenca2924",
     "balance": 3.0,
-    "card_number": "4002002552644"
+    "card_number": null
   },
   {
     "email": "raquel260786@hotmail.es",
@@ -48,15 +48,15 @@
     "card_number": "4004005278132"
   },
   {
-    "email": "noelia_gll@hotmail.com",
-    "password": "Paseohernani5",
-    "balance": 3.0,
-    "card_number": null
-  },
-  {
     "email": "maridelcura@hotmail.com",
     "password": "Mdelcura.10",
     "balance": 2.63,
     "card_number": "4002024241571"
+  },
+  {
+    "email": "lucyliu39@hotmail.com",
+    "password": "Cbypcl9532",
+    "balance": 2.49,
+    "card_number": "4002032544886"
   }
 ]
