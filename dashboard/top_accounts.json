@@ -1,23 +1,5 @@
 [
   {
-    "email": "loscuervastreet@yahoo.es",
-    "password": "Lv271011",
-    "balance": 3.89,
-    "card_number": "4003015180701"
-  },
-  {
-    "email": "andreogf@gmail.com",
-    "password": "901462Francand",
-    "balance": 3.75,
-    "card_number": "4003001716556"
-  },
-  {
-    "email": "carmeta662010@hotmail.com",
-    "password": "Carmeta.66",
-    "balance": 3.72,
-    "card_number": "4002007594878"
-  },
-  {
     "email": "bego1881@gmail.com",
     "password": "18Demayode1981",
     "balance": 3.5,
@@ -36,27 +18,45 @@
     "card_number": "4003001954484"
   },
   {
+    "email": "raquel260786@hotmail.es",
+    "password": "RAalFE260786",
+    "balance": 3.0,
+    "card_number": null
+  },
+  {
     "email": "susamayor@gmail.com",
     "password": "Cuenca2924",
     "balance": 3.0,
     "card_number": null
   },
   {
-    "email": "raquel260786@hotmail.es",
-    "password": "RAalFE260786",
-    "balance": 3.0,
-    "card_number": "4004005278132"
-  },
-  {
     "email": "maridelcura@hotmail.com",
     "password": "Mdelcura.10",
     "balance": 2.63,
-    "card_number": "4002024241571"
+    "card_number": null
   },
   {
     "email": "lucyliu39@hotmail.com",
     "password": "Cbypcl9532",
     "balance": 2.49,
-    "card_number": "4002032544886"
+    "card_number": null
+  },
+  {
+    "email": "mariarustarazo@gmail.com",
+    "password": "mamama90!?",
+    "balance": 2.18,
+    "card_number": "4003000933664"
+  },
+  {
+    "email": "fpaco25@yahoo.es",
+    "password": "Paquita1",
+    "balance": 1.96,
+    "card_number": "4003000939758"
+  },
+  {
+    "email": "tizucaes@yahoo.es",
+    "password": "Piriki1520",
+    "balance": 1.9,
+    "card_number": "4002002777849"
   }
 ]
