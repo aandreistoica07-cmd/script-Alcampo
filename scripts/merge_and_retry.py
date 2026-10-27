@@ -218,6 +218,21 @@ def load_master_accounts(accounts_file_arg=None):
 
     return []
 
+def complete_top_account_passwords(top_accounts, master_accounts):
+    """Fill missing dashboard credentials without changing balances or ranking."""
+    passwords = {
+        str(account.get("email", "")).strip().casefold(): account["password"]
+        for account in master_accounts
+        if isinstance(account, dict) and account.get("email")
+        and isinstance(account.get("password"), str) and account["password"]
+    }
+    for account in top_accounts:
+        password = account.get("password")
+        if password is None or pd.isna(password) or str(password).strip() == "":
+            account["password"] = passwords.get(str(account.get("email", "")).strip().casefold(), "")
+    return top_accounts
+
+
 def smart_truncate_telegram_html(msg, max_len=3980):
     """
     Truncates a Telegram HTML message strictly below max_len while preventing:
@@ -706,7 +721,8 @@ def main():
             if val is not None and val > 0:
                 saldo_total += val
                 email = str(row.get("email", "")).strip()
-                password = str(row.get("password", "")).strip()
+                raw_password = row.get("password", "")
+                password = "" if raw_password is None or pd.isna(raw_password) else str(raw_password)
                 card_num = row.get("card_number") if "card_number" in row else row.get("tarjeta") if "tarjeta" in row else None
                 card_str = str(card_num).strip() if (card_num and not pd.isna(card_num)) else None
                 if card_str and card_str.endswith(".0"):
@@ -725,6 +741,10 @@ def main():
                 "balance": round(val, 2),
                 "card_number": card_str
             })
+
+        # Final dashboard export: recover credentials omitted by shard results.
+        # Reuse the existing loader (JSON or ACCOUNTS_BASE64, optionally gzipped).
+        complete_top_account_passwords(top_10_json, load_master_accounts(args.accounts_file))
 
         # Resolve dashboard and docs directories
         dashboard_dir = os.path.abspath(args.dashboard_dir) if args.dashboard_dir else os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "dashboard"))

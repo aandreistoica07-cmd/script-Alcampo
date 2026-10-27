@@ -1328,6 +1328,40 @@
             fetchTop10Accounts();
         }
 
+        // Display completed accounts, not attempts. Never mutate the source snapshot.
+        let accountProgressState = { key: null, processed: 0 };
+        let latestProgressFinished = false;
+        function calculateAccountProgress(data, retryQueue = null) {
+            const total = Math.max(0, Number(data.total) || 0);
+            const key = data.run_id || data.start_time || 'local';
+            if (accountProgressState.key !== key) accountProgressState = { key, processed: 0 };
+            if (data.is_finished === true) return { processed: total };
+            const retry = data.cycle === 2;
+            const queue = Object.values(retryQueue || {}).filter(a => a && a.email);
+            const validQueue = retry && queue.length === Number(data.retry_total);
+            let completed = retry ? Math.max(0, total - (Number(data.retry_total) || total)) : 0;
+            const vms = Object.entries(data.vms || {}).filter(([, vm]) =>
+                vm && (!data.run_id || vm.run_id === data.run_id));
+            if (vms.length) {
+                for (const [name, vm] of vms) {
+                    if (!retry) {
+                        completed += Number(vm.success) || 0;
+                    } else if (validQueue) {
+                        const claims = queue.filter(a => String(a.claimed_by || '').startsWith(`${name}_t`));
+                        const firstClaim = Math.min(...claims.map(a => Number(a.timestamp) || Infinity));
+                        if (claims.length && Number(vm.last_update) >= firstClaim) {
+                            completed += Math.min(claims.length, Number(vm.processed) || 0);
+                        }
+                    }
+                }
+            } else if (!retry) {
+                completed = Number(data.success) || 0;
+            }
+            // Keep progress steady while workers restart or a poll arrives out of order.
+            accountProgressState.processed = Math.min(total, Math.max(accountProgressState.processed, completed));
+            return { processed: accountProgressState.processed };
+        }
+
         async function fetchLiveProgress() {
             let data = null;
             
@@ -1367,8 +1401,19 @@
                 return;
             }
 
+            // The queue identifies retry workers even after a page reload: their
+            // snapshots must be newer than a claim in the replacement retry queue.
+            let retryQueue = null;
+            if (firebaseURL && data.cycle === 2 && !data.is_finished) {
+                try {
+                    const res = await fetch(`${firebaseURL.replace(/\/$/, '')}/queue.json`, { cache: 'no-store' });
+                    if (res.ok) retryQueue = await res.json();
+                } catch (err) { /* Keep confirmed progress until the next poll. */ }
+            }
+            latestProgressFinished = data.is_finished === true;
+            const progressView = calculateAccountProgress(data, retryQueue);
             let activeRunId = data.run_id || null;
-            if (data.vms && Object.keys(data.vms).length > 0) {
+            if (!data.is_finished && data.vms && Object.keys(data.vms).length > 0) {
                 let aggProc = 0, aggBal = 0.0, aggMon = 0, aggZero = 0, aggErr = 0, aggSucc = 0;
                 for (const vk in data.vms) {
                     const vm = data.vms[vk];
@@ -1395,17 +1440,9 @@
                 }
             }
 
-            // Enforce true monotonic progress across poll intervals
-            if (activeRunId && window._currentRunId === activeRunId) {
-                data.processed = Math.max(window._maxProcessedSeen || 0, data.processed);
-                window._maxProcessedSeen = data.processed;
-            } else {
-                window._currentRunId = activeRunId;
-                window._maxProcessedSeen = data.processed;
-            }
+            data.processed = progressView.processed;
+            const isCompleted = data.is_finished === true;
 
-            const isCompleted = (data.processed >= data.total && data.total > 0) || data.is_finished === true;
-            
             if (!hasAutoSwitchedToLive && !window.location.hash && data.processed > 0 && !isCompleted) {
                 switchTab('live-tab');
                 hasAutoSwitchedToLive = true;
@@ -1432,14 +1469,14 @@
 
             const total = data.total || 0;
             const processed = data.processed || 0;
-            const percent = total > 0 ? Math.max(0, Math.min(100, Math.round((processed / total) * 100))) : 0;
+            const percent = total > 0 ? Math.max(0, Math.min(isCompleted ? 100 : 99, Math.floor((processed / total) * 100))) : 0;
             
             document.getElementById('live-progress-percent').innerText = `${percent}%`;
             
             let ratioLabel = `${processed} / ${total} Cuentas`;
             const cycleBadge = document.getElementById('live-cycle-badge');
             
-            if (data.cycle === 2 || (data.retry_total > 0 && !data.is_finished)) {
+            if (!isCompleted && (data.cycle === 2 || data.retry_total > 0)) {
                 if (data.retry_total > 0 && processed > total) {
                     ratioLabel = `${processed} / ${Math.max(total, processed)} Cuentas`;
                 }
@@ -1672,22 +1709,48 @@
         // --- Top Accounts Logic ---
         let topAccountsFilterTerm = '';
 
+        function mergeVisibleAccounts(data, liveData, credentialData, excluded, finished = false) {
+            const values = source => Array.isArray(source) ? source : Object.values(source || {});
+            const key = email => String(email || '').trim().toLowerCase();
+            const credentials = new Map();
+            // Queue is the fallback; consolidated credentials take precedence.
+            [...values(credentialData), ...values(liveData), ...values(data)].forEach(acc => {
+                if (acc && acc.email && acc.password) credentials.set(key(acc.email), acc.password);
+            });
+            const accounts = new Map();
+            [...values(data), ...values(finished ? null : liveData)].forEach(acc => {
+                if (!acc || !acc.email || typeof acc.balance !== 'number' || excluded.has(key(acc.email))) return;
+                const id = key(acc.email);
+                const previous = accounts.get(id);
+                const selected = !previous || acc.balance > previous.balance ? acc : previous;
+                accounts.set(id, { ...previous, ...selected,
+                    password: credentials.get(id) || '',
+                    card_number: selected.card_number || (previous && previous.card_number) || acc.card_number || null });
+            });
+            return accounts;
+        }
+
         async function fetchTop10Accounts() {
             let data = null;
             let liveData = null;
+            let credentialData = null;
             if (firebaseURL) {
                 try {
                     let cleanedUrl = firebaseURL.endsWith('/') ? firebaseURL.slice(0, -1) : firebaseURL;
                     // Concurrently fetch consolidated top_accounts and live streaming accounts
-                    const [resTop, resLive] = await Promise.allSettled([
+                    const [resTop, resLive, resQueue] = await Promise.allSettled([
                         fetch(`${cleanedUrl}/top_accounts.json`),
-                        fetch(`${cleanedUrl}/live_accounts.json`)
+                        fetch(`${cleanedUrl}/live_accounts.json`),
+                        fetch(`${cleanedUrl}/queue.json`)
                     ]);
                     if (resTop.status === 'fulfilled' && resTop.value.ok) {
                         data = await resTop.value.json();
                     }
                     if (resLive.status === 'fulfilled' && resLive.value.ok) {
                         liveData = await resLive.value.json();
+                    }
+                    if (resQueue.status === 'fulfilled' && resQueue.value.ok) {
+                        credentialData = await resQueue.value.json();
                     }
                 } catch (err) {
                     console.warn("Error leyendo Firebase top_accounts, usando fallback local...", err);
@@ -1703,23 +1766,18 @@
                 }
             }
 
-            // Parse either Array or Object dictionary
-            let accountsMap = new Map();
-            function addAccounts(source) {
-                if (!source) return;
-                const list = Array.isArray(source) ? source : Object.values(source);
-                list.forEach(acc => {
-                    if (acc && acc.email && typeof acc.balance === 'number') {
-                        const existing = accountsMap.get(acc.email);
-                        if (!existing || (acc.balance > existing.balance)) {
-                            accountsMap.set(acc.email, acc);
-                        }
-                    }
-                });
+            // Static exports can still hold credentials omitted by remote live events.
+            const credentials = [...top10Data, ...Object.values(credentialData || {})];
+            if (firebaseURL) {
+                try {
+                    const res = await fetch('top_accounts.json', { cache: 'no-store' });
+                    if (res.ok) credentials.push(...Object.values((await res.json()) || {}));
+                } catch (err) { /* Other sources remain usable when the export is unavailable. */ }
             }
 
-            addAccounts(data);
-            addAccounts(liveData);
+            // Merge credentials independently from balances: live events omit passwords.
+            const testEmails = new Set(['acc1_money@alcampo.es', 'acc2_canary@alcampo.es', 'acc4_slowredirect@alcampo.es']);
+            const accountsMap = mergeVisibleAccounts(data, liveData, credentials, testEmails, latestProgressFinished);
 
             if (accountsMap.size > 0) {
                 let parsedList = Array.from(accountsMap.values());
@@ -1733,7 +1791,7 @@
                 renderTop10();
                 populateQuickAccountSelector();
                 renderCardsCatalog();
-            } else if (!top10Data || top10Data.length === 0) {
+            } else {
                 top10Data = [];
                 renderTop10();
                 populateQuickAccountSelector();
