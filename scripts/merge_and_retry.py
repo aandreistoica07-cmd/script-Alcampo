@@ -839,6 +839,8 @@ def main():
             "is_finished": True,
             "timestamp": time.time()
         }
+        if os.environ.get("RUN_ID"):
+            prog_snap["run_id"] = os.environ["RUN_ID"]
         atomic_write_json("progreso.json", prog_snap, indent=2)
         try:
             atomic_write_json(os.path.join(dashboard_dir, "progreso.json"), prog_snap, indent=2)
@@ -858,9 +860,9 @@ def main():
         if firebase_url:
             try:
                 fb_base = firebase_url.strip().rstrip("/")
-                requests.put(f"{fb_base}/top_accounts.json", json=top_10_json, timeout=10)
-                requests.put(f"{fb_base}/history.json", json=history_data, timeout=10)
-                requests.put(f"{fb_base}/progress.json", json=prog_snap, timeout=10)
+                requests.put(f"{fb_base}/top_accounts.json", json=top_10_json, timeout=10).raise_for_status()
+                requests.put(f"{fb_base}/history.json", json=history_data, timeout=10).raise_for_status()
+                requests.put(f"{fb_base}/progress.json", json=prog_snap, timeout=10).raise_for_status()
                 print("✔ [FIREBASE] Sincronización exitosa de /top_accounts.json, /history.json y /progress.json")
             except Exception as fe:
                 print(f"⚠️ Error al sincronizar con Firebase: {fe}")

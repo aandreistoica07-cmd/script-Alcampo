@@ -64,7 +64,7 @@ def test_final_export_uses_secret_in_isolated_cli(tmp_path):
     env.update(FIREBASE_DB_URL="false", TELEGRAM_TOKEN="none", TELEGRAM_CHAT_ID="none",
                ACCOUNTS_BASE64=base64.b64encode(json.dumps([
                    {"email": "final@example.test", "password": "001:secret"}
-               ]).encode()).decode(), PYTHONIOENCODING="utf-8")
+               ]).encode()).decode(), PYTHONIOENCODING="utf-8", RUN_ID="isolated-run")
     result = subprocess.run([
         sys.executable, str(tmp_path / "scripts/merge_and_retry.py"),
         "--mode", "final-merge", "--input-dir", str(shards),
@@ -78,3 +78,7 @@ def test_final_export_uses_secret_in_isolated_cli(tmp_path):
         top = json.loads((folder / "top_accounts.json").read_text(encoding="utf-8"))
         assert top[0]["password"] == "001:secret"
         assert top[0]["balance"] == 12.5
+        progress = json.loads((folder / "progreso.json").read_text(encoding="utf-8"))
+        assert progress["is_finished"] is True
+        assert progress["run_id"] == "isolated-run"
+        assert progress["processed"] == progress["total"] == 1

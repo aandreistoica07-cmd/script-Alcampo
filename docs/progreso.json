@@ -1,34 +1,12 @@
 {
-    "total": 15,
-    "processed": 14,
-    "success": 13,
-    "money": 6,
-    "zero": 7,
-    "error": 1,
-    "total_balance": 6.75,
-    "start_time": 1779382551.9282362,
-    "elapsed": 49.30445694923401,
-    "eta": 3.5,
-    "threads": {
-        "1": {
-            "last_account": "rubita06@hotmail.es",
-            "last_status": "success",
-            "timestamp": 1779382601
-        },
-        "2": {
-            "last_account": "fede.78@hotmail.es",
-            "last_status": "success",
-            "timestamp": 1779382598
-        },
-        "3": {
-            "last_account": "antonio.gomez@gmail.com",
-            "last_status": "error",
-            "timestamp": 1779382595
-        },
-        "4": {
-            "last_account": "mariadelcarmen@yahoo.es",
-            "last_status": "success",
-            "timestamp": 1779382603
-        }
-    }
+  "run_id": "run_1793126726_121cb4",
+  "total": 512,
+  "processed": 512,
+  "success": 499,
+  "money": 267,
+  "zero": 232,
+  "error": 13,
+  "total_balance": 133.73,
+  "is_finished": true,
+  "timestamp": 1793127787.013612
 }

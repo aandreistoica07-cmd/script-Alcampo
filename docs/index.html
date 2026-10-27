@@ -1331,6 +1331,7 @@
         // Display completed accounts, not attempts. Never mutate the source snapshot.
         let accountProgressState = { key: null, processed: 0 };
         let latestProgressFinished = false;
+        let latestProgressUsesLocalFinal = false;
         function calculateAccountProgress(data, retryQueue = null) {
             const total = Math.max(0, Number(data.total) || 0);
             const key = data.run_id || data.start_time || 'local';
@@ -1362,31 +1363,50 @@
             return { processed: accountProgressState.processed };
         }
 
-        async function fetchLiveProgress() {
-            let data = null;
-            
-            if (firebaseURL) {
-                try {
-                    let cleanedUrl = firebaseURL.endsWith('/') ? firebaseURL.slice(0, -1) : firebaseURL;
-                    const res = await fetch(`${cleanedUrl}/progress.json`);
-                    if (res.ok) {
-                        data = await res.json();
-                    }
-                } catch (err) {
-                    console.warn("Error leyendo Firebase progress node, usando fallback local...", err);
-                }
-            }
+        function selectProgressSnapshot(remote, local) {
+            if (local && local.is_finished === true && local.run_id && remote &&
+                local.run_id === remote.run_id && remote.is_finished !== true) return local;
+            return remote || local;
+        }
 
-            if (!data) {
+        let accountBalanceState = { key: null, balance: 0 };
+        function calculateAccountBalance(data, accounts) {
+            if (data.is_finished === true) return Number(data.total_balance) || 0;
+            const key = data.run_id || data.start_time || 'local';
+            if (accountBalanceState.key !== key) accountBalanceState = { key, balance: 0 };
+            const excluded = new Set(['acc1_money@alcampo.es', 'acc2_canary@alcampo.es', 'acc4_slowredirect@alcampo.es']);
+            const unique = new Map();
+            Object.values(accounts || {}).forEach(acc => {
+                if (!acc || !acc.email || !Number.isFinite(acc.balance) ||
+                    (data.run_id && acc.run_id !== data.run_id)) return;
+                const email = acc.email.trim().toLowerCase();
+                if (excluded.has(email)) return;
+                const old = unique.get(email);
+                if (!old || (Number(acc.timestamp) || 0) >= (Number(old.timestamp) || 0)) unique.set(email, acc);
+            });
+            const balance = unique.size ? [...unique.values()].reduce((sum, acc) => sum + acc.balance, 0)
+                : Number(data.total_balance) || 0;
+            // Retry workers reset their counters; confirmed account balances remain.
+            accountBalanceState.balance = Math.max(accountBalanceState.balance, Math.round(balance * 100) / 100);
+            return accountBalanceState.balance;
+        }
+
+        async function fetchLiveProgress() {
+            const base = firebaseURL ? firebaseURL.replace(/\/$/, '') : null;
+            const readJson = async url => {
+                if (!url) return null;
                 try {
-                    const res = await fetch('progreso.json', { cache: 'no-store' });
-                    if (res.ok) {
-                        data = await res.json();
-                    }
-                } catch (err) {
-                    // Fail silently
-                }
-            }
+                    const res = await fetch(url, { cache: 'no-store' });
+                    return res.ok ? await res.json() : null;
+                } catch (err) { return null; }
+            };
+            const [remoteSnapshot, localSnapshot, liveAccounts] = await Promise.all([
+                readJson(base ? `${base}/progress.json` : null),
+                readJson('progreso.json'),
+                readJson(base ? `${base}/live_accounts.json` : null)
+            ]);
+            let data = selectProgressSnapshot(remoteSnapshot, localSnapshot);
+            latestProgressUsesLocalFinal = !!data && data === localSnapshot && data.is_finished === true;
 
             const headerBadge = document.getElementById('global-status-badge');
             const headerText = document.getElementById('global-status-text');
@@ -1440,6 +1460,7 @@
                 }
             }
 
+            data.total_balance = calculateAccountBalance(data, liveAccounts);
             data.processed = progressView.processed;
             const isCompleted = data.is_finished === true;
 
@@ -1734,6 +1755,7 @@
             let data = null;
             let liveData = null;
             let credentialData = null;
+            let exportedData = null;
             if (firebaseURL) {
                 try {
                     let cleanedUrl = firebaseURL.endsWith('/') ? firebaseURL.slice(0, -1) : firebaseURL;
@@ -1771,9 +1793,14 @@
             if (firebaseURL) {
                 try {
                     const res = await fetch('top_accounts.json', { cache: 'no-store' });
-                    if (res.ok) credentials.push(...Object.values((await res.json()) || {}));
+                    if (res.ok) {
+                        exportedData = await res.json();
+                        credentials.push(...Object.values(exportedData || {}));
+                    }
                 } catch (err) { /* Other sources remain usable when the export is unavailable. */ }
             }
+
+            if (latestProgressUsesLocalFinal && exportedData) data = exportedData;
 
             // Merge credentials independently from balances: live events omit passwords.
             const testEmails = new Set(['acc1_money@alcampo.es', 'acc2_canary@alcampo.es', 'acc4_slowredirect@alcampo.es']);

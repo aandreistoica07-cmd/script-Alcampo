@@ -31,6 +31,24 @@ for (const folder of ['dashboard', 'docs']) {
     assert.equal(calculate({ ...retry, is_finished: true }).processed, 100, 'final summary wins');
     assert.equal(calculate({ ...first, run_id: 'run2', vms: {} }).processed, 0, 'new runs reset');
     assert.equal(calculate(retry, queue).processed, 75, 'opening directly in pass two works');
+    const finalSnapshot = { run_id: 'run1', is_finished: true, total: 100, total_balance: 133.73 };
+    assert.equal(context.selectProgressSnapshot(retry, finalSnapshot), finalSnapshot,
+        'matching final export replaces stale Firebase retry state');
+    assert.equal(context.selectProgressSnapshot({ ...retry, run_id: 'new' }, finalSnapshot).run_id, 'new',
+        'an older final export cannot complete a new run');
+    const balanceAccounts = {
+        one: { email: 'one@example.test', balance: 130, run_id: 'run1', timestamp: 1 },
+        duplicate: { email: 'ONE@example.test', balance: 130, run_id: 'run1', timestamp: 2 },
+        stale: { email: 'old@example.test', balance: 1000, run_id: 'old' }
+    };
+    assert.equal(context.calculateAccountBalance({ run_id: 'run1', total_balance: 130 }, balanceAccounts), 130);
+    assert.equal(context.calculateAccountBalance({ run_id: 'run1', total_balance: 90 }, balanceAccounts), 130,
+        'retry worker resets must not lower confirmed balance');
+    assert.equal(context.calculateAccountBalance({ run_id: 'run1', total_balance: 90 }, null), 130,
+        'temporary live-account failure keeps the last confirmed balance');
+    assert.equal(context.calculateAccountBalance(finalSnapshot, null), 133.73, 'final balance is exact');
+    assert.equal(context.calculateAccountBalance({ run_id: 'new', total_balance: 0 }, balanceAccounts), 0,
+        'a new run resets balance and excludes old live accounts');
     const result = context.mergeVisibleAccounts(
         [{ email: 'user@example.test', password: 'local:password', balance: 10, card_number: '123' }],
         [{ email: 'user@example.test', balance: 12 }, { email: 'fake@example.test', balance: 99 },
