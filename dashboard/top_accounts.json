@@ -9,19 +9,19 @@
     "email": "alarrea@ymail.com",
     "password": "mc0030FJX",
     "balance": 3.0,
-    "card_number": null
-  },
-  {
-    "email": "aliciavallssalas@yahoo.es",
-    "password": "Cacadevaca21",
-    "balance": 3.0,
-    "card_number": "4003001954484"
+    "card_number": "4002006531003"
   },
   {
     "email": "raquel260786@hotmail.es",
     "password": "RAalFE260786",
     "balance": 3.0,
     "card_number": "4004005278132"
+  },
+  {
+    "email": "aliciavallssalas@yahoo.es",
+    "password": "Cacadevaca21",
+    "balance": 3.0,
+    "card_number": "4003001954484"
   },
   {
     "email": "lucyliu39@hotmail.com",
@@ -39,13 +39,7 @@
     "email": "fpaco25@yahoo.es",
     "password": "Paquita1",
     "balance": 1.96,
-    "card_number": null
-  },
-  {
-    "email": "tizucaes@yahoo.es",
-    "password": "Piriki1520",
-    "balance": 1.9,
-    "card_number": "4002002777849"
+    "card_number": "4003000939758"
   },
   {
     "email": "maitegonid@gmail.com",
@@ -57,6 +51,12 @@
     "email": "jonyllera@gmail.com",
     "password": "Supercabildo1",
     "balance": 1.75,
-    "card_number": "4004002747716"
+    "card_number": null
+  },
+  {
+    "email": "anahernandoaranda@gmail.com",
+    "password": "Anna241201",
+    "balance": 1.74,
+    "card_number": "4003009860299"
   }
 ]
