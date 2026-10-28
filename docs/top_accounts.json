@@ -6,12 +6,6 @@
     "card_number": "4004005278132"
   },
   {
-    "email": "aliciavallssalas@yahoo.es",
-    "password": "Cacadevaca21",
-    "balance": 3.0,
-    "card_number": "4003001954484"
-  },
-  {
     "email": "pilarpena@movistar.es",
     "password": "Pilar1967",
     "balance": 3.0,
@@ -27,13 +21,13 @@
     "email": "mariarustarazo@gmail.com",
     "password": "mamama90!?",
     "balance": 2.18,
-    "card_number": "4003000933664"
+    "card_number": null
   },
   {
     "email": "fpaco25@yahoo.es",
     "password": "Paquita1",
     "balance": 1.96,
-    "card_number": "4003000939758"
+    "card_number": null
   },
   {
     "email": "maitegonid@gmail.com",
@@ -42,21 +36,27 @@
     "card_number": "4003003118969"
   },
   {
-    "email": "bibiana.santosj@gmail.com",
-    "password": "Kimbo2011",
-    "balance": 1.48,
-    "card_number": "4003002521869"
-  },
-  {
     "email": "eugeniosimon14@hotmail.com",
     "password": "Bailen89",
     "balance": 1.48,
     "card_number": "4003006859562"
   },
   {
+    "email": "bibiana.santosj@gmail.com",
+    "password": "Kimbo2011",
+    "balance": 1.48,
+    "card_number": "4003002521869"
+  },
+  {
     "email": "eloy.rakel@hotmail.es",
     "password": "Eloykkeloykk12",
     "balance": 1.47,
     "card_number": "4003001170020"
+  },
+  {
+    "email": "luana_86_elena@yahoo.com",
+    "password": "Aa131017",
+    "balance": 1.42,
+    "card_number": "4003007955690"
   }
 ]
