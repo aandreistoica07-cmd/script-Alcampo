@@ -1,5 +1,11 @@
 [
   {
+    "email": "velezzapatam@yahoo.es",
+    "password": "Chipotle33",
+    "balance": 5.02,
+    "card_number": null
+  },
+  {
     "email": "latitaysa57@gmail.com",
     "password": "Cabrones_17",
     "balance": 3.08,
@@ -46,12 +52,6 @@
     "password": "1313Rumo",
     "balance": 1.41,
     "card_number": "4004004134996"
-  },
-  {
-    "email": "GLORIALM24@GMAIL.COM",
-    "password": "Alexis2015.",
-    "balance": 1.38,
-    "card_number": "4003002894932"
   },
   {
     "email": "ringochus@yahoo.es",
