@@ -3,7 +3,13 @@
     "email": "velezzapatam@yahoo.es",
     "password": "Chipotle33",
     "balance": 5.02,
-    "card_number": null
+    "card_number": "4003009443423"
+  },
+  {
+    "email": "ibanssv@gmail.com",
+    "password": "ThrombociD33",
+    "balance": 4.04,
+    "card_number": "4003002770373"
   },
   {
     "email": "latitaysa57@gmail.com",
@@ -15,7 +21,19 @@
     "email": "jpurbenmateo@gmail.com",
     "password": "Abmm1294",
     "balance": 3.0,
-    "card_number": "4002034326176"
+    "card_number": null
+  },
+  {
+    "email": "beainvercasa@hotmail.es",
+    "password": "Carne100",
+    "balance": 3.0,
+    "card_number": null
+  },
+  {
+    "email": "patricia@maservicios.es",
+    "password": "Viladecans-1",
+    "balance": 3.0,
+    "card_number": "4002010959640"
   },
   {
     "email": "ngarcia@elecnor.es",
@@ -39,24 +57,6 @@
     "email": "bibiana.santosj@gmail.com",
     "password": "Kimbo2011",
     "balance": 1.48,
-    "card_number": "4003002521869"
-  },
-  {
-    "email": "luana_86_elena@yahoo.com",
-    "password": "Aa131017",
-    "balance": 1.42,
-    "card_number": "4003007955690"
-  },
-  {
-    "email": "muxomonti@hotmail.es",
-    "password": "1313Rumo",
-    "balance": 1.41,
-    "card_number": "4004004134996"
-  },
-  {
-    "email": "ringochus@yahoo.es",
-    "password": "Naia2010",
-    "balance": 1.38,
     "card_number": null
   }
 ]
