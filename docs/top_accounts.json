@@ -6,12 +6,6 @@
     "card_number": "4003009443423"
   },
   {
-    "email": "ibanssv@gmail.com",
-    "password": "ThrombociD33",
-    "balance": 4.04,
-    "card_number": null
-  },
-  {
     "email": "pilar_escena@yahoo.es",
     "password": "653115817Mlgc",
     "balance": 3.09,
@@ -24,6 +18,12 @@
     "card_number": "4004004149808"
   },
   {
+    "email": "beainvercasa@hotmail.es",
+    "password": "Carne100",
+    "balance": 3.0,
+    "card_number": "4004000626822"
+  },
+  {
     "email": "jpurbenmateo@gmail.com",
     "password": "Abmm1294",
     "balance": 3.0,
@@ -34,12 +34,6 @@
     "password": "Viladecans-1",
     "balance": 3.0,
     "card_number": "4002010959640"
-  },
-  {
-    "email": "beainvercasa@hotmail.es",
-    "password": "Carne100",
-    "balance": 3.0,
-    "card_number": "4004000626822"
   },
   {
     "email": "ngarcia@elecnor.es",
@@ -58,5 +52,11 @@
     "password": "Bailen89",
     "balance": 1.48,
     "card_number": "4003006859562"
+  },
+  {
+    "email": "bibiana.santosj@gmail.com",
+    "password": "Kimbo2011",
+    "balance": 1.48,
+    "card_number": null
   }
 ]
