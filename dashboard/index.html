@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#ffffff">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>AuthKit · Frosted Glass Cathedral — Alcampo Loyalty Hub v4.3</title>
+    <title>Alcampo · Mis cuentas</title>
     
         <!-- Google Fonts: Inter, Raleway & JetBrains Mono (Monopo Saigon) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14,7 +14,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Raleway:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 
     <!-- CSS Stylesheet (Cache-busted for instant Linear Midnight Precision update) -->
-    <link rel="stylesheet" href="css/style.css?v=v4_3_consolidated_fix">
+    <link rel="stylesheet" href="css/style.css?v=accounts-preview-1">
     <link rel="manifest" href="manifest.json">
     
     <style>
@@ -81,7 +81,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
-<body>
+<body data-accounts-view="true">
     <!-- Authkit Ambient Blueprint Grid & Conic Spotlight Halo -->
     <div class="authkit-ambient-background">
         <div class="authkit-blueprint-grid"></div>
@@ -129,10 +129,6 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
                 Monitor en Vivo
             </button>
-            <button class="tab-btn" onclick="switchTab('qr-tools-tab', this)">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-                Centro QR / Tarjetas
-            </button>
         </div>
     </header>
 
@@ -140,62 +136,9 @@
     <main>
         
         <!-- ==================== TAB 1: HISTORIAL ANALYTICS ==================== -->
-        <div id="analytics-tab" class="tab-content active">
+        <div id="analytics-tab" class="tab-content">
             
-            <!-- Monopo Saigon Iridescent Editorial Hero -->
-            <!-- Authkit Frosted Glass Cathedral Hero -->
-            <section style="margin-bottom: var(--section-gap);">
-                <div class="authkit-hero-card">
-                    <!-- Eyebrow marker flanked by fading lines -->
-                    <div class="authkit-eyebrow-wrapper">
-                        <div class="authkit-eyebrow-line"></div>
-                        <div class="authkit-eyebrow-text">
-                            <span style="color: var(--color-void-violet);">✦</span>
-                            <span>AUTHKIT MIDNIGHT CATHEDRAL · v4.3</span>
-                        </div>
-                        <div class="authkit-eyebrow-line"></div>
-                    </div>
 
-                    <!-- Illuminated Display Wordmark -->
-                    <h2 class="authkit-hero-wordmark">ALCAMPO CLOUD MATRIX</h2>
-                    
-                    <p class="authkit-hero-desc">
-                        Frosted glass architecture at midnight. Luminous telemetry, automated multi-threaded scrapers, and digital wallet orchestration.
-                    </p>
-
-                    <!-- Elevated Auth-Card Modal for Balance -->
-                    <div class="authkit-hero-balance-wrap">
-                        <div class="hero-balance-label">SALDO TOTAL ACUMULADO</div>
-                        <div class="hero-balance-value" id="hero-wallet-balance">0.00 €</div>
-                        <div style="margin-top: 8px;">
-                            <span class="badge status-pill success">
-                                <span class="stitch-live-dot"></span>
-                                Conexión Cifrada SSL
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- Button Action Group -->
-                    <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; align-items: center;">
-                        <div class="stitch-border-beam-wrapper">
-                            <div class="stitch-border-beam-spinner"></div>
-                            <button class="stitch-border-beam-btn" onclick="switchTab('qr-tools-tab', document.querySelectorAll('.tab-btn')[2])">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-                            <span>Abrir Tarjetas Digitales</span>
-                        </button>
-                        </div>
-                        <button class="btn-ghost-pill" onclick="switchTab('live-tab', document.querySelectorAll('.tab-btn')[1])">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                            <span>Monitor de Telemetría</span>
-                        </button>
-                        <button class="filled-slate-pill" onclick="window.location.reload()">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
-                            <span>Sincronizar</span>
-                        </button>
-                    </div>
-                </div>
-            </section>
-            <!-- /Authkit Frosted Glass Cathedral Hero -->
 
             <!-- Section: Resumen de Última Ejecución (Luxury Bento Grid) -->
             <section style="margin-bottom: var(--section-gap);">
@@ -399,7 +342,7 @@
         </div>
 
         <!-- ==================== TAB 2: MONITOR EN VIVO ==================== -->
-        <div id="live-tab" class="tab-content">
+        <div id="live-tab" class="tab-content active">
             
             <!-- Section: Firebase Config Panel -->
             <section>
@@ -532,6 +475,8 @@
 
         </div>
 
+        </div>
+
         <!-- ==================== TAB 3: CENTRO QR & GENERADOR DE TARJETAS ==================== -->
         <div id="qr-tools-tab" class="tab-content">
             <section>
@@ -552,7 +497,6 @@
                                 <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.4rem;">Número de Tarjeta (13 dígitos EAN o cualquier identificador):</label>
                                 <div style="display: flex; gap: 0.5rem;">
                                     <input type="text" id="manual-card-input" class="search-input" style="font-family: 'JetBrains Mono', monospace; font-size: 1rem; letter-spacing: 1px;" placeholder="Ej: 2801234567890 o 0123456789012" maxlength="20" oninput="liveGenerateFromInput()">
-                                    <button class="pagination-btn" onclick="generateRandomCardNumber()" style="background: rgba(255, 159, 67, 0.15); border-color: rgba(255, 159, 67, 0.3); color: var(--accent-orange); white-space: nowrap; font-size: 0.8rem;">🎲 Aleatoria</button>
                                 </div>
                             </div>
 
@@ -651,9 +595,6 @@
     </main>
 
     <!-- Footer -->
-    <footer>
-        <p>© 2026 Alcampo Scraper Analytics | Linear Midnight Precision Instrument v4.1</p>
-    </footer>
 
     <!-- High-Compatibility Scanner Modal (QR + EAN-13 Barcode) for Club Alcampo -->
     <div id="qr-modal" class="modal-overlay" onclick="handleOverlayClick(event)">
@@ -665,7 +606,7 @@
                         <span id="modal-title-text">Tarjeta Club Alcampo</span>
                     </h3>
                     <p style="margin: 0.2rem 0 0 0; font-size: 0.75rem; color: var(--text-secondary);" id="modal-subtitle-text">
-                        Compatible con escáneres ópticos 2D y lectores láser 1D de caja
+                        QR de tu tarjeta Club Alcampo
                     </p>
                 </div>
                 <button class="close-btn" onclick="closeQrModal()">&times;</button>
@@ -693,6 +634,8 @@
                 </div>
 
                 <div id="qr-card-info" class="qr-card-info">Sin Tarjeta</div>
+                <a href="https://www.miportal.alcampo.es/es/cuenta/fidelidad" target="_blank" rel="noopener noreferrer" class="pagination-btn" style="padding: 0.7rem;">Abrir mi tarjeta en Alcampo ↗</a>
+                <p style="font-size: 0.75rem; color: var(--text-secondary); margin: 0;">Se abrirá la cuenta con sesión iniciada en Alcampo.</p>
 
                 <!-- Manual Assign / Edit Section in Modal -->
                 <div id="modal-manual-edit-box" style="display: none; width: 100%; background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 0.75rem;">
@@ -826,6 +769,14 @@
     <script>
         // --- Navigation Logic ---
         function switchTab(tabId, btnElement) {
+            // Vista de prueba reversible: conservar las pestañas originales.
+            if (document.body.dataset.accountsView === 'true') {
+                tabId = 'live-tab';
+                btnElement = null;
+            } else if (tabId === 'qr-tools-tab') {
+                tabId = 'analytics-tab';
+                btnElement = null;
+            }
             const tabs = document.querySelectorAll('.tab-content');
             tabs.forEach(tab => tab.classList.remove('active'));
             
@@ -857,10 +808,37 @@
                     if (top10Data && top10Data.length > 0) {
                         loadAccountIntoGenerator(top10Data[0].email);
                     } else {
-                        generateRandomCardNumber();
+                        liveGenerateFromInput();
                     }
                 }
             }
+        }
+
+        function prepareAccountsView() {
+            if (document.body.dataset.accountsView !== 'true') return;
+            const live = document.getElementById('live-tab');
+            const sections = Array.from(live.children).filter(node => node.tagName === 'SECTION');
+            const [configuration, summary, accounts] = sections;
+            const threads = live.querySelector('.live-grid');
+            const details = document.createElement('details');
+            details.className = 'account-run-details';
+            const label = document.createElement('summary');
+            label.textContent = 'Detalles de ejecución';
+            details.appendChild(label);
+            if (configuration) details.appendChild(configuration);
+            if (threads) details.appendChild(threads);
+            if (summary) summary.classList.add('accounts-summary');
+            if (accounts) {
+                accounts.classList.add('accounts-list-section');
+                live.insertBefore(accounts, details.parentNode === live ? details : null);
+            }
+            live.appendChild(details);
+            const heading = accounts?.querySelector('h3');
+            if (heading) heading.textContent = 'Mis cuentas';
+            const description = accounts?.querySelector('h3 + p');
+            if (description) description.textContent = 'Busca una cuenta y abre su tarjeta.';
+            const balanceLabel = document.getElementById('live-balance')?.closest('.balance-card')?.querySelector('.stat-card-header > span');
+            if (balanceLabel) balanceLabel.textContent = 'Saldo total';
         }
 
         // --- Data Variables ---
@@ -899,6 +877,7 @@
 
         // Initialize Page
         window.addEventListener('DOMContentLoaded', async () => {
+            prepareAccountsView();
             const fbInput = document.getElementById('firebase-url-input');
             if (fbInput) fbInput.value = firebaseURL;
 
@@ -958,9 +937,11 @@
                 filteredData = [...historyData];
 
                 renderLatestRunStats();
-                renderCharts();
-                currentPage = 1;
-                renderTable();
+                if (document.body.dataset.accountsView !== 'true') {
+                    renderCharts();
+                    currentPage = 1;
+                    renderTable();
+                }
 
             } catch (error) {
                 console.error("Error al inicializar el historial:", error);
@@ -1809,9 +1790,7 @@
             if (accountsMap.size > 0) {
                 let parsedList = Array.from(accountsMap.values());
                 parsedList.forEach(acc => {
-                    if (customCardsStore[acc.email]) {
-                        acc.card_number = customCardsStore[acc.email];
-                    }
+                    acc.card_number = getAccountCard(acc.card_number, acc.email);
                 });
                 parsedList.sort((a, b) => (b.balance || 0) - (a.balance || 0));
                 top10Data = parsedList;
@@ -1885,9 +1864,11 @@
                 return;
             }
             
-            const list = (topAccountsFilterTerm ? 
-                top10Data.filter(a => a.email.toLowerCase().includes(topAccountsFilterTerm)) : 
-                top10Data).slice(0, 10);
+            const matchingAccounts = topAccountsFilterTerm ?
+                top10Data.filter(a => a.email.toLowerCase().includes(topAccountsFilterTerm)) :
+                top10Data;
+            const list = document.body.dataset.accountsView === 'true' ?
+                matchingAccounts : matchingAccounts.slice(0, 10);
 
             if (list.length === 0) {
                 container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 1rem 0;">No hay cuentas que coincidan con la búsqueda.</div>';
@@ -1897,8 +1878,8 @@
             let html = '';
             list.forEach((acc, i) => {
                 const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`;
-                const hasCard = !!acc.card_number;
-                const cardLabel = hasCard ? '📱 QR Club' : '⚡ Generar QR';
+                const hasCard = !!getAccountCard(acc.card_number, acc.email);
+                const cardLabel = hasCard ? '📱 QR Club' : '💳 Ver tarjeta';
                 const cardStyle = hasCard ? 
                     'background: rgba(255, 159, 67, 0.15); border-color: rgba(255, 159, 67, 0.35); color: var(--accent-orange);' :
                     'background: rgba(0, 210, 255, 0.12); border-color: rgba(0, 210, 255, 0.3); color: var(--accent-blue);';
@@ -1909,7 +1890,7 @@
                             <span class="top10-account-medal">${medal}</span>
                             <div class="top10-account-text-col">
                                 <code class="selectable-text top10-account-credentials">${escapeHtml(acc.email)}:${escapeHtml(acc.password)}</code>
-                                ${hasCard ? `<span onclick="openFullscreenQrDirect('${escapeHtml(acc.card_number || '')}', '${escapeHtml(acc.email)}', ${acc.balance})" class="top10-card-number-badge" title="Toca para Pantalla Completa">💳 Tarjeta: ${formatCardSpaced(acc.card_number)} <span class="caja-tag">⛶ CAJA</span></span>` : `<span class="top10-no-card-badge">💳 Tarjeta auto-generable en 1-clic</span>`}
+                                ${hasCard ? `<span onclick="openFullscreenQrDirect('${escapeHtml(acc.card_number || '')}', '${escapeHtml(acc.email)}', ${acc.balance})" class="top10-card-number-badge" title="Toca para Pantalla Completa">💳 Tarjeta: ${formatCardSpaced(acc.card_number)} <span class="caja-tag">⛶ CAJA</span></span>` : `<span class="top10-no-card-badge">💳 Tarjeta pendiente</span>`}
                             </div>
                         </div>
                         <div class="top10-account-actions-box">
@@ -1917,7 +1898,7 @@
                                 📋 Copiar
                             </button>
                             ${getCheckButtonHTML(acc.email, acc.password)}
-                            <button class="pagination-btn top10-action-btn" data-card="${escapeHtml(acc.card_number || '')}" data-email="${escapeHtml(acc.email)}" data-password="${escapeHtml(acc.password)}" onclick="showQrModal(this)" style="${cardStyle}" title="Abrir Tarjeta QR y Código de Barras">
+                            <button class="pagination-btn top10-action-btn" data-card="${escapeHtml(acc.card_number || '')}" data-email="${escapeHtml(acc.email)}" data-password="${escapeHtml(acc.password)}" onclick="openAccountQr(this)" style="${cardStyle}" title="Abrir Tarjeta QR y Código de Barras">
                                 ${cardLabel}
                             </button>
                             <button class="pagination-btn top10-action-btn caja-action-btn" onclick="openFullscreenQrDirect('${escapeHtml(acc.card_number || '')}', '${escapeHtml(acc.email)}', ${acc.balance})" title="Pantalla Completa Instantánea (Modo Caja)">
@@ -2205,16 +2186,53 @@
             return remainder === 0 ? 0 : 10 - remainder;
         }
 
-        function generateDeterministicCardForEmail(email) {
+        // Official portal app.e89eb240.js: qrCode = "?clif=" + cardNumberAuchan.
+        // See QR_INTEGRATION.md for the inspected source and verification scope.
+        function normalizeClubCard(value) {
+            const digits = String(value ?? '').trim().replace(/[\s-]/g, '');
+            return /^(400\d{10}|280\d{10})$/.test(digits) ? digits : '';
+        }
+
+        function getAccountCard(value, email) {
+            const actual = normalizeClubCard(value);
+            const stored = normalizeClubCard(customCardsStore[email]);
+            if (!stored || !email) return actual;
+            // Ignore numbers invented by the previous email-hash generator.
             let hash = 0;
             for (let i = 0; i < email.length; i++) {
                 hash = ((hash << 5) - hash) + email.charCodeAt(i);
                 hash |= 0;
             }
-            const positiveHash = Math.abs(hash).toString().padStart(6, '0').slice(0, 6);
-            const prefix12 = `400200${positiveHash}`; // Prefijo oficial Club Alcampo (400200...)
-            const check = calculateEan13Checksum(prefix12);
-            return `${prefix12}${check}`;
+            const prefix = `400200${Math.abs(hash).toString().padStart(6, '0').slice(0, 6)}`;
+            return stored === `${prefix}${calculateEan13Checksum(prefix)}` ? actual : stored;
+        }
+
+        function clubQrPayload(card) {
+            const digits = normalizeClubCard(card);
+            return digits ? `?clif=${digits}` : '';
+        }
+
+        function renderClubQr(container, card, size) {
+            if (!container) return false;
+            container.innerHTML = '';
+            container.style.color = '#111827';
+            const payload = clubQrPayload(card);
+            if (!payload) {
+                container.textContent = 'Tarjeta no disponible. Abre Alcampo o introduce el número de tu tarjeta.';
+                return false;
+            }
+            try {
+                new QRCode(container, {
+                    text: payload, width: size, height: size,
+                    colorDark: '#000000', colorLight: '#ffffff',
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+                return true;
+            } catch (error) {
+                container.innerHTML = '';
+                container.textContent = 'No se pudo dibujar el QR. Recarga la página o abre Alcampo.';
+                return false;
+            }
         }
 
         // --- QR Modal Logic (Fixed & Enhanced) ---
@@ -2266,9 +2284,9 @@
         }
 
         function saveManualCardFromModal() {
-            const inputVal = document.getElementById('modal-edit-card-input').value.trim();
+            const inputVal = normalizeClubCard(document.getElementById('modal-edit-card-input').value);
             if (!inputVal) {
-                alert("Introduce un número de tarjeta válido.");
+                alert("Introduce el número real de tu tarjeta Club Alcampo (13 dígitos).");
                 return;
             }
             currentCardRaw = inputVal;
@@ -2308,7 +2326,12 @@
             const qrContainer = document.getElementById('qrcode-container');
             qrContainer.innerHTML = '';
             const info = document.getElementById('qr-card-info');
-            const cleanDigits = cardNumber.replace(/\D/g, '') || cardNumber;
+            const cleanDigits = normalizeClubCard(cardNumber);
+            document.getElementById('barcode-svg').innerHTML = '';
+            document.getElementById('copy-card-btn').disabled = !cleanDigits;
+            document.getElementById('fullscreen-btn').disabled = !cleanDigits;
+            document.getElementById('scanner-white-card').style.display = cleanDigits ? '' : 'none';
+            document.getElementById('modal-view-tabs').style.display = cleanDigits ? '' : 'none';
             const formatted = formatCardSpaced(cardNumber);
 
             info.innerHTML = `
@@ -2316,15 +2339,11 @@
                 <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px;">${escapeHtml(email || 'Tarjeta Alcampo')}</div>
             `;
 
-            // Render QR Code (Modo M standard para lectores de caja e idéntico a Alcampo)
-            new QRCode(qrContainer, {
-                text: cleanDigits,
-                width: 190,
-                height: 190,
-                colorDark: "#000000",
-                colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.M
-            });
+            renderClubQr(qrContainer, cleanDigits, 190);
+            if (!cleanDigits) {
+                info.textContent = 'Sin número de tarjeta';
+                return;
+            }
 
             // Render Barcode
             if (window.JsBarcode) {
@@ -2368,23 +2387,21 @@
             setScannerView(currentScannerView);
         }
 
+        function openAccountQr(btn) {
+            const card = getAccountCard(btn.getAttribute('data-card'), btn.getAttribute('data-email'));
+            if (card) openFullscreenQr(card, btn.getAttribute('data-email'));
+            else showQrModal(btn);
+        }
+
         function showQrModal(btn) {
-            const cardNumber = btn.getAttribute('data-card');
-            const email = btn.getAttribute('data-email') || '';
-            const password = btn.getAttribute('data-password') || '';
-            
+            openCardDetails(btn.getAttribute('data-card'), btn.getAttribute('data-email') || '', btn.getAttribute('data-password') || '');
+        }
+
+        function openCardDetails(card, email, password = '') {
             currentModalEmail = email;
             currentModalPassword = password;
-            document.getElementById('modal-manual-edit-box').style.display = 'none';
-
-            // Resolve Card Number: If missing, auto-generate standard deterministic 13-digit EAN
-            let resolvedCard = cardNumber ? cardNumber.trim() : (customCardsStore[email] || '');
-            if (!resolvedCard && email) {
-                resolvedCard = generateDeterministicCardForEmail(email);
-                updateLocalAccountData(email, undefined, resolvedCard);
-            }
-
-            currentCardRaw = resolvedCard;
+            currentCardRaw = getAccountCard(card, email);
+            document.getElementById('modal-manual-edit-box').style.display = currentCardRaw ? 'none' : 'block';
             renderModalCardGraphics(currentCardRaw, email);
             document.getElementById('qr-modal').classList.add('active');
         }
@@ -2424,19 +2441,8 @@
             }
         }
 
-        function generateRandomCardNumber() {
-            const random10 = Math.floor(1000000000 + Math.random() * 9000000000).toString();
-            const prefix12 = `28${random10}`;
-            const check = calculateEan13Checksum(prefix12);
-            const fullCard = `${prefix12}${check}`;
-            
-            document.getElementById('manual-card-input').value = fullCard;
-            document.getElementById('manual-label-input').value = 'Tarjeta Club Alcampo Express';
-            liveGenerateFromInput();
-        }
-
         function liveGenerateFromInput() {
-            let cardVal = document.getElementById('manual-card-input').value.trim();
+            let cardVal = normalizeClubCard(document.getElementById('manual-card-input').value);
             const labelVal = document.getElementById('manual-label-input').value.trim();
             
             if (!cardVal) {
@@ -2446,18 +2452,11 @@
                 return;
             }
 
-            const cleanDigits = cardVal.replace(/\D/g, '') || cardVal;
+            const cleanDigits = cardVal;
             const qrContainer = document.getElementById('live-tool-qrcode');
             qrContainer.innerHTML = '';
             
-            new QRCode(qrContainer, {
-                text: cleanDigits,
-                width: 175,
-                height: 175,
-                colorDark: "#000000",
-                colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.H
-            });
+            renderClubQr(qrContainer, cleanDigits, 175);
 
             if (window.JsBarcode) {
                 try {
@@ -2524,11 +2523,7 @@
             const acc = top10Data.find(a => a.email === email);
             if (!acc) return;
             
-            let card = acc.card_number || customCardsStore[acc.email];
-            if (!card) {
-                card = generateDeterministicCardForEmail(acc.email);
-                updateLocalAccountData(acc.email, undefined, card);
-            }
+            const card = getAccountCard(acc.card_number, acc.email);
             
             document.getElementById('manual-card-input').value = card;
             document.getElementById('manual-label-input').value = `${acc.email} | Saldo: ${acc.balance.toFixed(2)} €`;
@@ -2605,7 +2600,7 @@
             }
             let csv = "email,password,saldo,tarjeta\n";
             top10Data.forEach(acc => {
-                const card = acc.card_number || customCardsStore[acc.email] || generateDeterministicCardForEmail(acc.email);
+                const card = getAccountCard(acc.card_number, acc.email);
                 csv += `"${acc.email}","${acc.password || ''}",${acc.balance},"${card}"\n`;
             });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -2650,7 +2645,7 @@
 
             let html = '';
             pool.forEach((acc, idx) => {
-                const card = acc.card_number || customCardsStore[acc.email] || generateDeterministicCardForEmail(acc.email);
+                const card = getAccountCard(acc.card_number, acc.email);
                 html += `
                     <div class="alcampo-digital-card">
                         <div class="alcampo-card-header">
@@ -2692,27 +2687,10 @@
             });
             container.innerHTML = html;
 
-            // Generate thumbnail QR for each card with fallback
+            // The same official payload is used in every QR view.
             setTimeout(() => {
                 pool.forEach((acc, idx) => {
-                    const card = acc.card_number || customCardsStore[acc.email] || generateDeterministicCardForEmail(acc.email);
-                    const cleanDigits = card.replace(/\D/g, '') || card;
-                    const qrEl = document.getElementById(`catalog-card-qr-${idx}`);
-                    if (qrEl) {
-                        qrEl.innerHTML = '';
-                        try {
-                            new QRCode(qrEl, {
-                                text: cleanDigits,
-                                width: 140,
-                                height: 140,
-                                colorDark: "#000000",
-                                colorLight: "#ffffff",
-                                correctLevel: QRCode.CorrectLevel.M
-                            });
-                        } catch (e) {
-                            qrEl.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(cleanDigits)}" alt="QR" style="width:140px;height:140px;" />`;
-                        }
-                    }
+                    renderClubQr(document.getElementById(`catalog-card-qr-${idx}`), getAccountCard(acc.card_number, acc.email), 140);
                 });
             }, 50);
         }
@@ -2729,12 +2707,12 @@
         function openFullscreenFromLiveTool() {
             const cardInput = document.getElementById('manual-card-input');
             const labelInput = document.getElementById('manual-label-input');
-            const card = cardInput ? cardInput.value.trim() : '2801234567890';
+            const card = cardInput ? cardInput.value.trim() : '';
             const email = labelInput ? labelInput.value.trim() : 'Tarjeta Alcampo';
             let balance = null;
             const matched = top10Data.find(a => a.email === email);
             if (matched) balance = matched.balance;
-            openFullscreenQr(card || '2801234567890', email, balance);
+            openFullscreenQr(card, email, balance);
         }
 
         function toggleFullscreenQrZoom() {
@@ -2743,8 +2721,8 @@
 
         function saveAllCardsToLocalStorage() {
             top10Data.forEach(acc => {
-                const card = acc.card_number || generateDeterministicCardForEmail(acc.email);
-                customCardsStore[acc.email] = card;
+                const card = getAccountCard(acc.card_number, acc.email);
+                if (card) customCardsStore[acc.email] = card;
             });
             localStorage.setItem('alcampo_custom_cards', JSON.stringify(customCardsStore));
             alert("¡Todas las tarjetas han sido persistidas en el almacenamiento local del navegador!");
@@ -2789,12 +2767,10 @@
         let currentFsCardNumber = '';
 
         function openFullscreenQr(cardNumber, email, balance) {
+            cardNumber = getAccountCard(cardNumber, email);
             if (!cardNumber) {
-                if (email) {
-                    cardNumber = customCardsStore[email] || generateDeterministicCardForEmail(email);
-                } else {
-                    cardNumber = '2801234567890';
-                }
+                openCardDetails('', email || '');
+                return;
             }
             currentFsCardNumber = cardNumber;
             
@@ -2842,12 +2818,7 @@
         }
 
         function openFullscreenQrDirect(card, email, balance) {
-            let resolvedCard = card ? card.trim() : (customCardsStore[email] || '');
-            if (!resolvedCard && email) {
-                resolvedCard = generateDeterministicCardForEmail(email);
-                updateLocalAccountData(email, undefined, resolvedCard);
-            }
-            openFullscreenQr(resolvedCard, email, balance);
+            openFullscreenQr(getAccountCard(card, email), email, balance);
         }
 
         function closeFullscreenQr() {
@@ -2873,34 +2844,11 @@
         }
 
         function renderFullscreenGraphics(cardNumber) {
-            const cleanDigits = (cardNumber || '4002002347929').replace(/\D/g, '') || cardNumber;
-
-            // Render pure big QR code
             const qrContainer = document.getElementById('fs-qrcode-container');
-            if (qrContainer) {
-                qrContainer.innerHTML = '';
-                
-                const availW = window.innerWidth || document.documentElement.clientWidth || 360;
-                const availH = window.innerHeight || document.documentElement.clientHeight || 640;
-                
-                // Pure centered QR taking optimal screen space
-                const targetMax = Math.min(availW * 0.84, availH * 0.72, 440);
-                const qrSize = Math.max(Math.round(targetMax), 220);
-
-                try {
-                    new QRCode(qrContainer, {
-                        text: cleanDigits,
-                        width: qrSize,
-                        height: qrSize,
-                        colorDark: "#000000",
-                        colorLight: "#ffffff",
-                        correctLevel: QRCode.CorrectLevel.M
-                    });
-                } catch (qrErr) {
-                    console.error("Error generating pure QR:", qrErr);
-                    qrContainer.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(cleanDigits)}" alt="QR Code" style="width:${qrSize}px; height:${qrSize}px; image-rendering: pixelated;" />`;
-                }
-            }
+            const availW = window.innerWidth || document.documentElement.clientWidth || 360;
+            const availH = window.innerHeight || document.documentElement.clientHeight || 640;
+            const qrSize = Math.max(Math.round(Math.min(availW * 0.84, availH * 0.72, 440)), 160);
+            renderClubQr(qrContainer, cardNumber, qrSize);
         }
 
         function openGitHubTokenPage() {
@@ -3149,15 +3097,5 @@
         }
     </script>
     <div id="toast-container"></div>
-    <!-- AuthKit Compliance Banner -->
-    <div class="authkit-compliance-banner" id="authkitComplianceBanner">
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="color: var(--color-void-violet); font-size: 16px;">✦</span>
-            <span><strong>Privacidad & Telemetría:</strong> Cifrado de credenciales activo y sincronización de sesiones en tiempo real.</span>
-        </div>
-        <button class="btn-violet" onclick="document.getElementById('authkitComplianceBanner').style.display='none'" style="padding: 6px 18px !important; font-size: 12px !important;">
-            Aceptar
-        </button>
-    </div>
 </body>
 </html>
