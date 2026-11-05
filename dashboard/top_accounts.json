@@ -3,30 +3,6 @@
     "email": "patricia@maservicios.es",
     "password": "Viladecans-1",
     "balance": 3.0,
-    "card_number": "4002010959640"
-  },
-  {
-    "email": "lorenaruizguisadoetsy@hotmail.es",
-    "password": "Martina2012",
-    "balance": 3.0,
-    "card_number": "4002004404873"
-  },
-  {
-    "email": "jpurbenmateo@gmail.com",
-    "password": "Abmm1294",
-    "balance": 3.0,
-    "card_number": null
-  },
-  {
-    "email": "ngarcia@elecnor.es",
-    "password": "Nolecnor1975",
-    "balance": 2.56,
-    "card_number": "4002001766721"
-  },
-  {
-    "email": "muxomonti@hotmail.es",
-    "password": "1313Rumo",
-    "balance": 2.35,
     "card_number": null
   },
   {
@@ -36,27 +12,51 @@
     "card_number": "4004003136281"
   },
   {
-    "email": "felipesanchezquemasda@gmail.com",
-    "password": "Mafer1977",
-    "balance": 1.82,
-    "card_number": "4003005453082"
+    "email": "eugeniosimon14@hotmail.com",
+    "password": "Bailen89",
+    "balance": 1.48,
+    "card_number": null
+  },
+  {
+    "email": "bibiana.santosj@gmail.com",
+    "password": "Kimbo2011",
+    "balance": 1.48,
+    "card_number": "4003002521869"
   },
   {
     "email": "veronicallorente@hotmail.com",
     "password": "Veronica472",
-    "balance": 1.64,
+    "balance": 1.43,
     "card_number": "4003001042563"
   },
   {
-    "email": "silviade78@yahoo.es",
-    "password": "Porta1978",
-    "balance": 1.49,
-    "card_number": "4003004186868"
+    "email": "luana_86_elena@yahoo.com",
+    "password": "Aa131017",
+    "balance": 1.42,
+    "card_number": "4003007955690"
   },
   {
-    "email": "eugeniosimon14@hotmail.com",
-    "password": "Bailen89",
-    "balance": 1.48,
-    "card_number": "4003006859562"
+    "email": "muxomonti@hotmail.es",
+    "password": "1313Rumo",
+    "balance": 1.41,
+    "card_number": "4004004134996"
+  },
+  {
+    "email": "GLORIALM24@GMAIL.COM",
+    "password": "Alexis2015.",
+    "balance": 1.38,
+    "card_number": "4003002894932"
+  },
+  {
+    "email": "ringochus@yahoo.es",
+    "password": "Naia2010",
+    "balance": 1.38,
+    "card_number": "4002007942662"
+  },
+  {
+    "email": "jessicadiezojeda@gmail.com",
+    "password": "Taysa3jjb",
+    "balance": 1.35,
+    "card_number": "4002017821360"
   }
 ]
