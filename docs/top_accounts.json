@@ -1,21 +1,15 @@
 [
   {
-    "email": "patricia@maservicios.es",
-    "password": "Viladecans-1",
+    "email": "sabi_scl@hotmail.com",
+    "password": "Fiatpunto1",
     "balance": 3.0,
-    "card_number": null
+    "card_number": "4004004002042"
   },
   {
     "email": "piluca2009@hotmail.es",
     "password": "Piluky65",
     "balance": 1.84,
     "card_number": "4004003136281"
-  },
-  {
-    "email": "eugeniosimon14@hotmail.com",
-    "password": "Bailen89",
-    "balance": 1.48,
-    "card_number": null
   },
   {
     "email": "bibiana.santosj@gmail.com",
@@ -27,7 +21,7 @@
     "email": "veronicallorente@hotmail.com",
     "password": "Veronica472",
     "balance": 1.43,
-    "card_number": "4003001042563"
+    "card_number": null
   },
   {
     "email": "luana_86_elena@yahoo.com",
@@ -58,5 +52,11 @@
     "password": "Taysa3jjb",
     "balance": 1.35,
     "card_number": "4002017821360"
+  },
+  {
+    "email": "paoolga@hotmail.es",
+    "password": "Alejandra2007",
+    "balance": 1.34,
+    "card_number": "4003003138325"
   }
 ]
