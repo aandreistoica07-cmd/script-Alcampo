@@ -1,12 +1,12 @@
 {
   "total": 512,
   "processed": 512,
-  "success": 492,
-  "money": 259,
-  "zero": 233,
-  "error": 20,
-  "total_balance": 136.71,
+  "success": 468,
+  "money": 246,
+  "zero": 222,
+  "error": 44,
+  "total_balance": 133.79,
   "is_finished": true,
-  "timestamp": 1794304190.872181,
-  "run_id": "run_1794302760_a8c4a1"
+  "timestamp": 1794318881.4849415,
+  "run_id": "run_1794317927_1e2854"
 }
