@@ -9,7 +9,25 @@
     "email": "helenadv2000@yahoo.es",
     "password": "Nada201199",
     "balance": 3.19,
-    "card_number": "4003002564286"
+    "card_number": null
+  },
+  {
+    "email": "monicaguerreromayer@gmail.com",
+    "password": "Mguerrero1",
+    "balance": 3.05,
+    "card_number": "4002018266160"
+  },
+  {
+    "email": "luisdelmolino@gmail.com",
+    "password": "Lusalumarru3",
+    "balance": 3.0,
+    "card_number": "4003005440679"
+  },
+  {
+    "email": "ruben.frias@hotmail.es",
+    "password": "Morenaza1",
+    "balance": 3.0,
+    "card_number": "4003001824398"
   },
   {
     "email": "erubio666@hotmail.com",
@@ -18,45 +36,27 @@
     "card_number": null
   },
   {
-    "email": "tizucaes@yahoo.es",
-    "password": "Piriki1520",
-    "balance": 1.91,
-    "card_number": "4002002777849"
-  },
-  {
-    "email": "patricia@maservicios.es",
-    "password": "Viladecans-1",
-    "balance": 1.43,
-    "card_number": "4002010959640"
+    "email": "jenniferruizfernandez0@gmail.com",
+    "password": "Genova22091992",
+    "balance": 2.76,
+    "card_number": "4002033245232"
   },
   {
     "email": "veronicallorente@hotmail.com",
     "password": "Veronica472",
     "balance": 1.43,
-    "card_number": "4003001042563"
+    "card_number": null
   },
   {
-    "email": "GLORIALM24@GMAIL.COM",
-    "password": "Alexis2015.",
-    "balance": 1.38,
-    "card_number": "4003002894932"
+    "email": "patricia@maservicios.es",
+    "password": "Viladecans-1",
+    "balance": 1.43,
+    "card_number": null
   },
   {
     "email": "ringochus@yahoo.es",
     "password": "Naia2010",
     "balance": 1.38,
     "card_number": null
-  },
-  {
-    "email": "paoolga@hotmail.es",
-    "password": "Alejandra2007",
-    "balance": 1.34,
-    "card_number": "4003003138325"
-  },
-  {
-    "email": "masfrio2009@hotmail.es",
-    "password": "010197Na",
-    "balance": 1.34,
-    "card_number": "4003001322894"
   }
 ]
