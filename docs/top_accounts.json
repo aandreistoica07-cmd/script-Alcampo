@@ -6,6 +6,12 @@
     "card_number": "4003005427274"
   },
   {
+    "email": "pbcapdevila@gmail.com",
+    "password": "Castefa9",
+    "balance": 3.3,
+    "card_number": "4002003574201"
+  },
+  {
     "email": "helenadv2000@yahoo.es",
     "password": "Nada201199",
     "balance": 3.19,
@@ -15,7 +21,7 @@
     "email": "monicaguerreromayer@gmail.com",
     "password": "Mguerrero1",
     "balance": 3.05,
-    "card_number": "4002018266160"
+    "card_number": null
   },
   {
     "email": "ruben.frias@hotmail.es",
@@ -27,13 +33,13 @@
     "email": "erubio666@hotmail.com",
     "password": "Zaragoza13",
     "balance": 3.0,
-    "card_number": null
+    "card_number": "4003002039289"
   },
   {
-    "email": "rubensbau@hotmail.com",
-    "password": "@Cagontos1978",
+    "email": "princesita.loly@hotmail.es",
+    "password": "Loly1971",
     "balance": 3.0,
-    "card_number": "4003002659364"
+    "card_number": "4002006155827"
   },
   {
     "email": "luisdelmolino@gmail.com",
@@ -42,21 +48,15 @@
     "card_number": "4003005440679"
   },
   {
-    "email": "jenniferruizfernandez0@gmail.com",
-    "password": "Genova22091992",
-    "balance": 1.6,
-    "card_number": "4002033245232"
+    "email": "albabi@gmail.com",
+    "password": "Polidori=55",
+    "balance": 3.0,
+    "card_number": "4002022340443"
   },
   {
-    "email": "ascenhv@yahoo.es",
-    "password": "Aa2012Pp",
-    "balance": 1.54,
-    "card_number": "4003000108222"
-  },
-  {
-    "email": "silviade78@yahoo.es",
-    "password": "Porta1978",
-    "balance": 1.51,
-    "card_number": "4003004186868"
+    "email": "rubensbau@hotmail.com",
+    "password": "@Cagontos1978",
+    "balance": 3.0,
+    "card_number": "4003002659364"
   }
 ]
