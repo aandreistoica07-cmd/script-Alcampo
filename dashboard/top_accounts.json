@@ -18,18 +18,6 @@
     "card_number": "4003002564286"
   },
   {
-    "email": "monicaguerreromayer@gmail.com",
-    "password": "Mguerrero1",
-    "balance": 3.05,
-    "card_number": null
-  },
-  {
-    "email": "ruben.frias@hotmail.es",
-    "password": "Morenaza1",
-    "balance": 3.0,
-    "card_number": "4003001824398"
-  },
-  {
     "email": "erubio666@hotmail.com",
     "password": "Zaragoza13",
     "balance": 3.0,
@@ -40,6 +28,12 @@
     "password": "Loly1971",
     "balance": 3.0,
     "card_number": "4002006155827"
+  },
+  {
+    "email": "rubensbau@hotmail.com",
+    "password": "@Cagontos1978",
+    "balance": 3.0,
+    "card_number": "4003002659364"
   },
   {
     "email": "luisdelmolino@gmail.com",
@@ -54,9 +48,15 @@
     "card_number": "4002022340443"
   },
   {
-    "email": "rubensbau@hotmail.com",
-    "password": "@Cagontos1978",
+    "email": "ruben.frias@hotmail.es",
+    "password": "Morenaza1",
     "balance": 3.0,
-    "card_number": "4003002659364"
+    "card_number": null
+  },
+  {
+    "email": "patricia@maservicios.es",
+    "password": "Viladecans-1",
+    "balance": 1.43,
+    "card_number": "4002010959640"
   }
 ]
