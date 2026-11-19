@@ -1,17 +1,5 @@
 [
   {
-    "email": "alex84v.ss@gmail.com",
-    "password": "10Enero1984",
-    "balance": 3.0,
-    "card_number": "4002034761472"
-  },
-  {
-    "email": "margoniz@hotmail.es",
-    "password": "Minumeroesel7",
-    "balance": 1.92,
-    "card_number": "4002031773188"
-  },
-  {
     "email": "frabina@hotmail.es",
     "password": "Aroa2003",
     "balance": 1.67,
@@ -27,7 +15,7 @@
     "email": "RUBENCALA4@HOTMAIL.COM",
     "password": "SupernataliA1",
     "balance": 1.31,
-    "card_number": null
+    "card_number": "4004002753038"
   },
   {
     "email": "JONATANSANCHEZ1993H@GMAIL.COM",
@@ -45,7 +33,7 @@
     "email": "mchergueta94@gmail.com",
     "password": "Cerdorosa94",
     "balance": 1.24,
-    "card_number": null
+    "card_number": "4002013631772"
   },
   {
     "email": "felipe.rojo@hotmail.com",
@@ -54,9 +42,21 @@
     "card_number": "4003002411658"
   },
   {
+    "email": "sarperamonaevelina@gmail.com",
+    "password": "Ramona.18",
+    "balance": 1.2,
+    "card_number": "4003005957153"
+  },
+  {
     "email": "j100873@hotmail.com",
     "password": "jerHINgar13",
     "balance": 1.2,
-    "card_number": null
+    "card_number": "4002032081022"
+  },
+  {
+    "email": "heras_laura@yahoo.es",
+    "password": "Lauris1986",
+    "balance": 1.2,
+    "card_number": "4003009046471"
   }
 ]
