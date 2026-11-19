@@ -1,9 +1,9 @@
 [
   {
-    "email": "ringochus@yahoo.es",
-    "password": "Naia2010",
-    "balance": 4.38,
-    "card_number": null
+    "email": "alex84v.ss@gmail.com",
+    "password": "10Enero1984",
+    "balance": 3.0,
+    "card_number": "4002034761472"
   },
   {
     "email": "margoniz@hotmail.es",
@@ -15,7 +15,7 @@
     "email": "frabina@hotmail.es",
     "password": "Aroa2003",
     "balance": 1.67,
-    "card_number": "4002001289725"
+    "card_number": null
   },
   {
     "email": "paoolga@hotmail.es",
@@ -45,7 +45,7 @@
     "email": "mchergueta94@gmail.com",
     "password": "Cerdorosa94",
     "balance": 1.24,
-    "card_number": "4002013631772"
+    "card_number": null
   },
   {
     "email": "felipe.rojo@hotmail.com",
@@ -54,9 +54,9 @@
     "card_number": "4003002411658"
   },
   {
-    "email": "sarperamonaevelina@gmail.com",
-    "password": "Ramona.18",
+    "email": "j100873@hotmail.com",
+    "password": "jerHINgar13",
     "balance": 1.2,
-    "card_number": "4003005957153"
+    "card_number": null
   }
 ]
