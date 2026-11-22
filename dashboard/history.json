@@ -4714,5 +4714,17 @@
         "error": 21,
         "success_rate": 95.9,
         "total_balance": 112.24
+    },
+    {
+        "id": 430,
+        "date": "2026-11-22T13:43:33.260078+00:00",
+        "version": "Multi-VM Matrix 2-Pass",
+        "duration": 180.0,
+        "checked": 513,
+        "success": 490,
+        "zero": 239,
+        "error": 23,
+        "success_rate": 95.52,
+        "total_balance": 118.19
     }
 ]
