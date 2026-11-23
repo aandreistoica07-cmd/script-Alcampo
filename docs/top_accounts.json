@@ -33,7 +33,7 @@
     "email": "alejandrosangut@gmail.com",
     "password": "Alejo891028",
     "balance": 1.26,
-    "card_number": null
+    "card_number": "4003012414861"
   },
   {
     "email": "mchergueta94@gmail.com",
@@ -42,16 +42,16 @@
     "card_number": "4002013631772"
   },
   {
-    "email": "javilechuga2@hotmail.com",
-    "password": "Toledo20",
-    "balance": 1.22,
-    "card_number": "4004005657753"
-  },
-  {
     "email": "felipe.rojo@hotmail.com",
     "password": "Felipe65/feal",
     "balance": 1.22,
     "card_number": "4003002411658"
+  },
+  {
+    "email": "javilechuga2@hotmail.com",
+    "password": "Toledo20",
+    "balance": 1.22,
+    "card_number": null
   },
   {
     "email": "j100873@hotmail.com",
