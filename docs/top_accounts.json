@@ -6,22 +6,22 @@
     "card_number": "4002002777849"
   },
   {
-    "email": "ramon.royo@hotmail.es",
-    "password": "Toyota13",
+    "email": "barcia38@gmail.com",
+    "password": "44806792Dd",
     "balance": 3.0,
-    "card_number": "4003011364259"
+    "card_number": "4003004823510"
   },
   {
-    "email": "ipuyadena@gmail.com",
-    "password": "Uk2MFJ9wpwf/Zv%",
+    "email": "crisaltri@gmail.com",
+    "password": "Cristina=1978",
     "balance": 3.0,
-    "card_number": "4002021196935"
+    "card_number": "4003005785381"
   },
   {
     "email": "yolanda_casao@hotmail.com",
     "password": "Alberto98",
     "balance": 1.33,
-    "card_number": "4003008910346"
+    "card_number": null
   },
   {
     "email": "mchergueta94@gmail.com",
@@ -33,7 +33,13 @@
     "email": "felipe.rojo@hotmail.com",
     "password": "Felipe65/feal",
     "balance": 1.22,
-    "card_number": "4003002411658"
+    "card_number": null
+  },
+  {
+    "email": "RUBENCALA4@HOTMAIL.COM",
+    "password": "SupernataliA1",
+    "balance": 1.2,
+    "card_number": "4004002753038"
   },
   {
     "email": "j100873@hotmail.com",
@@ -52,11 +58,5 @@
     "password": "Informatico123.",
     "balance": 1.17,
     "card_number": "4002025275261"
-  },
-  {
-    "email": "ngarcia@elecnor.es",
-    "password": "Nolecnor1975",
-    "balance": 1.17,
-    "card_number": "4002001766721"
   }
 ]
