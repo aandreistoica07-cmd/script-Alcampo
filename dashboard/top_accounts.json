@@ -6,22 +6,28 @@
     "card_number": "4002002777849"
   },
   {
-    "email": "barcia38@gmail.com",
-    "password": "44806792Dd",
-    "balance": 3.0,
-    "card_number": "4003004823510"
-  },
-  {
     "email": "crisaltri@gmail.com",
     "password": "Cristina=1978",
     "balance": 3.0,
     "card_number": "4003005785381"
   },
   {
-    "email": "yolanda_casao@hotmail.com",
-    "password": "Alberto98",
-    "balance": 1.33,
+    "email": "barcia38@gmail.com",
+    "password": "44806792Dd",
+    "balance": 3.0,
     "card_number": null
+  },
+  {
+    "email": "fmj@hotmail.es",
+    "password": "Nintendo64",
+    "balance": 3.0,
+    "card_number": "4002003160190"
+  },
+  {
+    "email": "ngarcia@elecnor.es",
+    "password": "Nolecnor1975",
+    "balance": 1.86,
+    "card_number": "4002001766721"
   },
   {
     "email": "mchergueta94@gmail.com",
@@ -52,11 +58,5 @@
     "password": "03Anhell03",
     "balance": 1.18,
     "card_number": "4003000172261"
-  },
-  {
-    "email": "jamq87@gmail.com",
-    "password": "Informatico123.",
-    "balance": 1.17,
-    "card_number": "4002025275261"
   }
 ]
