@@ -1,39 +1,9 @@
 [
   {
-    "email": "tizucaes@yahoo.es",
-    "password": "Piriki1520",
-    "balance": 3.0,
-    "card_number": null
-  },
-  {
-    "email": "crisaltri@gmail.com",
-    "password": "Cristina=1978",
-    "balance": 3.0,
-    "card_number": null
-  },
-  {
-    "email": "fmj@hotmail.es",
-    "password": "Nintendo64",
-    "balance": 3.0,
-    "card_number": "4002003160190"
-  },
-  {
-    "email": "ngarcia@elecnor.es",
-    "password": "Nolecnor1975",
-    "balance": 1.86,
-    "card_number": null
-  },
-  {
-    "email": "mchergueta94@gmail.com",
-    "password": "Cerdorosa94",
-    "balance": 1.24,
-    "card_number": "4002013631772"
-  },
-  {
-    "email": "felipe.rojo@hotmail.com",
-    "password": "Felipe65/feal",
-    "balance": 1.22,
-    "card_number": "4003002411658"
+    "email": "dooh684@gmail.com",
+    "password": "CCndn2c1",
+    "balance": 1.53,
+    "card_number": "4002002825083"
   },
   {
     "email": "RUBENCALA4@HOTMAIL.COM",
@@ -58,5 +28,35 @@
     "password": "Informatico123.",
     "balance": 1.17,
     "card_number": "4002025275261"
+  },
+  {
+    "email": "ruben.frias@hotmail.es",
+    "password": "Morenaza1",
+    "balance": 1.15,
+    "card_number": "4003001824398"
+  },
+  {
+    "email": "rubita06@hotmail.es",
+    "password": "Natalia92",
+    "balance": 1.15,
+    "card_number": "4002025823493"
+  },
+  {
+    "email": "jcarees@hotmail.com",
+    "password": "0669Susana",
+    "balance": 1.11,
+    "card_number": "4003003009847"
+  },
+  {
+    "email": "evarisutosan@yahoo.es",
+    "password": "shOgUn1960",
+    "balance": 1.11,
+    "card_number": "4004997777828"
+  },
+  {
+    "email": "manuelop8@gmail.com",
+    "password": "48713067xX)",
+    "balance": 1.08,
+    "card_number": "4002004469414"
   }
 ]
